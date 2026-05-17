@@ -17,6 +17,16 @@ class User extends Authenticatable implements HasName, FilamentUser
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleting(function ($user) {
+            $user->subscriptions()->delete();
+            $user->notifications()->delete();
+        });
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
         return $this->hasRole('super_admin') || $this->role === 'admin';
