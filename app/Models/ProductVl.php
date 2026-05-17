@@ -27,10 +27,12 @@ class ProductVl extends Model
     {
         static::saved(function ($productVl) {
             $productVl->product->updateLatestVl();
+            \Cache::forget('products_list');
         });
 
         static::deleted(function ($productVl) {
             $productVl->product->updateLatestVl();
+            \Cache::forget('products_list');
         });
     }
 }

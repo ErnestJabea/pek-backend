@@ -41,4 +41,11 @@ class Product extends Model
             $this->saveQuietly();
         }
     }
+
+    protected static function booted()
+    {
+        static::saved(function ($product) {
+            \Cache::forget('products_list');
+        });
+    }
 }
