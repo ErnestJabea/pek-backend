@@ -139,8 +139,14 @@ class SubscriptionController extends Controller
                     \Log::info("CoolPay Response: ", $coolpayData ?? []);
                     
                     if ($httpCode >= 400 || (isset($coolpayData['status']) && $coolpayData['status'] === 'error')) {
+                        $errorMessage = $coolpayData['message'] 
+                            ?? $coolpayData['error'] 
+                            ?? $coolpayData['description'] 
+                            ?? $coolpayData['errorMessage'] 
+                            ?? 'Paiement refusé par l\'opérateur';
+
                         return response()->json([
-                            'error' => 'Paiement refusé par l\'opérateur',
+                            'error' => $errorMessage,
                             'details' => $coolpayData
                         ], 400);
                     }
