@@ -79,7 +79,7 @@ class SubscriptionController extends Controller
                 $coolpayPublicKey = env('COOLPAY_PUBLIC_KEY');
                 
                 $fields = [
-                    'transaction_amount' => (env('APP_ENV') === 'production') ? (int)$final_amount : 100,
+                    'transaction_amount' => env('COOLPAY_TEST_AMOUNT') ? (int)env('COOLPAY_TEST_AMOUNT') : (int)$final_amount,
                     'transaction_currency' => 'XAF',
                     'transaction_reason' => "Souscription PEK: {$product->libelle}",
                     'app_transaction_ref' => $subscription->reference_transaction,
