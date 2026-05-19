@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\OtpCode;
 use App\Mail\OtpMail;
+use App\Mail\ResetPasswordMail;
+use App\Services\PortfolioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -57,24 +59,34 @@ class AuthController extends Controller
     public function dashboardStats(Request $request)
     {
         $user = $request->user();
-        
-        // Optimisation : Eager loading de 'product' pour éviter N+1
-        $subscriptions = $user->subscriptions()
-            ->with('product')
-            ->where('statut', 'Succès')
-            ->get();
 
-        $totalBalance = $subscriptions->sum(function($sub) {
-            return (float)$sub->nb_parts * (float)($sub->product->vl ?? 0);
-        });
-
-        $performanceMonth = $totalBalance * 0.02;
+        // Valorisation FCP en temps réel via PortfolioService
+        $portfolioService = new PortfolioService();
+        $valuation = $portfolioService->getClientValuation($user->id);
 
         return response()->json([
-            'total_balance' => (float)$totalBalance,
-            'performance_month' => (float)$performanceMonth,
-            'user' => $user,
+            'total_balance'       => $valuation['valorisation_totale'],
+            'cout_revient'        => $valuation['cout_revient_total'],
+            'plus_value'          => $valuation['plus_value_totale'],
+            'rendement_global'    => $valuation['rendement_global'],
+            'nb_positions'        => $valuation['nb_positions'],
+            'calcule_le'          => $valuation['calcule_le'],
+            'user'                => $user,
         ]);
+    }
+
+    /**
+     * Retourne la valorisation détaillée du portefeuille FCP (positions par produit).
+     * Route : GET /api/portfolio/valuation
+     */
+    public function portfolioValuation(Request $request)
+    {
+        $user = $request->user();
+
+        $portfolioService = new PortfolioService();
+        $valuation = $portfolioService->getClientValuation($user->id);
+
+        return response()->json($valuation);
     }
 
     public function verifyOtp(Request $request)
@@ -192,6 +204,53 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Profil mis à jour avec succès.',
             'user' => $user
+        ]);
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|string|min:8',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'Le mot de passe actuel est incorrect.'], 422);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json([
+            'message' => 'Mot de passe mis à jour avec succès.',
+        ]);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Aucun compte associé à cet email.'], 404);
+        }
+
+        // Générer un mot de passe temporaire lisible
+        $tempPassword = strtoupper(Str::random(4)) . rand(10, 99);
+
+        $user->password = Hash::make($tempPassword);
+        $user->email_verified_at = $user->email_verified_at ?? now();
+        $user->save();
+
+        Mail::to($user->email)->send(new ResetPasswordMail($tempPassword, $user));
+
+        return response()->json([
+            'message' => 'Un email avec votre nouveau mot de passe vous a été envoyé.',
         ]);
     }
 }

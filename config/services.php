@@ -31,4 +31,16 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
+    'coolpay' => [
+        'public_key' => env('COOLPAY_PUBLIC_KEY'),
+        'webhook_token' => env('COOLPAY_WEBHOOK_TOKEN'),
+        'test_amount' => env('COOLPAY_TEST_AMOUNT'),
+    ],
+
 ];

@@ -25,6 +25,7 @@ Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::get('/products', [ProductController::class, 'index']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::get('/bank-details', function() {
     return response()->json(\App\Models\BankDetail::where('is_active', true)->first());
 });
@@ -40,9 +41,14 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/dashboard-stats', [AuthController::class, 'dashboardStats']);
     Route::post('/update-profile', [AuthController::class, 'updateProfile']);
+    Route::post('/update-password', [AuthController::class, 'updatePassword']);
     Route::get('/notifications', function (Request $request) {
         return $request->user()->notifications()->orderBy('created_at', 'desc')->get();
     });
     Route::get('/subscriptions', [SubscriptionController::class, 'index']);
     Route::post('/subscriptions', [SubscriptionController::class, 'store']);
+    Route::post('/subscriptions/{id}/check-status', [SubscriptionController::class, 'checkCoolPayStatus']);
+
+    // Valorisation en temps réel du portefeuille FCP (positions détaillées)
+    Route::get('/portfolio/valuation', [AuthController::class, 'portfolioValuation']);
 });

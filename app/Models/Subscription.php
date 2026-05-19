@@ -18,10 +18,11 @@ class Subscription extends Model
         'moyen_paiement',
         'statut',
         'reference_transaction',
+        'coolpay_transaction_ref',
     ];
 
     protected $casts = [
-        'nb_parts' => 'decimal:4',
+        'nb_parts' => 'decimal:8',
         'prix_unitaire' => 'decimal:4',
         'montant_total' => 'decimal:2',
     ];

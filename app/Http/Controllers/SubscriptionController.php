@@ -24,10 +24,11 @@ class SubscriptionController extends Controller
             'product_id' => 'required|exists:products,id',
             'nb_parts' => 'required|numeric|min:0.0001',
             'moyen_paiement' => 'required|string',
+            'montant_total' => 'nullable|numeric|min:0',
         ]);
 
         $product = Product::find($request->product_id);
-        $montant_total = $request->nb_parts * $product->vl;
+        $montant_total = $request->montant_total ?? ($request->nb_parts * $product->vl);
         $final_amount = $montant_total + ($montant_total * 0.01);
 
         if ($montant_total < $product->seuil_minimum) {
@@ -76,10 +77,11 @@ class SubscriptionController extends Controller
             // CoolPay Mobile Money (CURL Version)
             try {
                 $user = Auth::user();
-                $coolpayPublicKey = env('COOLPAY_PUBLIC_KEY');
+                $coolpayPublicKey = config('services.coolpay.public_key') ?? env('COOLPAY_PUBLIC_KEY');
+                $testAmount = config('services.coolpay.test_amount') ?? env('COOLPAY_TEST_AMOUNT');
                 
                 $fields = [
-                    'transaction_amount' => env('COOLPAY_TEST_AMOUNT') ? (int)env('COOLPAY_TEST_AMOUNT') : (int)$final_amount,
+                    'transaction_amount' => $testAmount ? (int)$testAmount : (int)$final_amount,
                     'transaction_currency' => 'XAF',
                     'transaction_reason' => "Souscription PEK: {$product->libelle}",
                     'app_transaction_ref' => $subscription->reference_transaction,
@@ -125,10 +127,14 @@ class SubscriptionController extends Controller
                     // Pour les besoins de test (si cURL/SSL échoue en local ou sur le serveur de test)
                     if (env('APP_ENV') !== 'production' || env('COOLPAY_SIMULATION', true)) {
                         \Log::warning("Local CoolPay request failed. Simulating successful mock response for testing.");
+                        $mockRef = 'MOCK_REF_' . time();
+                        $subscription->update([
+                            'coolpay_transaction_ref' => $mockRef
+                        ]);
                         $clientSecret = [
                             'payment_status' => 'success',
                             'ussd_code' => '*126*4*1#',
-                            'transaction_ref' => 'MOCK_REF_' . time()
+                            'transaction_ref' => $mockRef
                         ];
                     } else {
                         // Message propre et sécurisé pour le client final en production
@@ -151,6 +157,13 @@ class SubscriptionController extends Controller
                         ], 400);
                     }
                     
+                    // Sauvegarder la référence CoolPay en base
+                    if (isset($coolpayData['transaction_ref'])) {
+                        $subscription->update([
+                            'coolpay_transaction_ref' => $coolpayData['transaction_ref']
+                        ]);
+                    }
+
                     // On ne renvoie que le strict nécessaire
                     $clientSecret = [
                         'payment_status' => $coolpayData['status'] ?? 'pending',
@@ -193,6 +206,123 @@ class SubscriptionController extends Controller
             'client_secret' => $clientSecret,
             'pek_bank_details' => $pekBankDetails,
         ]);
+    }
+
+    public function checkCoolPayStatus($id)
+    {
+        $subscription = Auth::user()->subscriptions()->with('product')->findOrFail($id);
+
+        if ($subscription->statut === 'Succès') {
+            return response()->json([
+                'status' => 'success',
+                'subscription' => $subscription,
+                'message' => 'Cette transaction a déjà été confirmée avec succès.'
+            ]);
+        }
+
+        if (!in_array($subscription->moyen_paiement, ['orange_money', 'mtn_momo'])) {
+            return response()->json([
+                'status' => $subscription->statut,
+                'subscription' => $subscription,
+                'message' => 'La vérification automatique n\'est disponible que pour les paiements Mobile Money.'
+            ]);
+        }
+
+        $coolpayRef = $subscription->coolpay_transaction_ref;
+
+        if (!$coolpayRef) {
+            // Fallback s'il n'y a pas encore de référence CoolPay enregistrée (ex: anciennes transactions)
+            return response()->json([
+                'status' => $subscription->statut,
+                'subscription' => $subscription,
+                'message' => 'Aucune référence de transaction CoolPay trouvée pour cette souscription.'
+            ], 400);
+        }
+
+        // Cas de simulation de test local
+        if (str_starts_with($coolpayRef, 'MOCK_REF_')) {
+            $subscription->update(['statut' => 'Succès']);
+            Notification::create([
+                'user_id' => $subscription->user_id,
+                'title' => 'Paiement Confirmé ✅ (Simulé)',
+                'body' => "Votre paiement de test pour {$subscription->product->libelle} a été validé.",
+                'type' => 'success'
+            ]);
+            try {
+                \App\Jobs\ProcessSubscriptionReceipt::dispatch($subscription);
+            } catch (\Exception $e) {
+                \Log::error("Failed to dispatch ProcessSubscriptionReceipt: " . $e->getMessage());
+            }
+            return response()->json([
+                'status' => 'success',
+                'subscription' => $subscription->fresh('product'),
+                'message' => 'Paiement de simulation validé avec succès !'
+            ]);
+        }
+
+        $coolpayPublicKey = config('services.coolpay.public_key') ?? env('COOLPAY_PUBLIC_KEY');
+        $url = "https://my-coolpay.com/api/{$coolpayPublicKey}/checkStatus/{$coolpayRef}";
+
+        try {
+            // Sécurité : Vérification SSL stricte exigée en production, désactivée uniquement en local
+            $request = Http::timeout(10);
+            if (!app()->environment('production')) {
+                $request = $request->withoutVerifying();
+            }
+            $response = $request->get($url);
+            $coolpayData = $response->json();
+
+            \Log::info("CoolPay Manual Status Check Response for {$subscription->reference_transaction}: ", $coolpayData ?? []);
+
+            if ($response->successful() && isset($coolpayData['status'])) {
+                $status = strtolower($coolpayData['status']);
+                if ($status === 'success' || $status === 'successful') {
+                    $subscription->update(['statut' => 'Succès']);
+
+                    // Create Notification
+                    Notification::create([
+                        'user_id' => $subscription->user_id,
+                        'title' => 'Paiement Confirmé ✅',
+                        'body' => "Votre paiement pour {$subscription->product->libelle} a été validé. Vos parts ont été créditées.",
+                        'type' => 'success'
+                    ]);
+
+                    // Send email/receipt
+                    try {
+                        \App\Jobs\ProcessSubscriptionReceipt::dispatch($subscription);
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to dispatch ProcessSubscriptionReceipt: " . $e->getMessage());
+                    }
+
+                    return response()->json([
+                        'status' => 'success',
+                        'subscription' => $subscription->fresh('product'),
+                        'message' => 'Paiement confirmé avec succès !'
+                    ]);
+                } elseif ($status === 'failed' || $status === 'failed_transaction' || $status === 'canceled') {
+                    $subscription->update(['statut' => 'Échec']);
+                    return response()->json([
+                        'status' => 'failed',
+                        'subscription' => $subscription->fresh('product'),
+                        'message' => 'Le paiement a échoué ou a été annulé.'
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'status' => $subscription->statut,
+                'subscription' => $subscription,
+                'message' => 'Le paiement est toujours en attente de validation.'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Error checking CoolPay status: " . $e->getMessage());
+            return response()->json([
+                'status' => $subscription->statut,
+                'subscription' => $subscription,
+                'message' => 'Impossible de contacter la passerelle de paiement pour le moment.'
+            ]);
+        }
     }
 
     public function index()
