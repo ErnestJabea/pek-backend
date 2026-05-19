@@ -50,8 +50,9 @@ class WebhookController extends Controller
 
     public function handleCoolPay(Request $request)
     {
-        // Sécurité : Vérification du jeton secret dans l'URL
-        if ($request->query('token') !== env('COOLPAY_WEBHOOK_TOKEN')) {
+        // Sécurité : Vérification du jeton secret dans l'URL (compatible avec le cache de configuration)
+        $token = config('services.coolpay.webhook_token') ?? env('COOLPAY_WEBHOOK_TOKEN');
+        if ($request->query('token') !== $token) {
             \Log::warning("Unauthorized CoolPay Webhook Attempt from IP: " . $request->ip());
             return response()->json(['error' => 'Unauthorized'], 401);
         }
