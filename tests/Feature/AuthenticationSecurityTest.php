@@ -25,6 +25,7 @@ class AuthenticationSecurityTest extends TestCase
             'city' => 'Yaoundé',
             'country' => 'Cameroun',
             'password' => 'a-secure-password',
+            'password_confirmation' => 'a-secure-password',
         ]);
 
         $response->assertOk()
@@ -39,6 +40,36 @@ class AuthenticationSecurityTest extends TestCase
         Mail::assertSent(OtpMail::class, function (OtpMail $mail) use ($otp) {
             return Hash::check($mail->otpCode, $otp->code);
         });
+    }
+
+    public function test_registration_requires_password_confirmation(): void
+    {
+        Mail::fake();
+
+        // Missing confirmation
+        $response = $this->postJson('/api/register', [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'email' => 'ada-conf@example.test',
+            'city' => 'Yaoundé',
+            'country' => 'Cameroun',
+            'password' => 'a-secure-password',
+        ]);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
+
+        // Mismatched confirmation
+        $responseMismatch = $this->postJson('/api/register', [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'email' => 'ada-conf@example.test',
+            'city' => 'Yaoundé',
+            'country' => 'Cameroun',
+            'password' => 'a-secure-password',
+            'password_confirmation' => 'a-different-password',
+        ]);
+        $responseMismatch->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
     }
 
     public function test_otp_is_single_use_and_no_plain_token_is_returned(): void

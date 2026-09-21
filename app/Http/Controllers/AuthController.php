@@ -25,7 +25,7 @@ class AuthController extends Controller
             'city' => 'required|string|max:255',
             'country' => 'required|string|max:255',
             'employer' => 'nullable|string|max:255',
-            'password' => 'required|string|min:12',
+            'password' => 'required|string|min:12|confirmed',
         ]);
 
         $user = User::create([
