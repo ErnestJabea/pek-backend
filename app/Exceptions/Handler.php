@@ -2,7 +2,9 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Psr\Log\LogLevel;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -10,7 +12,7 @@ class Handler extends ExceptionHandler
     /**
      * A list of exception types with their corresponding custom log levels.
      *
-     * @var array<class-string<\Throwable>, \Psr\Log\LogLevel::*>
+     * @var array<class-string<Throwable>, LogLevel::*>
      */
     protected $levels = [
         //
@@ -19,7 +21,7 @@ class Handler extends ExceptionHandler
     /**
      * A list of the exception types that are not reported.
      *
-     * @var array<int, class-string<\Throwable>>
+     * @var array<int, class-string<Throwable>>
      */
     protected $dontReport = [
         //
@@ -49,12 +51,21 @@ class Handler extends ExceptionHandler
     /**
      * Convert an authentication exception into a response.
      */
-    protected function unauthenticated($request, \Illuminate\Auth\AuthenticationException $exception)
+    protected function unauthenticated($request, AuthenticationException $exception)
     {
         if ($request->expectsJson() || $request->is('api/*')) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        return redirect()->guest($exception->redirectTo() ?? route('login'));
+        $redirectTo = $exception->redirectTo($request);
+        if ($redirectTo) {
+            return redirect()->guest($redirectTo);
+        }
+
+        if ($request->is('admin*')) {
+            return redirect()->guest(route('filament.admin.auth.login'));
+        }
+
+        return redirect()->guest(route('login'));
     }
 }

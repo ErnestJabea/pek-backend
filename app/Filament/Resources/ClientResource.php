@@ -3,17 +3,14 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClientResource\Pages;
-use App\Filament\Resources\ClientResource\RelationManagers;
 use App\Models\Client;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use App\Models\OnboardingSession;
-use App\Filament\Resources\OnboardingSessionResource;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Collection;
 
 class ClientResource extends Resource
 {
@@ -106,7 +103,7 @@ class ClientResource extends Resource
                     ->modalHeading('Créer la session d\'onboarding')
                     ->modalDescription('Êtes-vous sûr de vouloir initialiser la session d\'onboarding pour ce client ? Ses informations de base seront pré-remplies.')
                     ->modalSubmitActionLabel('Créer')
-                    ->visible(fn (Client $record) => !$record->onboardingSession()->exists())
+                    ->visible(fn (Client $record) => ! $record->onboardingSession()->exists())
                     ->action(function (Client $record) {
                         $record->onboardingSession()->create([
                             'current_step' => 'kyc',
@@ -121,7 +118,14 @@ class ClientResource extends Resource
                             ],
                         ]);
 
-                        \Filament\Notifications\Notification::make()
+                        \App\Models\Notification::create([
+                            'user_id' => $record->id,
+                            'title' => 'Session d’onboarding initialisée',
+                            'body' => 'Votre dossier d’onboarding a été créé par votre conseiller. Vous pouvez dès à présent compléter vos informations.',
+                            'type' => 'info',
+                        ]);
+
+                        Notification::make()
                             ->title('Session d\'onboarding créée avec succès')
                             ->success()
                             ->send();
@@ -136,18 +140,52 @@ class ClientResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-                    \pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction::make(),
+                    Tables\Actions\BulkAction::make('export_csv')
+                        ->label('Exporter en CSV')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->action(function (Collection $records) {
+                            return response()->streamDownload(function () use ($records) {
+                                $stream = fopen('php://output', 'wb');
+                                fwrite($stream, "\xEF\xBB\xBF");
+                                fputcsv($stream, ['Prénom', 'Nom', 'Email', 'Téléphone', 'Ville', 'Pays', 'Inscrit le'], ';');
+
+                                foreach ($records as $record) {
+                                    fputcsv($stream, array_map(
+                                        static function ($value): string {
+                                            $value = (string) $value;
+
+                                            return preg_match('/^[=+\-@]/u', ltrim($value)) ? "'{$value}" : $value;
+                                        },
+                                        [
+                                            $record->first_name,
+                                            $record->last_name,
+                                            $record->email,
+                                            $record->phone,
+                                            $record->city,
+                                            $record->country,
+                                            $record->created_at?->toIso8601String(),
+                                        ]
+                                    ), ';');
+                                }
+
+                                fclose($stream);
+                            }, 'clients-'.now()->format('Ymd-His').'.csv', [
+                                'Content-Type' => 'text/csv; charset=UTF-8',
+                                'Cache-Control' => 'no-store, private',
+                            ]);
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->emptyStateActions([
                 Tables\Actions\CreateAction::make(),
             ]);
     }
-    
+
     public static function getPages(): array
     {
         return [
             'index' => Pages\ManageClients::route('/'),
         ];
-    }    
+    }
 }

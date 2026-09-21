@@ -3,15 +3,12 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\BankDetailResource\Pages;
-use App\Filament\Resources\BankDetailResource\RelationManagers;
 use App\Models\BankDetail;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BankDetailResource extends Resource
 {
@@ -31,7 +28,13 @@ class BankDetailResource extends Resource
             ->schema([
                 Forms\Components\TextInput::make('bank_name')
                     ->label('Nom de la banque')
+                    ->placeholder('Ex: AFRILAND FIRST BANK, UBA...')
                     ->required()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('beneficiary')
+                    ->label('Bénéficiaire / Titulaire du compte')
+                    ->placeholder('Ex: KORI ASSET MANAGEMENT')
+                    ->default('KORI ASSET MANAGEMENT')
                     ->maxLength(255),
                 Forms\Components\TextInput::make('iban')
                     ->label('IBAN')
@@ -44,23 +47,22 @@ class BankDetailResource extends Resource
                     ->label('Code SWIFT / BIC')
                     ->maxLength(255),
                 Forms\Components\Toggle::make('is_active')
-                    ->label('Compte Actif')
+                    ->label('Compte Actif (Visible pour les souscriptions)')
                     ->required()
                     ->default(true),
+                Forms\Components\Textarea::make('bank_instructions')
+                    ->label('Instructions de paiement par virement')
+                    ->placeholder('Ex: Précisez votre référence de souscription comme motif de virement...')
+                    ->helperText('Ces instructions s’afficheront directement dans l’application mobile lorsque cette banque est sélectionnée.')
+                    ->rows(4)
+                    ->columnSpanFull(),
                 Forms\Components\Textarea::make('om_instructions')
-                    ->label('Procédure de paiement Orange Money')
-                    ->helperText('Saisissez les étapes de paiement numérotées pour Orange Money.')
-                    ->rows(5)
+                    ->label('Procédure Orange Money (optionnel)')
+                    ->rows(3)
                     ->columnSpanFull(),
                 Forms\Components\Textarea::make('momo_instructions')
-                    ->label('Procédure de paiement MTN MoMo')
-                    ->helperText('Saisissez les étapes de paiement numérotées pour MTN Mobile Money.')
-                    ->rows(5)
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('bank_instructions')
-                    ->label('Procédure de paiement par Virement Bancaire')
-                    ->helperText('Saisissez les étapes de paiement numérotées pour le Virement.')
-                    ->rows(5)
+                    ->label('Procédure MTN MoMo (optionnel)')
+                    ->rows(3)
                     ->columnSpanFull(),
             ]);
     }
@@ -71,6 +73,10 @@ class BankDetailResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('bank_name')
                     ->label('Banque')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('beneficiary')
+                    ->label('Bénéficiaire')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('iban')
                     ->label('IBAN')
@@ -103,14 +109,14 @@ class BankDetailResource extends Resource
                 Tables\Actions\CreateAction::make(),
             ]);
     }
-    
+
     public static function getRelations(): array
     {
         return [
             //
         ];
     }
-    
+
     public static function getPages(): array
     {
         return [
@@ -118,5 +124,5 @@ class BankDetailResource extends Resource
             'create' => Pages\CreateBankDetail::route('/create'),
             'edit' => Pages\EditBankDetail::route('/{record}/edit'),
         ];
-    }    
+    }
 }

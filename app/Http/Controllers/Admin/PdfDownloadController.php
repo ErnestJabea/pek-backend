@@ -11,114 +11,108 @@ class PdfDownloadController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(function ($request, $next) {
-            $user = auth()->user();
-            if (!$user || !($user->hasRole('super_admin') || $user->role === 'admin')) {
-                abort(403, "Vous n'avez pas l'autorisation d'accéder à ce document.");
-            }
-            return $next($request);
-        });
+        $this->middleware('auth');
     }
+
     /**
      * Télécharger un PDF d'onboarding depuis le backoffice.
      *
-     * @param \App\Models\OnboardingSession $session  Résolu automatiquement par le model binding Laravel
-     * @param string                        $type     Le type de document : kyc | risk | labft
+     * @param  OnboardingSession  $session  Résolu automatiquement par le model binding Laravel
+     * @param  string  $type  Le type de document : kyc | risk | labft
      */
     public function download(OnboardingSession $session, string $type)
     {
+        $this->authorize('view', $session);
         // Charger la relation user si pas encore chargée
         $session->loadMissing('user');
 
         $allowedTypes = ['kyc', 'risk', 'labft'];
-        if (!in_array($type, $allowedTypes)) {
+        if (! in_array($type, $allowedTypes)) {
             abort(404);
         }
 
         $fileLabel = match ($type) {
-            'kyc'   => 'fiche_kyc_',
-            'risk'  => 'profil_investisseur_',
+            'kyc' => 'fiche_kyc_',
+            'risk' => 'profil_investisseur_',
             'labft' => 'questionnaire_labft_',
         };
 
-        $lastName  = $session->user->last_name  ?? 'client';
+        $lastName = $session->user->last_name ?? 'client';
         $firstName = $session->user->first_name ?? '';
-        $filename  = $fileLabel . $lastName . '_' . $firstName . '.pdf';
+        $filename = $fileLabel.$lastName.'_'.$firstName.'.pdf';
 
         try {
             $pdfContent = $this->getPdfContent($session, $type);
         } catch (\Exception $e) {
-            abort(500, "Erreur lors de la génération du PDF : " . $e->getMessage());
+            abort(500, 'Erreur lors de la génération du PDF : '.$e->getMessage());
         }
 
         return response()->streamDownload(
-            fn () => print($pdfContent),
+            fn () => print ($pdfContent),
             $filename,
-            ['Content-Type' => 'application/pdf']
+            $this->privateDownloadHeaders('application/pdf')
         );
     }
 
     /**
      * Télécharger une pièce justificative téléversée.
-     *
-     * @param \App\Models\OnboardingSession $session
-     * @param string                        $type
      */
     public function downloadDocument(OnboardingSession $session, string $type)
     {
+        $this->authorize('view', $session);
         $session->loadMissing('user');
 
         $allowedTypes = ['piece_identite', 'justificatif_domicile', 'photo', 'origine_fonds'];
-        if (!in_array($type, $allowedTypes)) {
+        if (! in_array($type, $allowedTypes)) {
             abort(404);
         }
 
-        $columnName = 'doc_' . $type;
+        $columnName = 'doc_'.$type;
         $storagePath = $session->$columnName;
 
-        if (!$storagePath || !Storage::exists($storagePath)) {
+        $disk = Storage::disk('kyc_private');
+        if (! $storagePath || ! $disk->exists($storagePath)) {
             abort(404);
         }
 
         $ext = pathinfo($storagePath, PATHINFO_EXTENSION);
-        $lastName  = $session->user->last_name  ?? 'client';
+        $lastName = $session->user->last_name ?? 'client';
         $firstName = $session->user->first_name ?? '';
-        $filename  = $type . '_' . $lastName . '_' . $firstName . '.' . $ext;
+        $filename = $type.'_'.$lastName.'_'.$firstName.'.'.$ext;
 
-        return Storage::download($storagePath, $filename);
+        return $disk->download($storagePath, $filename, $this->privateDownloadHeaders());
     }
 
     /**
      * Télécharger le dossier complet (ZIP) de l'onboarding.
-     *
-     * @param \App\Models\OnboardingSession $session
      */
     public function downloadZip(OnboardingSession $session)
     {
+        $this->authorize('view', $session);
         $session->loadMissing('user');
 
-        $lastName  = $session->user->last_name  ?? 'client';
+        $lastName = $session->user->last_name ?? 'client';
         $firstName = $session->user->first_name ?? '';
-        $clientNameClean = str_replace(' ', '_', trim($lastName . '_' . $firstName));
-        $zipFilename = 'dossier_onboarding_' . $clientNameClean . '.zip';
+        $clientNameClean = str_replace(' ', '_', trim($lastName.'_'.$firstName));
+        $zipFilename = 'dossier_onboarding_'.$clientNameClean.'.zip';
 
         // Créer un dossier temporaire si nécessaire
         $tempDir = storage_path('app/temp');
-        if (!file_exists($tempDir)) {
+        if (! file_exists($tempDir)) {
             mkdir($tempDir, 0755, true);
         }
-        $zipPath = $tempDir . '/onboarding_' . $session->id . '_' . time() . '.zip';
+        $zipPath = $tempDir.'/onboarding_'.$session->id.'_'.time().'.zip';
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-            abort(500, "Impossible de créer le fichier ZIP");
+            abort(500, 'Impossible de créer le fichier ZIP');
         }
 
         // 1. Ajouter les 3 PDFs générés
         $pdfTypes = [
-            'kyc'   => '1_fiche_kyc.pdf',
-            'risk'  => '2_profil_investisseur.pdf',
-            'labft' => '3_questionnaire_labft.pdf'
+            'kyc' => '1_fiche_kyc.pdf',
+            'risk' => '2_profil_investisseur.pdf',
+            'labft' => '3_questionnaire_labft.pdf',
         ];
         foreach ($pdfTypes as $type => $name) {
             try {
@@ -130,86 +124,97 @@ class PdfDownloadController extends Controller
         }
 
         // 2. Ajouter la signature si disponible
-        if ($session->signature_path && Storage::exists($session->signature_path)) {
+        $disk = Storage::disk('kyc_private');
+        if ($session->signature_path && $disk->exists($session->signature_path)) {
             $ext = pathinfo($session->signature_path, PATHINFO_EXTENSION);
-            if (!$ext) $ext = 'png';
-            $zip->addFromString('signature.' . $ext, Storage::get($session->signature_path));
+            if (! $ext) {
+                $ext = 'png';
+            }
+            $zip->addFromString('signature.'.$ext, $disk->get($session->signature_path));
         }
 
         // 3. Ajouter les documents administratifs s'ils existent
         $adminDocs = [
-            'piece_identite'        => 'doc_piece_identite',
+            'piece_identite' => 'doc_piece_identite',
             'justificatif_domicile' => 'doc_justificatif_domicile',
-            'photo'                 => 'doc_photo',
-            'origine_fonds'         => 'doc_origine_fonds',
+            'photo' => 'doc_photo',
+            'origine_fonds' => 'doc_origine_fonds',
         ];
 
         foreach ($adminDocs as $label => $column) {
             $storagePath = $session->$column;
-            if ($storagePath && Storage::exists($storagePath)) {
+            if ($storagePath && $disk->exists($storagePath)) {
                 $ext = pathinfo($storagePath, PATHINFO_EXTENSION);
-                $zip->addFromString($label . '.' . $ext, Storage::get($storagePath));
+                $zip->addFromString($label.'.'.$ext, $disk->get($storagePath));
             }
         }
 
         $zip->close();
 
-        if (!file_exists($zipPath)) {
-            abort(500, "Fichier ZIP introuvable après création");
+        if (! file_exists($zipPath)) {
+            abort(500, 'Fichier ZIP introuvable après création');
         }
 
-        return response()->download($zipPath, $zipFilename)->deleteFileAfterSend(true);
+        return response()->download($zipPath, $zipFilename, $this->privateDownloadHeaders('application/zip'))
+            ->deleteFileAfterSend(true);
     }
 
     /**
      * Obtenir le contenu brut d'un PDF d'onboarding.
-     *
-     * @param \App\Models\OnboardingSession $session
-     * @param string                        $type
-     * @return string
      */
     private function getPdfContent(OnboardingSession $session, string $type): string
     {
-        $prefix = $type . '_';
-        $storagePath = 'secure_onboardings/' . $prefix . $session->id . '.pdf';
+        $storagePath = 'generated/'.$type.'_'.$session->id.'.pdf';
+        $disk = Storage::disk('kyc_private');
 
-        if (Storage::exists($storagePath)) {
-            return Storage::get($storagePath);
+        if ($disk->exists($storagePath)) {
+            return $disk->get($storagePath);
         }
 
         $viewName = match ($type) {
-            'kyc'   => 'pdfs.onboarding.fiche_kyc',
-            'risk'  => 'pdfs.onboarding.profil_investisseur',
+            'kyc' => 'pdfs.onboarding.fiche_kyc',
+            'risk' => 'pdfs.onboarding.profil_investisseur',
             'labft' => 'pdfs.onboarding.questionnaire_labft',
         };
 
         $signatureBase64 = '';
-        if ($session->signature_path && Storage::exists($session->signature_path)) {
-            $imgData = Storage::get($session->signature_path);
-            $mime    = 'image/png';
+        if ($session->signature_path && $disk->exists($session->signature_path)) {
+            $imgData = $disk->get($session->signature_path);
+            $mime = 'image/png';
             if (str_ends_with($session->signature_path, '.jpg') || str_ends_with($session->signature_path, '.jpeg')) {
                 $mime = 'image/jpeg';
             }
-            $signatureBase64 = 'data:' . $mime . ';base64,' . base64_encode($imgData);
+            $signatureBase64 = 'data:'.$mime.';base64,'.base64_encode($imgData);
         }
 
         $logoBase64 = '';
-        $logoPath   = public_path('logo-kori.png');
+        $logoPath = public_path('logo-kori.png');
         if (file_exists($logoPath)) {
-            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+            $logoBase64 = 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath));
         }
 
         $pdfData = [
-            'session'   => $session,
-            'payload'   => $session->payload ?? [],
-            'user'      => $session->user,
+            'session' => $session,
+            'payload' => $session->getSubmittedPayload() ?: $session->payload,
+            'user' => $session->user,
             'signature' => $signatureBase64,
-            'logo'      => $logoBase64,
+            'logo' => $logoBase64,
         ];
 
         $pdf = Pdf::loadView($viewName, $pdfData)
             ->setPaper('a4', 'portrait');
 
         return $pdf->output();
+    }
+
+    private function privateDownloadHeaders(?string $contentType = null): array
+    {
+        return array_filter([
+            'Content-Type' => $contentType,
+            'Cache-Control' => 'no-store, private, max-age=0',
+            'Pragma' => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+        ]);
     }
 }

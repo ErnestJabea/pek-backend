@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Models\OtpCode;
 use App\Mail\OtpMail;
-use App\Mail\ResetPasswordMail;
+use App\Models\OtpCode;
+use App\Models\User;
 use App\Services\PortfolioService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -25,7 +25,7 @@ class AuthController extends Controller
             'city' => 'required|string|max:255',
             'country' => 'required|string|max:255',
             'employer' => 'nullable|string|max:255',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:12',
         ]);
 
         $user = User::create([
@@ -39,23 +39,16 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        // Generate OTP
-        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        OtpCode::create([
-            'email' => $user->email,
-            'code' => $otpCode,
-            'expires_at' => Carbon::now()->addMinutes(10),
-        ]);
+        [$otpCode, $challengeId] = $this->issueOtp($user, 'register');
 
         // Send Email
         Mail::to($user->email)->send(new OtpMail($otpCode, $user));
 
         $responseData = [
             'message' => 'Utilisateur créé. Veuillez vérifier votre email pour le code OTP.',
+            'challenge_id' => $challengeId,
         ];
-        if (config('app.env') !== 'production' && config('app.debug')) {
-            $responseData['otp_debug'] = $otpCode;
-        }
+
         return response()->json($responseData);
     }
 
@@ -64,19 +57,26 @@ class AuthController extends Controller
         $user = $request->user()->loadMissing('onboardingSession');
 
         // Valorisation FCP en temps réel via PortfolioService
-        $portfolioService = new PortfolioService();
+        $portfolioService = new PortfolioService;
         $valuation = $portfolioService->getClientValuation($user->id);
+        $onboardingStatus = $user->onboarding_status;
+        $onboardingCompleted = $user->onboarding_completed;
+        $rejectionReason = $user->onboardingSession?->rejection_reason;
+        $user->unsetRelation('onboardingSession');
 
         return response()->json([
-            'total_balance'       => $valuation['valorisation_totale'],
-            'cout_revient'        => $valuation['cout_revient_total'],
-            'plus_value'          => $valuation['plus_value_totale'],
-            'rendement_global'    => $valuation['rendement_global'],
-            'nb_positions'        => $valuation['nb_positions'],
-            'calcule_le'          => $valuation['calcule_le'],
-            'user'                => $user,
-            'onboarding_completed'=> $user->onboarding_completed,
-            'onboarding_status'   => $user->onboarding_status,
+            'total_balance' => $valuation['valorisation_totale'],
+            'total_parts' => $valuation['total_parts'],
+            'cout_revient' => $valuation['cout_revient_total'],
+            'plus_value' => $valuation['plus_value_totale'],
+            'rendement_global' => $valuation['rendement_global'],
+            'nb_positions' => $valuation['nb_positions'],
+            'calcule_le' => $valuation['calcule_le'],
+            'portfolio' => $valuation,
+            'user' => $user,
+            'onboarding_completed' => $onboardingCompleted,
+            'onboarding_status' => $onboardingStatus,
+            'onboarding_rejection_reason' => $rejectionReason,
         ]);
     }
 
@@ -88,7 +88,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        $portfolioService = new PortfolioService();
+        $portfolioService = new PortfolioService;
         $valuation = $portfolioService->getClientValuation($user->id);
 
         return response()->json($valuation);
@@ -97,26 +97,36 @@ class AuthController extends Controller
     public function verifyOtp(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
-            'code' => 'required|string|size:6',
+            'challenge_id' => 'required|uuid',
+            'code' => 'required|digits:6',
         ]);
 
-        $otp = OtpCode::where('email', $request->email)
-            ->where('code', $request->code)
+        $otp = OtpCode::where('challenge_id', $request->challenge_id)
+            ->whereNull('consumed_at')
             ->where('expires_at', '>', Carbon::now())
             ->first();
 
-        if (!$otp) {
+        if (! $otp || $otp->attempts >= 5 || ! Hash::check($request->code, $otp->code)) {
+            if ($otp) {
+                $otp->increment('attempts');
+                if ($otp->fresh()->attempts >= 5) {
+                    $otp->delete();
+                }
+            }
+
             return response()->json(['message' => 'Code invalide ou expiré.'], 422);
         }
 
-        $user = User::where('email', $request->email)->first();
-        $user->email_verified_at = Carbon::now();
+        $user = User::where('email', $otp->email)->firstOrFail();
+        if ($otp->purpose === 'register') {
+            $user->email_verified_at = Carbon::now();
+        }
         $user->save();
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $user->tokens()->delete();
+        $token = $user->createToken('auth_token', ['*'], now()->addDay())->plainTextToken;
 
-        $otp->delete();
+        $otp->forceFill(['consumed_at' => now()])->save();
 
         $cookie = cookie(
             'auth_token',
@@ -124,7 +134,7 @@ class AuthController extends Controller
             1440, // 24 heures
             '/',
             null,
-            $request->isSecure(),
+            (bool) config('session.secure'),
             true, // HttpOnly
             false,
             app()->environment('local') ? 'Lax' : 'Strict'
@@ -134,7 +144,7 @@ class AuthController extends Controller
             'access_token' => 'cookie_session',
             'token_type' => 'Bearer',
             'user' => $user,
-            'requires_password_change' => (bool)$user->has_temp_password,
+            'requires_password_change' => (bool) $user->has_temp_password,
         ])->withCookie($cookie);
     }
 
@@ -147,36 +157,25 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Identifiants invalides.'], 401);
         }
 
-        if (!$user->email_verified_at) {
+        if (! $user->email_verified_at) {
             return response()->json(['message' => 'Compte non vérifié.'], 403);
         }
 
-        // Delete old OTPs
-        OtpCode::where('email', $user->email)->delete();
-
-        // Generate OTP
-        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        OtpCode::create([
-            'email' => $user->email,
-            'code' => $otpCode,
-            'expires_at' => Carbon::now()->addMinutes(10),
-        ]);
+        [$otpCode, $challengeId] = $this->issueOtp($user, 'login');
 
         // Send Email
         Mail::to($user->email)->send(new OtpMail($otpCode, $user, 'login'));
 
         $responseData = [
             'requires_mfa' => true,
-            'email' => $user->email,
+            'challenge_id' => $challengeId,
             'message' => 'Un code de vérification MFA a été envoyé à votre adresse email.',
         ];
-        if (config('app.env') !== 'production' && config('app.debug')) {
-            $responseData['otp_debug'] = $otpCode;
-        }
+
         return response()->json($responseData);
     }
 
@@ -188,31 +187,18 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user) {
-            return response()->json(['message' => 'Utilisateur non trouvé.'], 404);
+        $challengeId = (string) Str::uuid();
+        if ($user) {
+            $type = $user->email_verified_at ? 'login' : 'register';
+            [$otpCode, $challengeId] = $this->issueOtp($user, $type);
+            Mail::to($user->email)->send(new OtpMail($otpCode, $user, $type));
         }
-
-        // Delete old OTPs
-        OtpCode::where('email', $request->email)->delete();
-
-        // Generate new OTP
-        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        OtpCode::create([
-            'email' => $user->email,
-            'code' => $otpCode,
-            'expires_at' => Carbon::now()->addMinutes(10),
-        ]);
-
-        // Send Email
-        $type = $user->email_verified_at ? 'login' : 'register';
-        Mail::to($user->email)->send(new OtpMail($otpCode, $user, $type));
 
         $responseData = [
             'message' => 'Un nouveau code a été envoyé.',
+            'challenge_id' => $challengeId,
         ];
-        if (config('app.env') !== 'production' && config('app.debug')) {
-            $responseData['otp_debug'] = $otpCode;
-        }
+
         return response()->json($responseData);
     }
 
@@ -222,7 +208,7 @@ class AuthController extends Controller
 
         if ($user->onboarding_status === 'validated') {
             return response()->json([
-                'message' => 'Votre profil est validé par la conformité. Les modifications de profil doivent être soumises au support client.'
+                'message' => 'Votre profil est validé par la conformité. Les modifications de profil doivent être soumises au support client.',
             ], 403);
         }
 
@@ -247,7 +233,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Profil mis à jour avec succès.',
-            'user' => $user
+            'user' => $user,
         ]);
     }
 
@@ -255,17 +241,18 @@ class AuthController extends Controller
     {
         $request->validate([
             'current_password' => 'required',
-            'new_password' => 'required|string|min:8',
+            'new_password' => 'required|string|min:12',
         ]);
 
         $user = $request->user();
 
-        if (!Hash::check($request->current_password, $user->password)) {
+        if (! Hash::check($request->current_password, $user->password)) {
             return response()->json(['message' => 'Le mot de passe actuel est incorrect.'], 422);
         }
 
         $user->password = Hash::make($request->new_password);
         $user->save();
+        $user->tokens()->where('id', '!=', $user->currentAccessToken()?->id)->delete();
 
         return response()->json([
             'message' => 'Mot de passe mis à jour avec succès.',
@@ -278,58 +265,92 @@ class AuthController extends Controller
             'email' => 'required|email',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        Password::sendResetLink($request->only('email'));
 
-        if (!$user) {
-            return response()->json(['message' => 'Aucun compte associé à cet email.'], 404);
+        return response()->json([
+            'message' => 'Si un compte correspond à cette adresse, un lien de réinitialisation va être envoyé.',
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+            'email' => 'required|email',
+            'password' => 'required|string|min:12|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'has_temp_password' => false,
+                ])->setRememberToken(Str::random(60));
+                $user->save();
+                $user->tokens()->delete();
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json(['message' => 'Le lien de réinitialisation est invalide ou expiré.'], 422);
         }
 
-        // Générer un mot de passe temporaire lisible
-        $tempPassword = strtoupper(Str::random(4)) . rand(10, 99);
-
-        $user->password = Hash::make($tempPassword);
-        $user->email_verified_at = $user->email_verified_at ?? now();
-        $user->has_temp_password = true;
-        $user->save();
-
-        Mail::to($user->email)->send(new ResetPasswordMail($tempPassword, $user));
-
-        $responseData = [
-            'message' => 'Un email avec votre nouveau mot de passe vous a été envoyé.',
-        ];
-        if (config('app.env') !== 'production' && config('app.debug')) {
-            $responseData['temp_password_debug'] = $tempPassword;
-        }
-        return response()->json($responseData);
+        return response()->json(['message' => 'Votre mot de passe a été réinitialisé.']);
     }
 
     public function resetTempPassword(Request $request)
     {
         $request->validate([
-            'new_password' => 'required|string|min:8',
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:12',
         ]);
 
         $user = $request->user();
+        if (! $user->has_temp_password || ! Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'Le mot de passe temporaire est incorrect ou déjà remplacé.'], 422);
+        }
         $user->password = Hash::make($request->new_password);
         $user->has_temp_password = false;
         $user->save();
 
         return response()->json([
             'message' => 'Votre mot de passe a été mis à jour avec succès.',
-            'user' => $user
+            'user' => $user,
         ]);
     }
 
     public function logout(Request $request)
     {
         if ($request->user()) {
-            $request->user()->currentAccessToken()->delete();
+            $request->user()->currentAccessToken()?->delete();
         }
 
         $cookie = cookie()->forget('auth_token');
 
         return response()->json([
-            'message' => 'Déconnecté avec succès.'
+            'message' => 'Déconnecté avec succès.',
         ])->withCookie($cookie);
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function issueOtp(User $user, string $purpose): array
+    {
+        OtpCode::where('email', $user->email)->where('purpose', $purpose)->delete();
+
+        $plainCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $challengeId = (string) Str::uuid();
+        OtpCode::create([
+            'email' => $user->email,
+            'code' => Hash::make($plainCode),
+            'challenge_id' => $challengeId,
+            'purpose' => $purpose,
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        return [$plainCode, $challengeId];
     }
 }

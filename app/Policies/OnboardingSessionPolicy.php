@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\OnboardingSession;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class OnboardingSessionPolicy
@@ -39,7 +39,7 @@ class OnboardingSessionPolicy
      */
     public function update(User $user, OnboardingSession $onboardingSession): bool
     {
-        return $user->hasRole('super_admin') || $user->role === 'admin' || $user->can('update_onboarding_session');
+        return $user->hasRole('super_admin') || $user->can('update_onboarding_session');
     }
 
     /**

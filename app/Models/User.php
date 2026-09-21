@@ -3,19 +3,18 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-
-use Filament\Models\Contracts\HasName;
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Panel;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements HasName, FilamentUser
+class User extends Authenticatable implements FilamentUser, HasName
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     protected static function boot()
     {
@@ -29,7 +28,7 @@ class User extends Authenticatable implements HasName, FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->hasRole('super_admin') || $this->role === 'admin';
+        return $this->hasRole('super_admin') || $this->can('access_admin_panel') || $this->role === 'admin';
     }
 
     public function getFilamentName(): string
@@ -89,4 +88,3 @@ class User extends Authenticatable implements HasName, FilamentUser
         return $this->onboardingSession ? $this->onboardingSession->status : null;
     }
 }
-

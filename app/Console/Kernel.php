@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Models\OtpCode;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -12,7 +13,12 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('payments:reconcile')->everyMinute()->withoutOverlapping();
+        $schedule->command('payments:scan-proofs')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('sanctum:prune-expired --hours=24')->daily();
+        $schedule->call(function () {
+            OtpCode::where('expires_at', '<', now()->subDay())->delete();
+        })->daily();
     }
 
     /**

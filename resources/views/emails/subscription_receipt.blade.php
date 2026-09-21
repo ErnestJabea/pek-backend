@@ -182,11 +182,14 @@
                                                                                                     width="100%"
                                                                                                     style="background-color:#fcfcfc;border:1px solid #eeeeee;border-radius:8px;border-collapse:separate;border-spacing:0">
                                                                                                     <tbody>
+                                                                                                        @php
+                                                                                                            $netAmount = round((float) $subscription->nb_parts * (float) $subscription->prix_unitaire);
+                                                                                                            $feesAmount = max(0, (float) $subscription->montant_total - $netAmount);
+                                                                                                        @endphp
                                                                                                         <tr>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;width:40%">
-                                                                                                                <strong>Référence
-                                                                                                                    :</strong>
+                                                                                                                <strong>Référence :</strong>
                                                                                                             </td>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;font-weight:bold;">
@@ -196,8 +199,7 @@
                                                                                                         <tr>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
-                                                                                                                <strong>Parts
-                                                                                                                    :</strong>
+                                                                                                                <strong>Nombre de parts :</strong>
                                                                                                             </td>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;">
@@ -207,23 +209,47 @@
                                                                                                         <tr>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
-                                                                                                                <strong>Montant
-                                                                                                                    Total
-                                                                                                                    :</strong>
+                                                                                                                <strong>Prix unitaire (VL) :</strong>
                                                                                                             </td>
                                                                                                             <td
-                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#491d00;font-weight:bold;">
-                                                                                                                {{ number_format($subscription->montant_total, 0, ',', ' ') }}
-                                                                                                                FCFA
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;">
+                                                                                                                {{ number_format($subscription->prix_unitaire, 0, ',', ' ') }} FCFA
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                         <tr>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
-                                                                                                                <strong>Mode
-                                                                                                                    de
-                                                                                                                    paiement
-                                                                                                                    :</strong>
+                                                                                                                <strong>Montant du placement :</strong>
+                                                                                                            </td>
+                                                                                                            <td
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;font-weight:bold;">
+                                                                                                                {{ number_format($netAmount, 0, ',', ' ') }} FCFA
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr>
+                                                                                                            <td
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
+                                                                                                                <strong>Frais de souscription (1%) :</strong>
+                                                                                                            </td>
+                                                                                                            <td
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;">
+                                                                                                                {{ number_format($feesAmount, 0, ',', ' ') }} FCFA
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr>
+                                                                                                            <td
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
+                                                                                                                <strong>Montant Total débité :</strong>
+                                                                                                            </td>
+                                                                                                            <td
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#491d00;font-weight:bold;">
+                                                                                                                {{ number_format($subscription->montant_total, 0, ',', ' ') }} FCFA
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr>
+                                                                                                            <td
+                                                                                                                style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
+                                                                                                                <strong>Moyen de paiement :</strong>
                                                                                                             </td>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;">

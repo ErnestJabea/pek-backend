@@ -63,6 +63,7 @@ class ProductActivationTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
+            ->withHeader('Idempotency-Key', 'inactive-product-test')
             ->postJson('/api/subscriptions', [
                 'product_id' => $inactiveProduct->id,
                 'nb_parts' => 10,
@@ -71,6 +72,6 @@ class ProductActivationTest extends TestCase
             ]);
 
         $response->assertStatus(422);
-        $response->assertJsonPath('message', 'Ce produit n\'est pas disponible à la souscription car il est désactivé.');
+        $response->assertJsonPath('message', 'Ce produit n’est pas disponible à la souscription car il est désactivé.');
     }
 }

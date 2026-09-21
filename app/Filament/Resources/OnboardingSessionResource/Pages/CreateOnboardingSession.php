@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\OnboardingSessionResource\Pages;
 
 use App\Filament\Resources\OnboardingSessionResource;
-use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateOnboardingSession extends CreateRecord

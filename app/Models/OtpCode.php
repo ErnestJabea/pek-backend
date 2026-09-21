@@ -12,10 +12,16 @@ class OtpCode extends Model
     protected $fillable = [
         'email',
         'code',
+        'challenge_id',
+        'purpose',
+        'attempts',
+        'consumed_at',
         'expires_at',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
+        'consumed_at' => 'datetime',
+        'attempts' => 'integer',
     ];
 }

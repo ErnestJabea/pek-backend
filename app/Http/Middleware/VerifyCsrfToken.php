@@ -13,6 +13,7 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         'api/stripe/webhook',
-        'api/coolpay/webhook',
+        'api/maviance/webhook',
+        'api/enkap/webhook/*',
     ];
 }

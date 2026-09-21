@@ -1,25 +1,58 @@
-name: Deploy Laravel to cPanel via FTP
+name: Validate and deploy Laravel API
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      maintenance_confirmed:
+        description: "L'API est en maintenance et une sauvegarde a été vérifiée"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mbstring, xml, ctype, iconv, mysql, zip
           coverage: none
 
-      - name: Install Composer Dependencies
-        run: composer install --no-dev --optimize-autoloader
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Validate application
+        run: |
+          composer validate --strict
+          php artisan test
+          vendor/bin/pint --test
+          composer audit --locked
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.maintenance_confirmed == true
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, mysql, zip
+          coverage: none
+
+      - name: Build production vendor directory
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Deploy to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
@@ -35,3 +68,8 @@ jobs:
             tests/**
             .env
             database/*.sqlite
+            **/*.sql
+            **/*-diag.php
+            **/dump_sqlite.php
+            **/test_roles.php
+            **/*.log

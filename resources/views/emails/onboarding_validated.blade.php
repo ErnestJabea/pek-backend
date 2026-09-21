@@ -146,8 +146,7 @@
                                                                                                     KORI</strong> a été
                                                                                                 vérifié et
                                                                                                 <strong>approuvé</strong>
-                                                                                                par notre équipe de
-                                                                                                conformité.
+                                                                                                par notre équipe.
                                                                                             </td>
                                                                                         </tr>
                                                                                         <tr>
@@ -161,7 +160,103 @@
                                                                                                             <td
                                                                                                                 style="font-size:18px;font-weight:bold;color:#16a34a;padding:18px 28px;text-align:center;letter-spacing:1px;font-family:arial,'helvetica neue',helvetica,sans-serif;">
                                                                                                                 COMPTE
-                                                                                                                ACTIVÉ ✓
+                                                                                                                ACTIVÉ
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    </tbody>
+                                                                                                </table>
+                                                                                            </td>
+                                                                                        </tr>
+                                                                                        @if (!empty($missingDocs))
+                                                                                            <tr>
+                                                                                                <td
+                                                                                                    style="padding:15px 0">
+                                                                                                    <table
+                                                                                                        role="presentation"
+                                                                                                        width="100%"
+                                                                                                        cellpadding="0"
+                                                                                                        cellspacing="0"
+                                                                                                        style="background:#fff8ed;border-left:4px solid #d97706;border-radius:6px;padding:16px 20px">
+                                                                                                        <tr>
+                                                                                                            <td>
+                                                                                                                <p
+                                                                                                                    style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#92400e;text-transform:uppercase;letter-spacing:0.05em">
+                                                                                                                    ⚠
+                                                                                                                    Pièces
+                                                                                                                    complémentaires
+                                                                                                                    à
+                                                                                                                    fournir
+                                                                                                                </p>
+                                                                                                                <p
+                                                                                                                    style="margin:0 0 10px;font-size:13px;color:#78350f">
+                                                                                                                    Votre
+                                                                                                                    dossier
+                                                                                                                    a
+                                                                                                                    été
+                                                                                                                    validé,
+                                                                                                                    toutefois
+                                                                                                                    les
+                                                                                                                    justificatifs
+                                                                                                                    suivants
+                                                                                                                    restent
+                                                                                                                    attendus
+                                                                                                                    pour
+                                                                                                                    compléter
+                                                                                                                    votre
+                                                                                                                    dossier
+                                                                                                                    :
+                                                                                                                </p>
+                                                                                                                <ul
+                                                                                                                    style="margin:0;padding-left:18px;color:#92400e;font-size:13px">
+                                                                                                                    @foreach ($missingDocs as $doc)
+                                                                                                                        <li
+                                                                                                                            style="margin-bottom:4px">
+                                                                                                                            {{ $doc }}
+                                                                                                                        </li>
+                                                                                                                    @endforeach
+                                                                                                                </ul>
+                                                                                                                <p
+                                                                                                                    style="margin:12px 0 0;font-size:12px;color:#78350f">
+                                                                                                                    Connectez-vous
+                                                                                                                    à
+                                                                                                                    votre
+                                                                                                                    application
+                                                                                                                    PEK
+                                                                                                                    pour
+                                                                                                                    les
+                                                                                                                    téléverser
+                                                                                                                    depuis
+                                                                                                                    votre
+                                                                                                                    espace
+                                                                                                                    personnel.
+                                                                                                                </p>
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    </table>
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                        @endif
+                                                                                        <tr>
+                                                                                            <td align="center"
+                                                                                                style="padding:24px 0 10px 0">
+                                                                                                <table cellpadding="0"
+                                                                                                    cellspacing="0"
+                                                                                                    role="presentation"
+                                                                                                    style="border-collapse:collapse;border-spacing:0px">
+                                                                                                    <tbody>
+                                                                                                        <tr>
+                                                                                                            <td align="center"
+                                                                                                                bgcolor="#491d00"
+                                                                                                                style="border-radius:10px;background-color:#491d00">
+                                                                                                                <a href="{{ config('app.frontend_url', 'https://pek.koriassetmanagement.com') }}"
+                                                                                                                    target="_blank"
+                                                                                                                    style="display:inline-block;padding:16px 36px;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.5px">
+                                                                                                                    Accéder
+                                                                                                                    à
+                                                                                                                    mon
+                                                                                                                    compte
+                                                                                                                    →
+                                                                                                                </a>
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                     </tbody>

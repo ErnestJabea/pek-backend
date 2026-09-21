@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\BankDetail;
 use Illuminate\Database\Seeder;
 
 class BankDetailSeeder extends Seeder
@@ -12,7 +12,7 @@ class BankDetailSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\BankDetail::create([
+        BankDetail::create([
             'bank_name' => 'Banque Atlantique Bénin',
             'iban' => 'BJ66 0400 1200 0000 1234 5678',
             'rib' => '12345678901',

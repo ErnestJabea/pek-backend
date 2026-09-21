@@ -2,6 +2,13 @@
 
 namespace App\Providers;
 
+use App\Services\IdentityVerification\IdenfyIdentityVerificationProvider;
+use App\Services\IdentityVerification\IdentityVerificationProvider;
+use App\Services\Payments\EnkapPaymentGateway;
+use App\Services\Payments\LocalPaymentGateway;
+use App\Services\Payments\PaymentCheckoutGateway;
+use App\Services\Payments\StripeCheckoutGateway;
+use Filament\Facades\Filament;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +18,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(PaymentCheckoutGateway::class, StripeCheckoutGateway::class);
+        $this->app->bind(LocalPaymentGateway::class, EnkapPaymentGateway::class);
+
+        $this->app->bind(IdentityVerificationProvider::class, function () {
+            return match (config('identity_verification.provider')) {
+                'idenfy' => new IdenfyIdentityVerificationProvider,
+                default => throw new \RuntimeException('Fournisseur de vérification d’identité non pris en charge.'),
+            };
+        });
     }
 
     /**
@@ -19,11 +34,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force the Admin panel to boot early to ensure all Livewire components 
+        // Force the Admin panel to boot early to ensure all Livewire components
         // (widgets, pages, resources) are registered. This bypasses the ComponentNotFoundException
         // in this specific local MAMP environment where middleware execution order is failing.
         app()->booted(function () {
-            \Filament\Facades\Filament::getPanel('admin')->boot();
+            Filament::getPanel('admin')->boot();
         });
     }
 }

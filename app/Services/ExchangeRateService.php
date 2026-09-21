@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 class ExchangeRateService
 {
@@ -14,12 +14,12 @@ class ExchangeRateService
         return Cache::remember('exchange_rates_xaf', 3600, function () {
             try {
                 $response = Http::get($this->baseUrl);
-                
+
                 if ($response->successful()) {
                     return $response->json()['rates'];
                 }
             } catch (\Exception $e) {
-                \Log::error("Erreur lors de la récupération des taux de change : " . $e->getMessage());
+                \Log::error('Erreur lors de la récupération des taux de change : '.$e->getMessage());
             }
 
             return [
@@ -33,7 +33,7 @@ class ExchangeRateService
     {
         $rates = $this->getLatestRates();
         $rate = $rates[$toCurrency] ?? 0;
-        
+
         return $amount * $rate;
     }
 
@@ -41,9 +41,11 @@ class ExchangeRateService
     {
         $rates = $this->getLatestRates();
         $rate = $rates[$fromCurrency] ?? 0;
-        
-        if ($rate == 0) return 0;
-        
+
+        if ($rate == 0) {
+            return 0;
+        }
+
         return $amount / $rate;
     }
 }

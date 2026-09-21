@@ -11,6 +11,7 @@ class BankDetail extends Model
 
     protected $fillable = [
         'bank_name',
+        'beneficiary',
         'iban',
         'rib',
         'swift',

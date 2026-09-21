@@ -14,8 +14,13 @@ class OnboardingRejectedMail extends Mailable
     use Queueable, SerializesModels;
 
     public $session;
+
     public $user;
+
     public $reason;
+
+    /** @var string[] Documents manquants dans le dossier */
+    public array $missingDocs;
 
     /**
      * Create a new message instance.
@@ -25,6 +30,23 @@ class OnboardingRejectedMail extends Mailable
         $this->session = $session;
         $this->user = $session->user;
         $this->reason = $reason;
+
+        // Calcule les documents manquants
+        $payload = $session->payload ?? [];
+        $this->missingDocs = [];
+
+        if (empty($payload['piece_recto']) && empty($payload['doc_piece_identite']) && ! $session->doc_piece_identite) {
+            $this->missingDocs[] = "Pièce d'identité (CNI / Passeport)";
+        }
+        if (empty($payload['doc_justificatif_domicile']) && ! $session->doc_justificatif_domicile) {
+            $this->missingDocs[] = 'Justificatif de domicile (< 3 mois)';
+        }
+        if (empty($payload['selfie_live']) && empty($payload['doc_photo']) && ! $session->doc_photo) {
+            $this->missingDocs[] = "Photo d'identité récente";
+        }
+        if (empty($payload['doc_origine_fonds']) && ! $session->doc_origine_fonds) {
+            $this->missingDocs[] = "Justificatif d'origine des fonds";
+        }
     }
 
     /**

@@ -2,8 +2,9 @@
 
 namespace App\Jobs;
 
-use App\Models\OnboardingSession;
 use App\Mail\OnboardingMail;
+use App\Models\OnboardingSession;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -11,101 +12,71 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Barryvdh\DomPDF\Facade\Pdf;
+use RuntimeException;
 
 class GenerateOnboardingDocumentsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $session;
-    protected $signature;
+    public int $tries = 3;
 
-    /**
-     * Create a new job instance.
-     */
-    public function __construct(OnboardingSession $session, string $signature)
-    {
-        $this->session = $session;
-        $this->signature = $signature;
-    }
+    public int $timeout = 120;
 
-    /**
-     * Execute the job.
-     */
+    public array $backoff = [60, 300];
+
+    public function __construct(private readonly string $sessionId) {}
+
     public function handle(): void
     {
-        $user = $this->session->user;
-        $signatureBase64 = $this->signature;
+        $session = OnboardingSession::with('user')->findOrFail($this->sessionId);
+        $user = $session->user;
+        $payload = $session->getSubmittedPayload();
 
-        try {
-            // 1. Decodes and saves the signature to private storage
-            if (preg_match('/^data:image\/(\w+);base64,/', $signatureBase64, $type)) {
-                $rawImage = substr($signatureBase64, strpos($signatureBase64, ',') + 1);
-                $type = strtolower($type[1]);
-                $decodedData = base64_decode($rawImage);
+        if ($payload === []) {
+            throw new RuntimeException('Le snapshot KYC soumis est absent.');
+        }
 
-                if ($decodedData !== false) {
-                    $sigFileName = 'sig_' . $this->session->id . '.' . $type;
-                    $sigPath = 'secure_onboardings/signatures/' . $sigFileName;
-                    Storage::put($sigPath, $decodedData);
-                    $this->session->update(['signature_path' => $sigPath]);
-                }
-            }
+        $disk = Storage::disk('kyc_private');
+        if (! $session->signature_path
+            || ! str_starts_with($session->signature_path, 'signatures/')
+            || ! $disk->exists($session->signature_path)) {
+            throw new RuntimeException('La signature privée du dossier est absente.');
+        }
+        $signatureBytes = $disk->get($session->signature_path);
+        $signatureMime = @getimagesizefromstring($signatureBytes)['mime'] ?? null;
+        if (! in_array($signatureMime, ['image/jpeg', 'image/png'], true)) {
+            throw new RuntimeException('Le fichier de signature privé est invalide.');
+        }
 
-            // Ensure directory exists
-            if (!file_exists(storage_path('app/secure_onboardings'))) {
-                mkdir(storage_path('app/secure_onboardings'), 0700, true);
-            }
+        $logoBase64 = '';
+        $logoPath = public_path('logo-kori.png');
+        if (is_file($logoPath)) {
+            $logoBase64 = 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath));
+        }
 
-            // Charger le logo en base64 pour l'affichage dans le PDF
-            $logoBase64 = '';
-            $logoPath   = public_path('logo-kori.png');
-            if (file_exists($logoPath)) {
-                $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
-            }
+        $pdfData = [
+            'session' => $session,
+            'payload' => $payload,
+            'user' => $user,
+            'signature' => 'data:'.$signatureMime.';base64,'.base64_encode($signatureBytes),
+            'logo' => $logoBase64,
+        ];
 
-            // 2. Generate PDF files
-            $pdfData = [
-                'session'   => $this->session,
-                'payload'   => $this->session->payload ?? [],
-                'user'      => $user,
-                'signature' => $signatureBase64,
-                'logo'      => $logoBase64,
-            ];
+        $documents = [
+            'kyc' => Pdf::loadView('pdfs.onboarding.fiche_kyc', $pdfData)->setPaper('a4', 'portrait')->output(),
+            'risk' => Pdf::loadView('pdfs.onboarding.profil_investisseur', $pdfData)->setPaper('a4', 'portrait')->output(),
+            'labft' => Pdf::loadView('pdfs.onboarding.questionnaire_labft', $pdfData)->setPaper('a4', 'portrait')->output(),
+        ];
 
-            // KYC PDF
-            $kycPath = 'secure_onboardings/kyc_' . $this->session->id . '.pdf';
-            $kycPdf = Pdf::loadView('pdfs.onboarding.fiche_kyc', $pdfData)->setPaper('a4', 'portrait');
-            Storage::put($kycPath, $kycPdf->output());
+        foreach ($documents as $type => $content) {
+            $disk->put('generated/'.$type.'_'.$session->id.'.pdf', $content);
+        }
 
-            // Risk Profile PDF
-            $riskPath = 'secure_onboardings/risk_' . $this->session->id . '.pdf';
-            $riskPdf = Pdf::loadView('pdfs.onboarding.profil_investisseur', $pdfData)->setPaper('a4', 'portrait');
-            Storage::put($riskPath, $riskPdf->output());
+        // Sensitive PDFs remain in private storage. Emails only notify; they never carry KYC attachments.
+        Mail::to($user->email)->send(new OnboardingMail($session, 'client'));
 
-            // LAB-FT PDF
-            $labftPath = 'secure_onboardings/labft_' . $this->session->id . '.pdf';
-            $labftPdf = Pdf::loadView('pdfs.onboarding.questionnaire_labft', $pdfData)->setPaper('a4', 'portrait');
-            Storage::put($labftPath, $labftPdf->output());
-
-            // 3. Send email to user (only contains Risk Profile PDF)
-            $clientMail = new OnboardingMail($this->session, 'client');
-            $clientMail->attachData($riskPdf->output(), "profil_investisseur_{$user->last_name}.pdf", [
-                'mime' => 'application/pdf'
-            ]);
-            Mail::to($user->email)->send($clientMail);
-
-            // 4. Send email to Kori compliance (contains all 3 PDFs)
-            $complianceEmail = env('MAIL_COMPLIANCE_ADDRESS', 'fcp.koriserenite@koriassetmanagement.com');
-            $complianceMail = new OnboardingMail($this->session, 'compliance');
-            $complianceMail->attachData($kycPdf->output(), "1_fiche_kyc_{$user->last_name}.pdf", ['mime' => 'application/pdf']);
-            $complianceMail->attachData($riskPdf->output(), "2_profil_investisseur_{$user->last_name}.pdf", ['mime' => 'application/pdf']);
-            $complianceMail->attachData($labftPdf->output(), "3_questionnaire_labft_{$user->last_name}.pdf", ['mime' => 'application/pdf']);
-            
-            Mail::to($complianceEmail)->send($complianceMail);
-
-        } catch (\Exception $e) {
-            \Log::error("Failed to generate onboarding documents/emails for session {$this->session->id}: " . $e->getMessage());
+        if ($complianceEmail = config('mail.compliance_address')) {
+            Mail::to($complianceEmail)->send(new OnboardingMail($session, 'compliance'));
         }
     }
 }

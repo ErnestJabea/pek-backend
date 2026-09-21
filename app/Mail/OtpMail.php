@@ -3,8 +3,8 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -14,7 +14,9 @@ class OtpMail extends Mailable
     use Queueable, SerializesModels;
 
     public $otpCode;
+
     public $user;
+
     public $type;
 
     /**
@@ -46,7 +48,7 @@ class OtpMail extends Mailable
             view: 'emails.otp',
             with: [
                 'code' => $this->otpCode,
-                'name' => $this->user->first_name . ' ' . $this->user->last_name,
+                'name' => $this->user->first_name.' '.$this->user->last_name,
                 'type' => $this->type,
             ],
         );
@@ -55,7 +57,7 @@ class OtpMail extends Mailable
     /**
      * Get the attachments for the message.
      *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     * @return array<int, Attachment>
      */
     public function attachments(): array
     {

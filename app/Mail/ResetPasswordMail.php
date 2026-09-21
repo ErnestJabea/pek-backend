@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -13,6 +14,7 @@ class ResetPasswordMail extends Mailable
     use Queueable, SerializesModels;
 
     public $tempPassword;
+
     public $user;
 
     /**
@@ -43,7 +45,7 @@ class ResetPasswordMail extends Mailable
             view: 'emails.reset_password',
             with: [
                 'tempPassword' => $this->tempPassword,
-                'name' => $this->user->first_name . ' ' . $this->user->last_name,
+                'name' => $this->user->first_name.' '.$this->user->last_name,
             ],
         );
     }
@@ -51,7 +53,7 @@ class ResetPasswordMail extends Mailable
     /**
      * Get the attachments for the message.
      *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     * @return array<int, Attachment>
      */
     public function attachments(): array
     {

@@ -185,8 +185,8 @@
                 $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
             }
         }
-        $netAmount = $subscription->prix_unitaire * $subscription->nb_parts;
-        $feesAmount = $subscription->montant_total - $netAmount;
+        $netAmount = $subscription->montant_net;
+        $feesAmount = $subscription->frais_gestion;
         if ($feesAmount < 0) {
             $feesAmount = 0;
         }
@@ -207,7 +207,10 @@
                 <td class="header-meta">
                     <strong>REÇU DE SOUSCRIPTION</strong><br>
                     Réf : <strong>{{ $subscription->reference_transaction }}</strong><br>
-                    Date : {{ $subscription->created_at->format('d/m/Y H:i') }}<br>
+                    Date de demande : {{ $subscription->created_at->format('d/m/Y H:i') }}<br>
+                    @if($subscription->value_date)
+                        Date de valeur (réception des fonds) : {{ $subscription->value_date->format('d/m/Y') }}<br>
+                    @endif
                     @if($subscription->statut === 'Succès')
                         <span style="color: #065f46; font-weight: bold;">Reçu Officiel</span>
                     @else

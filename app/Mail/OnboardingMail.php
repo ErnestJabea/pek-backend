@@ -13,20 +13,40 @@ class OnboardingMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $session;
-    public $type;
-    public $user;
-    public $payload;
+    public string $recipientFirstName;
+
+    public string $reference;
+
+    public string $riskLevel;
+
+    /** @var string[] Documents manquants dans le dossier */
+    public array $missingDocs;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(OnboardingSession $session, string $type)
+    public function __construct(OnboardingSession $session, public string $type)
     {
-        $this->session = $session;
-        $this->type = $type;
-        $this->user = $session->user;
-        $this->payload = $session->payload ?? [];
+        $this->recipientFirstName = (string) $session->user->first_name;
+        $this->reference = $session->reference;
+        $this->riskLevel = (string) $session->risk_level;
+
+        // Calcule les documents manquants dans le payload
+        $payload = $session->payload ?? [];
+        $this->missingDocs = [];
+
+        if (empty($payload['piece_recto']) && empty($payload['doc_piece_identite']) && ! $session->doc_piece_identite) {
+            $this->missingDocs[] = "Pièce d'identité (CNI / Passeport)";
+        }
+        if (empty($payload['doc_justificatif_domicile']) && ! $session->doc_justificatif_domicile) {
+            $this->missingDocs[] = 'Justificatif de domicile (< 3 mois)';
+        }
+        if (empty($payload['selfie_live']) && empty($payload['doc_photo']) && ! $session->doc_photo) {
+            $this->missingDocs[] = "Photo d'identité récente";
+        }
+        if (empty($payload['doc_origine_fonds']) && ! $session->doc_origine_fonds) {
+            $this->missingDocs[] = "Justificatif d'origine des fonds";
+        }
     }
 
     /**
@@ -40,12 +60,11 @@ class OnboardingMail extends Mailable
             );
         }
 
-        // Compliance team subject, highlighting high risk if applicable
-        $riskString = $this->session->risk_level === 'HIGH' ? '[RISQUE ÉLEVÉ]' : '[RISQUE NORMAL]';
-        $clientName = strtoupper($this->user->last_name) . ' ' . $this->user->first_name;
+        // Never place customer identity data in an email subject.
+        $riskString = $this->riskLevel === 'HIGH' ? '[RISQUE ÉLEVÉ]' : '[RISQUE NORMAL]';
 
         return new Envelope(
-            subject: "Onboarding PEK - {$riskString} - Dossier de {$clientName}",
+            subject: "Onboarding PEK - {$riskString} - Référence {$this->reference}",
         );
     }
 

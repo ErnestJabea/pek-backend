@@ -20,7 +20,7 @@ class StoreLABFTRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'situation_mat' => 'required|string|max:50',
+            'situation_mat' => 'nullable|string|max:50',
             'pays_residence' => 'required|string|max:100',
             'secteur' => 'required|string|max:255',
             'revenus_annuels' => 'required|string|max:100',

@@ -14,7 +14,11 @@ class OnboardingValidatedMail extends Mailable
     use Queueable, SerializesModels;
 
     public $session;
+
     public $user;
+
+    /** @var string[] Documents manquants dans le dossier */
+    public array $missingDocs = [];
 
     /**
      * Create a new message instance.
@@ -23,6 +27,7 @@ class OnboardingValidatedMail extends Mailable
     {
         $this->session = $session;
         $this->user = $session->user;
+        $this->missingDocs = $session->missingRequiredDocuments();
     }
 
     /**

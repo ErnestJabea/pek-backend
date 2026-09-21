@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -38,7 +38,8 @@ class NotificationTest extends TestCase
             ->getJson('/api/notifications');
 
         $response->assertStatus(200);
-        $response->assertJsonCount(1);
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('per_page', 30);
         $response->assertJsonFragment([
             'title' => 'Test Notification',
             'body' => 'This is a test body',

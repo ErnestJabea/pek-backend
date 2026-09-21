@@ -2,6 +2,8 @@
 
 return [
 
+    'compliance_address' => env('MAIL_COMPLIANCE_ADDRESS'),
+
     /*
     |--------------------------------------------------------------------------
     | Default Mailer

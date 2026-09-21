@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\OnboardingSession;
 // use Illuminate\Support\Facades\Gate;
+use App\Policies\OnboardingSessionPolicy;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -13,7 +17,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        // 'App\Models\Model' => 'App\Policies\ModelPolicy',
+        OnboardingSession::class => OnboardingSessionPolicy::class,
     ];
 
     /**
@@ -23,13 +27,19 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
+        ResetPassword::createUrlUsing(function ($user, string $token) {
+            return rtrim((string) config('app.frontend_url'), '/')
+                .'/password-reset/'.$token
+                .'?email='.urlencode($user->getEmailForPasswordReset());
+        });
+
         // Implicitly grant "super_admin" role all permissions
-        \Illuminate\Support\Facades\Gate::before(function ($user, $ability) {
+        Gate::before(function ($user, $ability) {
             return $user->hasRole('super_admin') ? true : null;
         });
 
-        \Illuminate\Support\Facades\Gate::define('viewLogViewer', function ($user) {
-            return $user && ($user->hasRole('super_admin') || $user->role === 'admin');
+        Gate::define('viewLogViewer', function ($user) {
+            return $user && $user->hasRole('super_admin');
         });
     }
 }

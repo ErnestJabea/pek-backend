@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('subscriptions', function (Blueprint $table) {
-            $table->string('coolpay_transaction_ref')->nullable()->after('reference_transaction');
+            $table->string('maviance_transaction_ref')->nullable()->after('reference_transaction');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('subscriptions', function (Blueprint $table) {
-            $table->dropColumn('coolpay_transaction_ref');
+            $table->dropColumn('maviance_transaction_ref');
         });
     }
 };

@@ -158,6 +158,29 @@
                                                                                                 {{ $reason }}
                                                                                             </td>
                                                                                         </tr>
+
+                                                                                        {{-- Documents manquants --}}
+                                                                                        @if (!empty($missingDocs))
+                                                                                        <tr>
+                                                                                            <td style="padding-top:16px">
+                                                                                                <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8ed;border-left:4px solid #d97706;border-radius:4px;padding:16px">
+                                                                                                    <tr>
+                                                                                                        <td style="font-size:13px;font-weight:bold;color:#92400e;font-family:arial,'helvetica neue',helvetica,sans-serif;padding-bottom:8px">
+                                                                                                            ⚠ Documents manquants à fournir :
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                    @foreach($missingDocs as $doc)
+                                                                                                    <tr>
+                                                                                                        <td style="font-size:13px;color:#78350f;font-family:arial,'helvetica neue',helvetica,sans-serif;padding:2px 0 2px 12px">
+                                                                                                            • {{ $doc }}
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                    @endforeach
+                                                                                                </table>
+                                                                                            </td>
+                                                                                        </tr>
+                                                                                        @endif
+
                                                                                         <tr>
                                                                                             <td align="left"
                                                                                                 style="font-size:14px;color:#555555;padding-top:20px;line-height:22px;font-family:arial,'helvetica neue',helvetica,sans-serif;">

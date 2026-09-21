@@ -12,8 +12,12 @@ class EditSubscription extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [
-            Actions\DeleteAction::make(),
-        ];
+        return [];
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Only notes are editable. Financial transitions must use a checked payment service.
+        return array_intersect_key($data, ['internal_notes' => true]);
     }
 }
