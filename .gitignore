@@ -19,6 +19,7 @@ yarn-error.log
 dump_sqlite.php
 test_roles.php
 *.log
+generate_mysql_export.php
 /storage/app/private/*
 !/storage/app/private/.gitkeep
 /.fleet
