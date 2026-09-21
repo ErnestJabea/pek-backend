@@ -1,9 +1,26 @@
+<IfModule mod_headers.c>
+    # Match any valid frontend origin (http or https, any subdomains of ejabbing.com and koriassetmanagement.com, or localhost/LAN)
+    SetEnvIfNoCase Origin "^https?://([a-zA-Z0-9-]+\.)*(ejabbing\.com|koriassetmanagement\.com)(:[0-9]+)?$" CORS_ALLOWED_ORIGIN=$0
+    SetEnvIfNoCase Origin "^https?://(localhost|127\.0\.0\.1|192\.168\.[0-9]+\.[0-9]+|10\.[0-9]+\.[0-9]+\.[0-9]+)(:[0-9]+)?$" CORS_ALLOWED_ORIGIN=$0
+
+    Header always set Access-Control-Allow-Origin "%{CORS_ALLOWED_ORIGIN}e" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Credentials "true" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Accept-Language, Origin, X-Requested-With, X-CSRF-TOKEN, X-XSRF-TOKEN, Cache-Control, Pragma" env=CORS_ALLOWED_ORIGIN
+    Header always set Access-Control-Max-Age "86400" env=CORS_ALLOWED_ORIGIN
+    Header always set Vary "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
     </IfModule>
 
     RewriteEngine On
+
+    # Intercept OPTIONS preflight requests immediately with 204 No Content
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=204,L]
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
@@ -19,3 +36,4 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
