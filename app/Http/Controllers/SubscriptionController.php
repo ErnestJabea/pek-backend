@@ -7,7 +7,12 @@ use App\Models\Notification;
 use App\Models\Product;
 use App\Models\Subscription;
 use App\Services\Payments\LocalPaymentGateway;
+use App\Services\Payments\MobilePaymentService;
 use App\Services\Payments\PaymentCheckoutGateway;
+use App\Services\Payments\S3pGateway;
+use App\Services\Payments\S3pPaymentError;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +33,9 @@ class SubscriptionController extends Controller
         $request->merge(['idempotency_key' => $request->header('Idempotency-Key')]);
         if (is_string($request->input('payment_phone'))) {
             $rawPhone = preg_replace('/[\s()+-]/', '', $request->input('payment_phone'));
-            if (str_starts_with($rawPhone, '00237')) $rawPhone = substr($rawPhone, 2);
+            if (str_starts_with($rawPhone, '00237')) {
+                $rawPhone = substr($rawPhone, 2);
+            }
             if (strlen($rawPhone) === 9 && str_starts_with($rawPhone, '6')) {
                 $rawPhone = '237'.$rawPhone;
             }
@@ -52,7 +59,7 @@ class SubscriptionController extends Controller
         }
 
         if (in_array($validated['moyen_paiement'], ['orange_money', 'mtn_momo'], true)) {
-            abort_unless(app(\App\Services\Payments\S3pGateway::class)->available($validated['moyen_paiement']), 503, 'Cet opérateur n’est pas encore activé.');
+            abort_unless(app(S3pGateway::class)->available($validated['moyen_paiement']), 503, 'Cet opérateur n’est pas encore activé.');
         }
 
         try {
@@ -69,7 +76,7 @@ class SubscriptionController extends Controller
                             : abs((float) $existing->nb_parts - round((float) $validated['nb_parts'], 8)) < 0.00000001)
                         && $existing->moyen_paiement === $validated['moyen_paiement']
                         && ($existing->payment_phone ?? null) === ($validated['payment_phone'] ?? null)
-                        && (!isset($validated['bank_detail_id']) || (int) ($existing->bank_snapshot['id'] ?? 0) === (int) $validated['bank_detail_id']);
+                        && (! isset($validated['bank_detail_id']) || (int) ($existing->bank_snapshot['id'] ?? 0) === (int) $validated['bank_detail_id']);
 
                     if (! $sameRequest) {
                         abort(409, 'Cette clé d’idempotence est déjà associée à une autre souscription.');
@@ -86,7 +93,7 @@ class SubscriptionController extends Controller
                 $unitPrice = round((float) $product->vl, 4);
                 abort_unless($unitPrice > 0, 422, 'Valeur liquidative indisponible.');
                 $parts = isset($validated['investment_amount'])
-                    ? (float) \Brick\Math\BigDecimal::of((string) $validated['investment_amount'])->dividedBy((string) $product->vl, 8, \Brick\Math\RoundingMode::DOWN)->__toString()
+                    ? (float) BigDecimal::of((string) $validated['investment_amount'])->dividedBy((string) $product->vl, 8, RoundingMode::DOWN)->__toString()
                     : round((float) $validated['nb_parts'], 8);
                 // XAF is a zero-decimal currency: every payable amount must be a whole FCFA.
                 $subtotal = isset($validated['investment_amount']) ? (int) $validated['investment_amount'] : (int) round($parts * $unitPrice);
@@ -102,7 +109,9 @@ class SubscriptionController extends Controller
 
                 $bank = $validated['moyen_paiement'] === 'bank_transfer' ? BankDetail::where('is_active', true)
                     ->when(isset($validated['bank_detail_id']), fn ($q) => $q->whereKey($validated['bank_detail_id']))->first() : null;
-                if ($validated['moyen_paiement'] === 'bank_transfer') abort_unless($bank && ($bank->rib || $bank->iban), 422, 'Coordonnées bancaires indisponibles.');
+                if ($validated['moyen_paiement'] === 'bank_transfer') {
+                    abort_unless($bank && ($bank->rib || $bank->iban), 422, 'Coordonnées bancaires indisponibles.');
+                }
 
                 $subscription = Subscription::create([
                     'user_id' => $user->id,
@@ -142,7 +151,7 @@ class SubscriptionController extends Controller
             }
 
             if ($subscription->mobile_provider) {
-                return $this->s3pResponse(app(\App\Services\Payments\MobilePaymentService::class)->start($subscription), $created ? 201 : 200);
+                return $this->s3pResponse(app(MobilePaymentService::class)->start($subscription), $created ? 201 : 200);
             }
             if ($subscription->moyen_paiement === 'mobile_money') {
                 return $this->initiateEnkapCheckout($subscription, $created ? 201 : 200);
@@ -163,7 +172,9 @@ class SubscriptionController extends Controller
     public function startPayment(Request $request, int $id): JsonResponse
     {
         $subscription = $request->user()->subscriptions()->with(['user', 'product'])->findOrFail($id);
-        if ($subscription->mobile_provider) return $this->s3pResponse(app(\App\Services\Payments\MobilePaymentService::class)->start($subscription));
+        if ($subscription->mobile_provider) {
+            return $this->s3pResponse(app(MobilePaymentService::class)->start($subscription));
+        }
 
         if ($subscription->statut === 'Succès') {
             return response()->json([
@@ -246,8 +257,8 @@ class SubscriptionController extends Controller
     {
         if ($subscription->mobile_provider) {
             try {
-                return $this->s3pResponse(app(\App\Services\Payments\MobilePaymentService::class)->refresh($subscription));
-            } catch (\Throwable) {
+                return $this->s3pResponse(app(MobilePaymentService::class)->refresh($subscription));
+            } catch (Throwable) {
                 return response()->json(['message' => 'Vérification temporairement indisponible. Ne relancez pas de débit.', 'subscription' => $subscription->fresh()], 503);
             }
         }
@@ -317,7 +328,9 @@ class SubscriptionController extends Controller
     public function checkMavianceStatus(Request $request, int $id): JsonResponse
     {
         $owned = $request->user()->subscriptions()->findOrFail($id);
-        if ($owned->mobile_provider) return $this->paymentStatusResponse($owned);
+        if ($owned->mobile_provider) {
+            return $this->paymentStatusResponse($owned);
+        }
         $subscription = $request->user()->subscriptions()->with('product')->findOrFail($id);
 
         if ($subscription->statut === 'Succès') {
@@ -689,6 +702,7 @@ class SubscriptionController extends Controller
             return response()->json(['message' => 'Paiement de test Maviance réussi. Aucune part réelle n’est créditée.',
                 'subscription' => $subscription, 'payment' => ['provider' => 's3p', 'status' => 'success', 'mode' => 'staging', 'redirect_required' => false]], $status);
         }
+
         return response()->json([
             'message' => match ($subscription->mobile_state) {
                 'success' => $subscription->statut === 'Succès' ? 'Paiement confirmé.' : ($subscription->valuation_status === 'awaiting_payment_date'
@@ -696,7 +710,7 @@ class SubscriptionController extends Controller
                     : 'Fonds reçus. Attribution des parts en attente de la VL à la date de réception.'),
                 'quote_failed' => 'Préparation du paiement impossible. Vous pouvez réessayer.',
                 'verification_required' => 'Résultat du paiement à vérifier. Ne relancez pas le débit.',
-                'errored' => \App\Services\Payments\S3pPaymentError::message($subscription->s3p_error_code),
+                'errored' => S3pPaymentError::message($subscription->s3p_error_code),
                 'reversed' => 'Paiement annulé par le prestataire. Contactez le support.',
                 default => 'Demande enregistrée. Consultez votre téléphone puis vérifiez le statut.',
             },

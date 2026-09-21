@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Payments\S3pGateway;
 use App\Services\Payments\S3pTimestamp;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -14,6 +15,7 @@ use Tests\TestCase;
 class S3pGatewayContractTest extends TestCase
 {
     private Subscription $sub;
+
     private array $state;
 
     protected function setUp(): void
@@ -113,8 +115,10 @@ class S3pGatewayContractTest extends TestCase
             '*/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 120]),
             '*/collectstd' => Http::response(['respCode' => 4009], 401),
         ]);
-        try { app(S3pGateway::class)->collect($this->sub); $this->fail('Expected provider refusal'); }
-        catch (\Illuminate\Http\Client\RequestException) {
+        try {
+            app(S3pGateway::class)->collect($this->sub);
+            $this->fail('Expected provider refusal');
+        } catch (RequestException) {
             $this->assertCount(1, Http::recorded(fn ($r) => str_contains($r->url(), '/collectstd')));
             Http::assertSentCount(2);
         }
@@ -123,8 +127,12 @@ class S3pGatewayContractTest extends TestCase
     public function test_catalog_rejects_wrong_merchant_before_quoting(): void
     {
         $this->fake(catalog: ['merchant' => 'PAYOUT']);
-        try { app(S3pGateway::class)->quote($this->sub); $this->fail('Wrong merchant accepted'); }
-        catch (\RuntimeException) { Http::assertNotSent(fn ($r) => str_contains($r->url(), '/quotestd')); }
+        try {
+            app(S3pGateway::class)->quote($this->sub);
+            $this->fail('Wrong merchant accepted');
+        } catch (\RuntimeException) {
+            Http::assertNotSent(fn ($r) => str_contains($r->url(), '/quotestd'));
+        }
     }
 
     public function test_catalog_is_filtered_locally_when_provider_ignores_query_filters(): void
@@ -152,8 +160,12 @@ class S3pGatewayContractTest extends TestCase
     {
         $this->fake();
         $this->sub->s3p_quote_expires_at = now()->subSecond();
-        try { app(S3pGateway::class)->collect($this->sub); $this->fail('Expired quote accepted'); }
-        catch (\RuntimeException) { Http::assertNothingSent(); }
+        try {
+            app(S3pGateway::class)->collect($this->sub);
+            $this->fail('Expired quote accepted');
+        } catch (\RuntimeException) {
+            Http::assertNothingSent();
+        }
     }
 
     public function test_national_wallet_format_keeps_compliance_phone_international(): void
@@ -168,16 +180,24 @@ class S3pGatewayContractTest extends TestCase
     {
         $this->fake();
         config(['payments.s3p.public_key' => 'another-account']);
-        try { app(S3pGateway::class)->verify($this->sub); $this->fail('Wrong account accepted'); }
-        catch (\RuntimeException) { Http::assertNothingSent(); }
+        try {
+            app(S3pGateway::class)->verify($this->sub);
+            $this->fail('Wrong account accepted');
+        } catch (\RuntimeException) {
+            Http::assertNothingSent();
+        }
     }
 
     public function test_unsafe_host_is_rejected_before_credentials_are_sent(): void
     {
         $this->fake();
         config(['payments.s3p.base_url' => 'https://attacker.invalid']);
-        try { app(S3pGateway::class)->quote($this->sub); $this->fail('Unsafe host accepted'); }
-        catch (\RuntimeException) { Http::assertNothingSent(); }
+        try {
+            app(S3pGateway::class)->quote($this->sub);
+            $this->fail('Unsafe host accepted');
+        } catch (\RuntimeException) {
+            Http::assertNothingSent();
+        }
     }
 
     public function test_authentication_refresh_retries_read_only_once(): void

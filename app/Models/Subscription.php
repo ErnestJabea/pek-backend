@@ -36,7 +36,9 @@ class Subscription extends Model
     {
         DB::afterCommit(function () use ($subscriptionId) {
             $confirmed = self::with(['user', 'product'])->find($subscriptionId);
-            if (! $confirmed) return;
+            if (! $confirmed) {
+                return;
+            }
             Notification::firstOrCreate([
                 'user_id' => $confirmed->user_id,
                 'title' => 'Souscription Validée ✅',
@@ -51,7 +53,9 @@ class Subscription extends Model
     {
         DB::afterCommit(function () use ($subscriptionId) {
             $failed = self::with(['user', 'product'])->find($subscriptionId);
-            if (! $failed) return;
+            if (! $failed) {
+                return;
+            }
             Notification::firstOrCreate([
                 'user_id' => $failed->user_id,
                 'title' => 'Paiement non abouti ⚠️',
@@ -133,13 +137,18 @@ class Subscription extends Model
 
     public function getMontantNetAttribute(): float
     {
-        if ($this->investment_amount !== null) return (float) $this->investment_amount;
+        if ($this->investment_amount !== null) {
+            return (float) $this->investment_amount;
+        }
+
         return round((float) $this->nb_parts * (float) $this->prix_unitaire);
     }
 
     public function getFraisGestionAttribute(): float
     {
-        if ($this->subscription_fee !== null) return (float) $this->subscription_fee;
+        if ($this->subscription_fee !== null) {
+            return (float) $this->subscription_fee;
+        }
         $net = $this->montant_net;
         if ((float) $this->montant_total > 0) {
             return max(0, (float) $this->montant_total - $net);

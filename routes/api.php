@@ -3,10 +3,13 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\IdentityVerificationController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\PaymentProofController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\S3pWebhookController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\WebhookController;
 use App\Models\BankDetail;
+use App\Services\Payments\S3pGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -31,8 +34,8 @@ $defineApiRoutes = function () {
 
     // Provider callbacks are public by necessity, but each handler verifies a cryptographic signature.
     Route::post('/stripe/webhook', [WebhookController::class, 'handleStripe'])->middleware('throttle:provider-webhooks');
-    Route::post('/s3p/webhook', \App\Http\Controllers\S3pWebhookController::class)->middleware('throttle:provider-webhooks');
-    Route::get('/payment-options', function (\App\Services\Payments\S3pGateway $gateway) {
+    Route::post('/s3p/webhook', S3pWebhookController::class)->middleware('throttle:provider-webhooks');
+    Route::get('/payment-options', function (S3pGateway $gateway) {
         return response()->json(['orange_money' => $gateway->available('orange_money'), 'mtn_momo' => $gateway->available('mtn_momo'),
             's3p_mode' => $gateway->isStaging() ? 'staging' : 'live',
             'fee_basis_points' => config('payments.fee_basis_points'), 'max_investment' => config('payments.max_investment')]);
@@ -65,9 +68,9 @@ $defineApiRoutes = function () {
         });
         Route::get('/subscriptions', [SubscriptionController::class, 'index']);
         Route::post('/subscriptions', [SubscriptionController::class, 'store'])->middleware('throttle:payment-initiation');
-        Route::get('/subscriptions/{id}/proofs', [\App\Http\Controllers\PaymentProofController::class, 'index']);
-        Route::post('/subscriptions/{id}/proofs', [\App\Http\Controllers\PaymentProofController::class, 'store'])->middleware('throttle:proof-upload');
-        Route::get('/payment-proofs/{proof}/download', [\App\Http\Controllers\PaymentProofController::class, 'download']);
+        Route::get('/subscriptions/{id}/proofs', [PaymentProofController::class, 'index']);
+        Route::post('/subscriptions/{id}/proofs', [PaymentProofController::class, 'store'])->middleware('throttle:proof-upload');
+        Route::get('/payment-proofs/{proof}/download', [PaymentProofController::class, 'download']);
         Route::post('/subscriptions/{id}/payment-session', [SubscriptionController::class, 'startPayment'])->middleware('throttle:payment-initiation');
         Route::get('/subscriptions/{id}/payment-status', [SubscriptionController::class, 'paymentStatus']);
         Route::get('/subscriptions/reference/{reference}/payment-status', [SubscriptionController::class, 'paymentStatusByReference']);

@@ -3,6 +3,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 return new class extends Migration
 {
@@ -55,9 +57,9 @@ return new class extends Migration
             $table->timestamp('created_at')->useCurrent();
         });
         foreach (['view_payment_proof', 'review_payment_proof', 'confirm_bank_payment', 'review_subscription_compliance'] as $permission) {
-            \Spatie\Permission\Models\Permission::findOrCreate($permission, 'web');
+            Permission::findOrCreate($permission, 'web');
         }
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public function down(): void

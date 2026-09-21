@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SubscriptionResource\RelationManagers;
 
+use App\Models\Notification;
 use App\Models\PaymentProof;
 use App\Services\Payments\PaymentAudit;
 use Filament\Forms;
@@ -9,10 +10,12 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class PaymentProofsRelationManager extends RelationManager
 {
     protected static string $relationship = 'paymentProofs';
+
     protected static ?string $title = 'Justificatifs de virement';
 
     public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
@@ -42,11 +45,11 @@ class PaymentProofsRelationManager extends RelationManager
                 ])->action(function (PaymentProof $record, array $data) {
                     abort_unless(auth()->user()->can('review_payment_proof'), 403);
                     abort_unless($record->scan_status === 'clean', 423, 'Analyse antivirus requise.');
-                    \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
+                    DB::transaction(function () use ($record, $data) {
                         $record->update(['review_status' => $data['status'], 'review_note' => $data['note'], 'reviewed_by' => auth()->id(), 'reviewed_at' => now()]);
                         PaymentAudit::record($record->subscription_id, 'proof_reviewed', ['proof_id' => $record->id, 'status' => $data['status'], 'note' => $data['note']], auth()->id());
                     });
-                    \App\Models\Notification::create(['user_id' => $record->user_id, 'title' => 'Justificatif de virement examiné', 'body' => $data['note'], 'type' => 'subscription']);
+                    Notification::create(['user_id' => $record->user_id, 'title' => 'Justificatif de virement examiné', 'body' => $data['note'], 'type' => 'subscription']);
                 }),
         ]);
     }

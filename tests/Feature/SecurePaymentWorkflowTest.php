@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessSubscriptionReceipt;
 use App\Models\BankDetail;
 use App\Models\PaymentProof;
 use App\Models\Product;
@@ -10,13 +11,18 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Payments\BankPaymentService;
 use App\Services\Payments\MobilePaymentService;
-use App\Services\Payments\ProofScanner;
+use App\Services\Payments\S3pGateway;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class SecurePaymentWorkflowTest extends TestCase
@@ -24,7 +30,9 @@ class SecurePaymentWorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $client;
+
     private User $accountant;
+
     private Product $product;
 
     protected function setUp(): void
@@ -48,6 +56,7 @@ class SecurePaymentWorkflowTest extends TestCase
             'product_id' => $this->product->id, 'investment_amount' => 75000,
             'moyen_paiement' => 'bank_transfer', 'montant_total' => 1, 'subscription_fee' => 0,
         ])->assertCreated()->assertJsonPath('subscription.montant_total', '75750.00');
+
         return Subscription::where('idempotency_key', $key)->firstOrFail();
     }
 
@@ -72,7 +81,7 @@ class SecurePaymentWorkflowTest extends TestCase
         $this->assertSame(75000.0, $result->montant_net);
         $this->assertSame(750.0, $result->frais_gestion);
         $service->confirm($sub, $this->accountant, $this->bankData('2026-09-12'));
-        Queue::assertPushed(\App\Jobs\ProcessSubscriptionReceipt::class, 1);
+        Queue::assertPushed(ProcessSubscriptionReceipt::class, 1);
     }
 
     public function test_missing_nav_never_falls_back_to_current_value_and_reconciles_later(): void
@@ -92,7 +101,7 @@ class SecurePaymentWorkflowTest extends TestCase
     public function test_unprivileged_user_cannot_confirm_bank_funds(): void
     {
         $sub = $this->bank();
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
         app(BankPaymentService::class)->confirm($sub, $this->client, $this->bankData());
     }
 
@@ -102,7 +111,7 @@ class SecurePaymentWorkflowTest extends TestCase
         try {
             app(BankPaymentService::class)->confirm($sub, $this->accountant, [...$this->bankData(), 'amount' => 75000]);
             $this->fail('A mismatched amount was accepted');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
             $this->assertNull($sub->fresh()->funds_received_at);
         }
@@ -116,7 +125,7 @@ class SecurePaymentWorkflowTest extends TestCase
         try {
             app(BankPaymentService::class)->confirm($two, $this->accountant, $this->bankData());
             $this->fail('Duplicate bank operation accepted');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(409, $e->getStatusCode());
             $this->assertNull($two->fresh()->funds_received_at);
         }
@@ -128,8 +137,10 @@ class SecurePaymentWorkflowTest extends TestCase
         try {
             app(BankPaymentService::class)->confirm($sub, $this->accountant, $this->bankData('2026-09-17'));
             $this->fail('Future date accepted');
-        } catch (\Illuminate\Validation\ValidationException) { $this->assertNull($sub->fresh()->funds_received_at); }
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        } catch (ValidationException) {
+            $this->assertNull($sub->fresh()->funds_received_at);
+        }
+        $this->expectException(HttpException::class);
         app(BankPaymentService::class)->confirm($sub, $this->accountant, $this->bankData('2026-09-15'));
     }
 
@@ -209,7 +220,7 @@ class SecurePaymentWorkflowTest extends TestCase
     {
         config(['payments.s3p.simulation' => true]);
         $this->app->instance('env', 'production');
-        $gateway = app(\App\Services\Payments\S3pGateway::class);
+        $gateway = app(S3pGateway::class);
         $this->assertFalse($gateway->isSimulation());
         $this->assertFalse($gateway->available('orange_money'));
         $this->assertFalse($gateway->available('mtn_momo'));
@@ -218,13 +229,14 @@ class SecurePaymentWorkflowTest extends TestCase
     public function test_simulation_is_blocked_with_persistent_database_configuration(): void
     {
         config(['payments.s3p.simulation' => true, 'database.connections.sqlite.database' => 'persistent.sqlite']);
-        $this->assertFalse(app(\App\Services\Payments\S3pGateway::class)->isSimulation());
+        $this->assertFalse(app(S3pGateway::class)->isSimulation());
         config(['database.connections.sqlite.database' => ':memory:']);
     }
 
     public function test_reversed_mobile_payment_cannot_be_credited_again(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         $service = app(MobilePaymentService::class);
         $service->refresh($sub);
@@ -234,7 +246,7 @@ class SecurePaymentWorkflowTest extends TestCase
         $this->travel(11)->seconds();
         $this->fakeS3p();
         $this->assertSame('À vérifier', $service->refresh($sub)->statut);
-        Queue::assertPushed(\App\Jobs\ProcessSubscriptionReceipt::class, 1);
+        Queue::assertPushed(ProcessSubscriptionReceipt::class, 1);
     }
 
     private function s3pConfig(): void
@@ -248,7 +260,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_interactive_staging_success_cannot_credit_real_parts(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         $this->app->instance('env', 'local');
         $result = app(MobilePaymentService::class)->refresh($sub);
@@ -263,7 +276,7 @@ class SecurePaymentWorkflowTest extends TestCase
     {
         $this->s3pConfig();
         $this->app->instance('env', 'production');
-        $gateway = app(\App\Services\Payments\S3pGateway::class);
+        $gateway = app(S3pGateway::class);
         $this->assertFalse($gateway->available('orange_money'));
         $this->assertFalse($gateway->available('mtn_momo'));
         $this->app->instance('env', 'testing');
@@ -276,38 +289,51 @@ class SecurePaymentWorkflowTest extends TestCase
             'product_id' => $this->product->id, 'investment_amount' => 75000,
             'moyen_paiement' => 'orange_money', 'payment_phone' => '237699000001',
         ])->assertCreated()->assertJsonPath('payment.provider', 's3p')->assertJsonMissingPath('subscription.payment_phone');
+
         return Subscription::where('idempotency_key', 'mobile-test')->firstOrFail();
     }
 
     private function fakeS3p(string $status = 'SUCCESS', int $amount = 75750, bool $timeout = false, ?string $timestamp = null): void
     {
-        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::swap(new Factory);
         Http::preventStrayRequests();
         Http::fake(function ($request) use ($status, $amount, $timeout, $timestamp) {
             $isMtn = str_contains($request->url(), '20002') || Subscription::where('mobile_provider', 'mtn_momo')->exists();
             $merchant = $isMtn ? 'TEST-MTN' : 'TEST-ORANGE';
             $service = $isMtn ? '20002' : '20001';
-            if (str_contains($request->url(), '/oauth/token')) return Http::response(['access_token' => 'fake-token', 'expires_in' => 120]);
-            if (str_contains($request->url(), '/cashout')) return Http::response([['payItemId' => 'collection-item', 'merchant' => $merchant, 'serviceid' => $service, 'localCur' => 'XAF', 'amountType' => 'CUSTOM']]);
-            if (str_contains($request->url(), '/quotestd')) return Http::response(['quoteId' => 'quote-1', 'priceLocalCur' => 75750, 'localCur' => 'XAF', 'payItemId' => 'collection-item', 'expiresIn' => 120]);
+            if (str_contains($request->url(), '/oauth/token')) {
+                return Http::response(['access_token' => 'fake-token', 'expires_in' => 120]);
+            }
+            if (str_contains($request->url(), '/cashout')) {
+                return Http::response([['payItemId' => 'collection-item', 'merchant' => $merchant, 'serviceid' => $service, 'localCur' => 'XAF', 'amountType' => 'CUSTOM']]);
+            }
+            if (str_contains($request->url(), '/quotestd')) {
+                return Http::response(['quoteId' => 'quote-1', 'priceLocalCur' => 75750, 'localCur' => 'XAF', 'payItemId' => 'collection-item', 'expiresIn' => 120]);
+            }
             if (str_contains($request->url(), '/collectstd')) {
-                if ($timeout) throw new \Illuminate\Http\Client\ConnectionException('Simulated lost response');
+                if ($timeout) {
+                    throw new ConnectionException('Simulated lost response');
+                }
+
                 return Http::response(['ptn' => 'PTN-001', 'status' => 'PENDING']);
             }
-            if (str_contains($request->url(), '/verifytx')) return Http::response([
-                'trid' => Subscription::whereNotNull('s3p_reference')->first()->s3p_reference,
-                'ptn' => 'PTN-001', 'payItemId' => 'collection-item', 'status' => $status,
-                'merchant' => $merchant, 'serviceid' => $service, 'errorCode' => $status === 'REVERSED' ? 3 : ($status === 'ERRORED' ? 703202 : 0),
-                'timestamp' => $timestamp ?? now()->toIso8601String(),
-                'priceLocalCur' => $amount, 'localCur' => 'XAF',
-            ]);
+            if (str_contains($request->url(), '/verifytx')) {
+                return Http::response([
+                    'trid' => Subscription::whereNotNull('s3p_reference')->first()->s3p_reference,
+                    'ptn' => 'PTN-001', 'payItemId' => 'collection-item', 'status' => $status,
+                    'merchant' => $merchant, 'serviceid' => $service, 'errorCode' => $status === 'REVERSED' ? 3 : ($status === 'ERRORED' ? 703202 : 0),
+                    'timestamp' => $timestamp ?? now()->toIso8601String(),
+                    'priceLocalCur' => $amount, 'localCur' => 'XAF',
+                ]);
+            }
             throw new \RuntimeException('Unexpected HTTP request');
         });
     }
 
     public function test_mobile_confirmation_is_provider_verified_and_idempotent(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         $this->assertSame('En attente', $sub->statut);
         $this->assertStringNotContainsString('237699000001', $sub->getRawOriginal('payment_phone'));
@@ -317,14 +343,15 @@ class SecurePaymentWorkflowTest extends TestCase
         $this->assertSame('Succès', $result->statut);
         $this->travel(11)->seconds();
         $payments->refresh($sub);
-        Queue::assertPushed(\App\Jobs\ProcessSubscriptionReceipt::class, 1);
+        Queue::assertPushed(ProcessSubscriptionReceipt::class, 1);
         $collectCalls = Http::recorded(fn ($r) => str_contains($r->url(), '/collectstd'));
         $this->assertCount(1, $collectCalls);
     }
 
     public function test_timeout_cannot_trigger_second_debit_and_is_recovered_by_reference(): void
     {
-        $this->s3pConfig(); $this->fakeS3p(timeout: true);
+        $this->s3pConfig();
+        $this->fakeS3p(timeout: true);
         $sub = $this->mobile();
         $this->assertSame('verification_required', $sub->mobile_state);
         $reference = $sub->s3p_reference;
@@ -337,7 +364,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_signed_webhook_cannot_override_wrong_provider_amount(): void
     {
-        $this->s3pConfig(); $this->fakeS3p(amount: 1);
+        $this->s3pConfig();
+        $this->fakeS3p(amount: 1);
         $sub = $this->mobile();
         $raw = json_encode(['trid' => $sub->s3p_reference, 'status' => 'SUCCESS', 'timestamp' => '2026-09-16 12:00:00', 'errorCode' => '0']);
         $this->call('POST', '/api/s3p/webhook', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json',
@@ -361,6 +389,7 @@ class SecurePaymentWorkflowTest extends TestCase
     {
         $raw = json_encode(['timestamp' => '2026-09-16T12:00:00+00:00', 'trid' => $sub->s3p_reference,
             'errorCode' => $status === 'REVERSED' ? '3' : '0', 'status' => $status]);
+
         return $this->call('POST', '/api/s3p/webhook', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json',
             'HTTP_X_PTN' => $ptn, 'HTTP_X_DELIVERY' => 'd811b35f-ddfe-4e1d-b4e7-f60d1d8e9b53',
             'HTTP_X_SIGNATURE' => hash_hmac('sha1', $raw, 'callback-test')], $raw);
@@ -368,7 +397,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_callback_is_durable_deduplicated_and_never_calls_provider_in_http_request(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         $before = count(Http::recorded());
         $this->sendS3pCallback($sub)->assertOk();
@@ -378,14 +408,15 @@ class SecurePaymentWorkflowTest extends TestCase
         $this->assertSame('En attente', $sub->fresh()->statut);
         $this->artisan('payments:reconcile')->assertSuccessful();
         $this->assertSame('Succès', $sub->fresh()->statut);
-        $this->assertNotNull(\Illuminate\Support\Facades\DB::table('s3p_callback_inbox')->value('processed_at'));
+        $this->assertNotNull(DB::table('s3p_callback_inbox')->value('processed_at'));
         $this->artisan('payments:reconcile')->assertSuccessful();
-        Queue::assertPushed(\App\Jobs\ProcessSubscriptionReceipt::class, 1);
+        Queue::assertPushed(ProcessSubscriptionReceipt::class, 1);
     }
 
     public function test_callback_with_wrong_ptn_is_rejected(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         $this->sendS3pCallback($sub, ptn: 'WRONG-PTN')->assertConflict();
         $this->assertDatabaseCount('s3p_callback_inbox', 0);
@@ -393,7 +424,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_legacy_callback_is_supported_but_tampered_signed_body_is_rejected(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         $raw = json_encode(['timestamp' => '2026-09-16 12:00:00', 'trid' => $sub->s3p_reference, 'status' => 'ERROR', 'errorCode' => null]);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_X_PTN' => 'PTN-001',
@@ -407,13 +439,14 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_callback_throttled_by_recent_poll_is_retried_and_not_lost(): void
     {
-        $this->s3pConfig(); $this->fakeS3p(status: 'PENDING');
+        $this->s3pConfig();
+        $this->fakeS3p(status: 'PENDING');
         $sub = $this->mobile();
         app(MobilePaymentService::class)->refresh($sub);
         $this->fakeS3p();
         $this->sendS3pCallback($sub)->assertOk();
         $this->artisan('payments:reconcile')->assertSuccessful();
-        $this->assertNull(\Illuminate\Support\Facades\DB::table('s3p_callback_inbox')->value('processed_at'));
+        $this->assertNull(DB::table('s3p_callback_inbox')->value('processed_at'));
         $this->assertSame('En attente', $sub->fresh()->statut);
         $this->travel(61)->seconds();
         $this->artisan('payments:reconcile')->assertSuccessful();
@@ -422,7 +455,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_provider_processing_time_is_not_assumed_to_be_receipt_time(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         config(['payments.s3p.verified_timestamp_is_receipt' => false]);
         $sub = $this->mobile();
         $result = app(MobilePaymentService::class)->refresh($sub);
@@ -440,7 +474,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_mtn_uses_its_own_service_and_merchant(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         ProductVl::create(['product_id' => $this->product->id, 'date_vl' => '2026-09-16', 'vl' => 10000]);
         $this->actingAs($this->client)->withHeader('Idempotency-Key', 'mtn-test')->postJson('/api/subscriptions', [
             'product_id' => $this->product->id, 'investment_amount' => 75000, 'moyen_paiement' => 'mtn_momo', 'payment_phone' => '+237 677 000 001',
@@ -453,7 +488,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_delayed_mobile_confirmation_uses_provider_date_and_waits_for_exact_nav(): void
     {
-        $this->s3pConfig(); $this->fakeS3p(timestamp: '2026-09-12T10:00:00+00:00');
+        $this->s3pConfig();
+        $this->fakeS3p(timestamp: '2026-09-12T10:00:00+00:00');
         $this->travelTo(now()->setDate(2026, 9, 10));
         $sub = $this->mobile();
         $this->travelTo(now()->setDate(2026, 9, 16));
@@ -470,7 +506,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_mobile_confirmation_without_unambiguous_date_cannot_credit_parts(): void
     {
-        $this->s3pConfig(); $this->fakeS3p(timestamp: '');
+        $this->s3pConfig();
+        $this->fakeS3p(timestamp: '');
         $sub = $this->mobile();
         try {
             app(MobilePaymentService::class)->refresh($sub);
@@ -484,7 +521,8 @@ class SecurePaymentWorkflowTest extends TestCase
 
     public function test_mobile_reversal_while_waiting_for_nav_is_not_credited_by_reconciliation(): void
     {
-        $this->s3pConfig(); $this->fakeS3p();
+        $this->s3pConfig();
+        $this->fakeS3p();
         $sub = $this->mobile();
         ProductVl::where('product_id', $this->product->id)->delete();
         $service = app(MobilePaymentService::class);
@@ -512,7 +550,7 @@ class SecurePaymentWorkflowTest extends TestCase
     {
         config(['payments.s3p.simulation' => true, 'payments.s3p.enabled' => false]);
         ProductVl::create(['product_id' => $this->product->id, 'date_vl' => '2026-09-16', 'vl' => 10000]);
-        
+
         $this->getJson('/api/payment-options')->assertOk()
             ->assertJsonPath('orange_money', true)
             ->assertJsonPath('mtn_momo', true);
@@ -526,12 +564,12 @@ class SecurePaymentWorkflowTest extends TestCase
         ])->assertCreated();
 
         $response->assertJsonPath('payment.provider', 's3p');
-        
+
         $sub = Subscription::where('idempotency_key', 'sim-mobile-test')->firstOrFail();
         $this->assertSame('Succès', $sub->statut);
         $this->assertSame('success', $sub->mobile_state);
         $this->assertNotNull($sub->s3p_reference);
         $this->assertNotNull($sub->s3p_ptn);
-        Queue::assertPushed(\App\Jobs\ProcessSubscriptionReceipt::class, 1);
+        Queue::assertPushed(ProcessSubscriptionReceipt::class, 1);
     }
 }

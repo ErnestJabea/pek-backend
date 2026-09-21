@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Subscription;
 use App\Services\Payments\PaymentAudit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Http\Request;
 
 class S3pWebhookController extends Controller
 {
@@ -25,7 +25,9 @@ class S3pWebhookController extends Controller
             'errorCode' => ['present', 'nullable', 'regex:/^\d{1,10}$/D'],
         ]);
         // The legacy callback guide uses ERROR; verifytx remains authoritative.
-        if ($data['status'] === 'ERROR') $data['status'] = 'ERRORED';
+        if ($data['status'] === 'ERROR') {
+            $data['status'] = 'ERRORED';
+        }
         $ptn = $request->header('X-Ptn');
         $delivery = $request->header('X-Delivery');
         validator(['ptn' => $ptn, 'delivery' => $delivery], [
@@ -33,7 +35,9 @@ class S3pWebhookController extends Controller
             'delivery' => ['required', 'uuid'],
         ])->validate();
         $sub = Subscription::where('s3p_reference', $data['trid'])->first();
-        if (!$sub) return response()->json(['received' => true]);
+        if (! $sub) {
+            return response()->json(['received' => true]);
+        }
         abort_if($sub->s3p_ptn && $sub->s3p_ptn !== $ptn, 409, 'PTN incohérent.');
         // Persist before acknowledging. No external API call in the webhook request.
         // Deduplication is based on signed bytes, not on unsigned delivery headers.
@@ -44,8 +48,11 @@ class S3pWebhookController extends Controller
                 'ptn' => $ptn, 'provider_status' => $data['status'], 'provider_timestamp' => $data['timestamp'],
                 'error_code' => (string) $data['errorCode'], 'received_at' => now(), 'next_attempt_at' => now(),
             ]);
-            if ($inserted) PaymentAudit::record($sub->id, 'mobile_callback_received', ['body_hash' => $hash, 'status' => $data['status']]);
+            if ($inserted) {
+                PaymentAudit::record($sub->id, 'mobile_callback_received', ['body_hash' => $hash, 'status' => $data['status']]);
+            }
         });
+
         return response()->json(['received' => true]);
     }
 }

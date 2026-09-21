@@ -39,22 +39,22 @@ class Product extends Model
 
     public function getDepliantUrlAttribute(): ?string
     {
-        return $this->depliant ? '/storage/' . ltrim($this->depliant, '/') : null;
+        return $this->depliant ? '/storage/'.ltrim($this->depliant, '/') : null;
     }
 
     public function getDepliantEnUrlAttribute(): ?string
     {
-        return $this->depliant_en ? '/storage/' . ltrim($this->depliant_en, '/') : null;
+        return $this->depliant_en ? '/storage/'.ltrim($this->depliant_en, '/') : null;
     }
 
     public function getDocumentInformationUrlAttribute(): ?string
     {
-        return $this->document_information ? '/storage/' . ltrim($this->document_information, '/') : null;
+        return $this->document_information ? '/storage/'.ltrim($this->document_information, '/') : null;
     }
 
     public function getDocumentInformationEnUrlAttribute(): ?string
     {
-        return $this->document_information_en ? '/storage/' . ltrim($this->document_information_en, '/') : null;
+        return $this->document_information_en ? '/storage/'.ltrim($this->document_information_en, '/') : null;
     }
 
     public function subscriptions()

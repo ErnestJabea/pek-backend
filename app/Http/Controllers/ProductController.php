@@ -12,7 +12,7 @@ class ProductController extends Controller
         $acceptHeader = $request->header('Accept-Language', $request->query('lang', 'fr'));
         $lang = strtolower(substr($acceptHeader, 0, 2));
         $isEn = $lang === 'en';
-        $cacheKey = 'products_list_' . ($isEn ? 'en' : 'fr');
+        $cacheKey = 'products_list_'.($isEn ? 'en' : 'fr');
 
         return \Cache::remember($cacheKey, 300, function () use ($isEn) {
             return Product::where('is_active', true)->with(['vls' => function ($query) {

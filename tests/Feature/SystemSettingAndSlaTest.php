@@ -6,7 +6,6 @@ use App\Console\Commands\CheckOnboardingSlaCommand;
 use App\Console\Commands\CheckSubscriptionSlaCommand;
 use App\Mail\OnboardingSlaAlertMail;
 use App\Mail\SubscriptionSlaAlertMail;
-use App\Models\OnboardingSession;
 use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\SystemSetting;

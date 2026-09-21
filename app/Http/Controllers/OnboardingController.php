@@ -190,7 +190,7 @@ class OnboardingController extends Controller
         } catch (HttpException $exception) {
             return $this->privateResponse(['message' => $exception->getMessage()], $exception->getStatusCode());
         } catch (Throwable $exception) {
-            Log::error('Onboarding finalization failed: ' . $exception->getMessage() . "\n" . $exception->getTraceAsString(), [
+            Log::error('Onboarding finalization failed: '.$exception->getMessage()."\n".$exception->getTraceAsString(), [
                 'user_id' => $request->user()?->id,
                 'exception' => $exception::class,
             ]);

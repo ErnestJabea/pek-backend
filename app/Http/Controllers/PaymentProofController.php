@@ -16,6 +16,7 @@ class PaymentProofController extends Controller
     public function index(Request $request, int $id)
     {
         $sub = $request->user()->subscriptions()->findOrFail($id);
+
         return response()->json($sub->paymentProofs()->latest()->get())->header('Cache-Control', 'no-store, private');
     }
 
@@ -56,12 +57,14 @@ class PaymentProofController extends Controller
                     'declared_reference' => $data['declared_reference'] ?? null,
                 ]);
                 PaymentAudit::record($sub->id, 'proof_uploaded', ['proof_id' => $proof->id, 'scan_status' => $status], $request->user()->id);
+
                 return $proof;
             });
         } catch (\Throwable $e) {
             Storage::disk('payment_private')->delete($path);
             throw $e;
         }
+
         return response()->json(['message' => 'Justificatif reçu. La réception des fonds doit encore être vérifiée.', 'proof' => $proof], 201);
     }
 
@@ -73,6 +76,7 @@ class PaymentProofController extends Controller
         abort_unless(is_file($path) && hash_equals($proof->sha256, hash_file('sha256', $path)), 423, 'Intégrité du justificatif non vérifiée.');
         PaymentAudit::record($proof->subscription_id, 'proof_downloaded', ['proof_id' => $proof->id], $request->user()->id);
         $extension = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'][$proof->mime];
+
         return Storage::disk('payment_private')->download($proof->path, 'justificatif-'.$proof->id.'.'.$extension, [
             'Content-Type' => 'application/octet-stream', 'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store, private', 'Content-Security-Policy' => "default-src 'none'; sandbox",

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 class PaymentEventsRelationManager extends RelationManager
 {
     protected static string $relationship = 'paymentEvents';
+
     protected static ?string $title = 'Journal du paiement';
 
     public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool

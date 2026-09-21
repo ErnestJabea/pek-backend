@@ -73,8 +73,13 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('payment-initiation', function (Request $request) {
             $input = $request->input('payment_phone');
             $phone = is_string($input) ? preg_replace('/[\s()+-]/', '', $input) : (string) $request->user()?->id;
-            if (str_starts_with($phone, '00237')) $phone = substr($phone, 2);
-            if (strlen($phone) === 9 && str_starts_with($phone, '6')) $phone = '237'.$phone;
+            if (str_starts_with($phone, '00237')) {
+                $phone = substr($phone, 2);
+            }
+            if (strlen($phone) === 9 && str_starts_with($phone, '6')) {
+                $phone = '237'.$phone;
+            }
+
             return [
                 Limit::perMinute(5)->by('user:'.$request->user()?->id),
                 Limit::perHour(10)->by('wallet:'.hash('sha256', $phone)),

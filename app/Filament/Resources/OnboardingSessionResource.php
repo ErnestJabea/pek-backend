@@ -103,6 +103,7 @@ class OnboardingSessionResource extends Resource
                                                 $color = $score >= 60 ? '#16a34a' : ($score >= 45 ? '#d97706' : '#dc2626');
                                                 $bg = $score >= 60 ? '#dcfce7' : ($score >= 45 ? '#fef3c7' : '#fee2e2');
                                                 $icon = $score >= 60 ? '✓' : '⚠️';
+
                                                 return new HtmlString("<span style='background-color: {$bg}; color: {$color}; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 1rem;'>{$icon} {$score}%</span>");
                                             }),
 
@@ -115,6 +116,7 @@ class OnboardingSessionResource extends Resource
                                                 }
                                                 $color = $score >= 50 ? '#16a34a' : '#d97706';
                                                 $bg = $score >= 50 ? '#dcfce7' : '#fef3c7';
+
                                                 return new HtmlString("<span style='background-color: {$bg}; color: {$color}; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 1rem;'>{$score}% Concordance</span>");
                                             }),
 
@@ -122,6 +124,7 @@ class OnboardingSessionResource extends Resource
                                             ->label('Statut de l\'audit')
                                             ->content(function ($record) {
                                                 $verified = $record->payload['face_verified'] ?? false;
+
                                                 return $verified
                                                     ? new HtmlString('<span style="color: #16a34a; font-weight: bold;">✓ Pré-validé par IA</span>')
                                                     : new HtmlString('<span style="color: #d97706; font-weight: bold;">⏳ Revue manuelle requise</span>');
@@ -129,7 +132,7 @@ class OnboardingSessionResource extends Resource
 
                                         Placeholder::make('scan_timestamp')
                                             ->label('Date & Heure du scan')
-                                            ->content(fn ($record) => !empty($record->payload['verification_timestamp']) ? date('d/m/Y H:i:s', strtotime($record->payload['verification_timestamp'])) : '-'),
+                                            ->content(fn ($record) => ! empty($record->payload['verification_timestamp']) ? date('d/m/Y H:i:s', strtotime($record->payload['verification_timestamp'])) : '-'),
                                     ]),
 
                                 Section::make('Comparateur visuel : Pièce d\'identité vs Selfie en direct')
@@ -142,6 +145,7 @@ class OnboardingSessionResource extends Resource
                                                     if ($img) {
                                                         return new HtmlString("<div style='border: 2px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #0f172a; text-align: center;'><img src='{$img}' style='max-height: 240px; width: 100%; object-fit: contain; cursor: pointer;' onclick='window.open(this.src)' title='Cliquer pour agrandir' /></div>");
                                                     }
+
                                                     return new HtmlString('<div style="color: #94a3b8; font-style: italic; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">Non fournie</div>');
                                                 }),
 
@@ -152,6 +156,7 @@ class OnboardingSessionResource extends Resource
                                                     if ($img) {
                                                         return new HtmlString("<div style='border: 2px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #0f172a; text-align: center;'><img src='{$img}' style='max-height: 240px; width: 100%; object-fit: contain; cursor: pointer;' onclick='window.open(this.src)' title='Cliquer pour agrandir' /></div>");
                                                     }
+
                                                     return new HtmlString('<div style="color: #94a3b8; font-style: italic; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">Non fournie (Optionnel)</div>');
                                                 }),
 
@@ -162,6 +167,7 @@ class OnboardingSessionResource extends Resource
                                                     if ($img) {
                                                         return new HtmlString("<div style='border: 2px solid #16a34a; border-radius: 8px; overflow: hidden; background: #0f172a; text-align: center;'><img src='{$img}' style='max-height: 240px; width: 100%; object-fit: contain; cursor: pointer;' onclick='window.open(this.src)' title='Cliquer pour agrandir' /></div>");
                                                     }
+
                                                     return new HtmlString('<div style="color: #94a3b8; font-style: italic; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">Non fourni</div>');
                                                 }),
                                         ]),

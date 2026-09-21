@@ -25,7 +25,9 @@ class ProcessSubscriptionReceipt implements ShouldQueue
     public function handle(): void
     {
         $subscription = $this->subscription->fresh(['user', 'product']);
-        if (!$subscription || $subscription->statut !== 'Succès') return;
+        if (! $subscription || $subscription->statut !== 'Succès') {
+            return;
+        }
         $mail = new SubscriptionMail($subscription);
         $pdf = Pdf::loadView('pdfs.receipt', ['subscription' => $subscription]);
 

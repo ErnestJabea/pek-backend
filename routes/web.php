@@ -1,9 +1,10 @@
 <?php
 
 use App\Http\Controllers\Admin\PdfDownloadController;
+use App\Http\Controllers\PaymentProofController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/admin/payment-proofs/{proof}/download', [\App\Http\Controllers\PaymentProofController::class, 'download'])
+Route::get('/admin/payment-proofs/{proof}/download', [PaymentProofController::class, 'download'])
     ->middleware(['web', 'auth'])->name('admin.payment-proofs.download');
 
 /*

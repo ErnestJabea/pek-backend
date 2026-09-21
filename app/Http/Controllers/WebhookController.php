@@ -211,7 +211,7 @@ class WebhookController extends Controller
                     return false;
                 }
 
-                $matches = !$subscription->mobile_provider
+                $matches = ! $subscription->mobile_provider
                     && in_array($subscription->moyen_paiement, ['mobile_money', 'maviance', 'orange_money', 'mtn_momo'], true)
                     && abs((float) $validated['transaction_amount'] - (float) $subscription->montant_total) < 0.01
                     && $validated['transaction_currency'] === 'XAF'

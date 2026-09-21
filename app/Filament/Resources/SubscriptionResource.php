@@ -3,21 +3,38 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SubscriptionResource\Pages;
+use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentEventsRelationManager;
+use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentProofsRelationManager;
 use App\Jobs\ProcessSubscriptionReceipt;
+use App\Models\BankDetail;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Payments\BankPaymentService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class SubscriptionResource extends Resource
 {
-    public static function canCreate(): bool { return false; }
-    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool { return false; }
-    public static function canDeleteAny(): bool { return false; }
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return false;
+    }
+
     protected static ?string $model = Subscription::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-credit-card';
@@ -205,18 +222,18 @@ class SubscriptionResource extends Resource
                         Forms\Components\TextInput::make('amount')->label('Montant effectivement reçu (XAF)')->numeric()->minValue(1)->required(),
                         Forms\Components\TextInput::make('reference')->label('Référence de l’écriture bancaire')->maxLength(120)->required(),
                         Forms\Components\Select::make('bank_detail_id')->label('Compte ayant reçu les fonds (ancienne demande)')
-                            ->options(fn () => \App\Models\BankDetail::pluck('bank_name', 'id'))
-                            ->visible(fn (Subscription $record) => !$record->bank_snapshot)
-                            ->required(fn (Subscription $record) => !$record->bank_snapshot),
+                            ->options(fn () => BankDetail::pluck('bank_name', 'id'))
+                            ->visible(fn (Subscription $record) => ! $record->bank_snapshot)
+                            ->required(fn (Subscription $record) => ! $record->bank_snapshot),
                     ])
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Valider le rapprochement comptable interne')
                     ->modalDescription('Confirmez-vous la réception des fonds et le rapprochement comptable pour cette souscription ?')
-                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement']) && !$record->funds_received_at && $record->statut !== 'Succès')
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement']) && ! $record->funds_received_at && $record->statut !== 'Succès')
                     ->action(function (Subscription $record, array $data) {
-                        $record = app(\App\Services\Payments\BankPaymentService::class)->confirm($record, auth()->user(), $data);
+                        $record = app(BankPaymentService::class)->confirm($record, auth()->user(), $data);
 
                         Notification::make()
                             ->title($record->statut === 'Succès' ? 'Fonds confirmés et parts valorisées' : 'Fonds confirmés — en attente de la VL de la date de réception')
@@ -260,8 +277,8 @@ class SubscriptionResource extends Resource
     public static function getRelations(): array
     {
         return [
-            \App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentProofsRelationManager::class,
-            \App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentEventsRelationManager::class,
+            PaymentProofsRelationManager::class,
+            PaymentEventsRelationManager::class,
         ];
     }
 

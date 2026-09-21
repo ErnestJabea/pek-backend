@@ -15,7 +15,9 @@ class PortfolioValuationTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Product $productA;
+
     protected Product $productB;
 
     protected function setUp(): void
@@ -54,7 +56,7 @@ class PortfolioValuationTest extends TestCase
 
     public function test_portfolio_valuation_returns_zero_when_no_active_subscriptions(): void
     {
-        $portfolioService = new PortfolioService();
+        $portfolioService = new PortfolioService;
         $valuation = $portfolioService->getClientValuation($this->user->id);
 
         $this->assertEquals(0.0, $valuation['valorisation_totale']);
@@ -89,7 +91,7 @@ class PortfolioValuationTest extends TestCase
             'date_vl' => now()->subDay(),
         ]);
 
-        $portfolioService = new PortfolioService();
+        $portfolioService = new PortfolioService;
         $valuation = $portfolioService->getClientValuation($this->user->id);
 
         // Valorisation = 10 parts * 12 000 = 120 000 FCFA
@@ -158,7 +160,7 @@ class PortfolioValuationTest extends TestCase
             'date_vl' => now(),
         ]);
 
-        $portfolioService = new PortfolioService();
+        $portfolioService = new PortfolioService;
         $valuation = $portfolioService->getClientValuation($this->user->id);
 
         // Product A summary:
