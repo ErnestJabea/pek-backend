@@ -7,13 +7,13 @@ use Illuminate\Support\Facades\DB;
 
 class S3pCallbackProcessor
 {
-    public function processDue(MobilePaymentService $payments): int
+    public function processDue(MobilePaymentService $payments, ?int $subscriptionId = null): int
     {
         if (! config('payments.s3p.enabled')) {
             return 0;
         }
         $processed = 0;
-        $ids = DB::table('s3p_callback_inbox')->whereNull('processed_at')->where('next_attempt_at', '<=', now())->orderBy('id')->limit(100)->pluck('id');
+        $ids = DB::table('s3p_callback_inbox')->when($subscriptionId !== null, fn ($q) => $q->where('subscription_id', $subscriptionId))->whereNull('processed_at')->where('next_attempt_at', '<=', now())->orderBy('id')->limit(100)->pluck('id');
         foreach ($ids as $id) {
             $callback = DB::transaction(function () use ($id) {
                 $row = DB::table('s3p_callback_inbox')->where('id', $id)->lockForUpdate()->first();

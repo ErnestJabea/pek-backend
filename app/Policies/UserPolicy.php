@@ -36,17 +36,17 @@ class UserPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user): bool
+    public function update(User $user, User $target): bool
     {
-        return $user->can('update_user');
+        return ! $target->isBackofficeAccount() && $user->can('update_user');
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user): bool
+    public function delete(User $user, User $target): bool
     {
-        return $user->can('delete_user');
+        return ! $target->isBackofficeAccount() && $user->can('delete_user');
     }
 
     /**
@@ -54,15 +54,15 @@ class UserPolicy
      */
     public function deleteAny(User $user): bool
     {
-        return $user->can('delete_any_user');
+        return $user->hasRole('super_admin');
     }
 
     /**
      * Determine whether the user can permanently delete.
      */
-    public function forceDelete(User $user): bool
+    public function forceDelete(User $user, User $target): bool
     {
-        return $user->can('force_delete_user');
+        return ! $target->isBackofficeAccount() && $user->can('force_delete_user');
     }
 
     /**
@@ -70,15 +70,15 @@ class UserPolicy
      */
     public function forceDeleteAny(User $user): bool
     {
-        return $user->can('force_delete_any_user');
+        return $user->hasRole('super_admin');
     }
 
     /**
      * Determine whether the user can restore.
      */
-    public function restore(User $user): bool
+    public function restore(User $user, User $target): bool
     {
-        return $user->can('restore_user');
+        return ! $target->isBackofficeAccount() && $user->can('restore_user');
     }
 
     /**
@@ -86,15 +86,15 @@ class UserPolicy
      */
     public function restoreAny(User $user): bool
     {
-        return $user->can('restore_any_user');
+        return $user->hasRole('super_admin');
     }
 
     /**
      * Determine whether the user can bulk restore.
      */
-    public function replicate(User $user): bool
+    public function replicate(User $user, User $target): bool
     {
-        return $user->can('replicate_user');
+        return ! $target->isBackofficeAccount() && $user->can('replicate_user');
     }
 
     /**

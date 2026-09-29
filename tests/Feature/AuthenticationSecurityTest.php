@@ -74,6 +74,7 @@ class AuthenticationSecurityTest extends TestCase
 
     public function test_otp_is_single_use_and_no_plain_token_is_returned(): void
     {
+        config(['session.same_site' => 'none', 'session.secure' => false]);
         Mail::fake();
         $user = User::create([
             'first_name' => 'Ada',
@@ -101,6 +102,11 @@ class AuthenticationSecurityTest extends TestCase
         ]);
         $verification->assertOk()
             ->assertJsonPath('access_token', 'cookie_session');
+        $cookie = collect($verification->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === 'auth_token');
+        $this->assertSame('none', $cookie->getSameSite());
+        $this->assertTrue($cookie->isSecure());
+        $this->assertTrue($cookie->isHttpOnly());
+        $this->assertNull($cookie->getDomain());
         $this->assertNotNull($otp->fresh()->consumed_at);
 
         $this->postJson('/api/verify-otp', [
@@ -147,7 +153,7 @@ class AuthenticationSecurityTest extends TestCase
 
         $this->withCredentials()
             ->withCookie('auth_token', $token)
-            ->withHeader('Origin', 'http://localhost:5173')
+            ->withHeader('Origin', 'https://pek-v2.e-jabbing.com')
             ->postJson('/api/update-profile', $payload)
             ->assertOk();
     }

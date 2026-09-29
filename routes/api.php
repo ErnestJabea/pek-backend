@@ -6,8 +6,10 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PaymentProofController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\S3pWebhookController;
+use App\Http\Controllers\SubscriptionBulletinController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Middleware\RequirePermanentPassword;
 use App\Models\BankDetail;
 use App\Services\Payments\S3pGateway;
 use Illuminate\Http\Request;
@@ -26,6 +28,8 @@ $defineApiRoutes = function () {
     Route::post('/resend-otp', [AuthController::class, 'resendOtp'])->middleware('throttle:auth-otp');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-login')->name('login');
     Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/{product}/download/{type}', [ProductController::class, 'downloadDocument'])
+        ->where('type', 'depliant|document_information|dici|document-info');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
     Route::get('/bank-details', function () {
@@ -48,7 +52,7 @@ $defineApiRoutes = function () {
     Route::post('/identity-verification/idenfy/webhook', [IdentityVerificationController::class, 'handleIdenfyWebhook'])
         ->middleware('throttle:provider-webhooks');
 
-    Route::middleware(['auth:sanctum', 'cookie.origin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'cookie.origin', RequirePermanentPassword::class])->group(function () {
         Route::get('/user', function (Request $request) {
             return $request->user();
         });
@@ -75,6 +79,8 @@ $defineApiRoutes = function () {
         Route::get('/subscriptions/{id}/payment-status', [SubscriptionController::class, 'paymentStatus']);
         Route::get('/subscriptions/reference/{reference}/payment-status', [SubscriptionController::class, 'paymentStatusByReference']);
         Route::post('/subscriptions/{id}/check-status', [SubscriptionController::class, 'checkMavianceStatus']);
+        Route::get('/subscriptions/{subscription}/bulletin-data', [SubscriptionBulletinController::class, 'data']);
+        Route::get('/subscriptions/{subscription}/bulletin-pdf', [SubscriptionBulletinController::class, 'downloadPdf']);
 
         // Valorisation en temps réel du portefeuille FCP (positions détaillées)
         Route::get('/portfolio/valuation', [AuthController::class, 'portfolioValuation']);
@@ -91,7 +97,7 @@ $defineApiRoutes = function () {
 };
 
 // API Version 1 Prefix (Route officielle /api/v1/...)
-Route::prefix('v1')->group($defineApiRoutes);
+Route::prefix('v1')->name('api.v1.')->group($defineApiRoutes);
 
 // Fallback pour la compatibilité legacy (/api/...)
 $defineApiRoutes();

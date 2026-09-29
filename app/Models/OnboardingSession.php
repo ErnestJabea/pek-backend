@@ -74,6 +74,11 @@ class OnboardingSession extends Model
             if (empty($model->payload)) {
                 $user = User::find($model->user_id);
                 if ($user) {
+                    $pieceType = match(strtolower($user->type_piece ?? 'cni')) {
+                        'carte_sejour', 'carte résident', 'carte résident', 'carte de séjour' => 'Carte Résident',
+                        'passeport', 'passport' => 'Passeport',
+                        default => 'CNI',
+                    };
                     $model->payload = [
                         'nom' => $user->last_name,
                         'prenom' => $user->first_name,
@@ -81,7 +86,20 @@ class OnboardingSession extends Model
                         'tel' => $user->phone,
                         'pays_residence' => $user->country,
                         'adresse' => $user->city,
+                        'piece' => $pieceType,
+                        'type_piece' => $pieceType,
+                        'num_piece' => $user->num_piece,
+                        'doc_piece_identite' => $user->doc_piece_identite,
+                        'piece_recto' => $user->doc_piece_identite,
+                        'doc_piece_verso' => $user->doc_piece_verso,
+                        'piece_verso' => $user->doc_piece_verso,
                     ];
+                    if ($user->doc_piece_identite && empty($model->doc_piece_identite)) {
+                        $model->doc_piece_identite = $user->doc_piece_identite;
+                    }
+                    if ($user->doc_piece_verso && empty($model->doc_piece_verso)) {
+                        $model->doc_piece_verso = $user->doc_piece_verso;
+                    }
                 }
             }
         });

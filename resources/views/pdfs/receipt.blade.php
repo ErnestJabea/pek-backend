@@ -263,7 +263,7 @@
                 <td class="value">{{ number_format($netAmount, 0, ',', ' ') }} FCFA</td>
             </tr>
             <tr>
-                <td class="label">Frais de souscription (1%)</td>
+                <td class="label">Frais d'entrée (1%)</td>
                 <td class="value">{{ number_format($feesAmount, 0, ',', ' ') }} FCFA</td>
             </tr>
             <tr class="total-row">

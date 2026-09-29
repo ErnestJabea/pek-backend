@@ -2,14 +2,13 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Actions\BankSubscriptionActions;
 use App\Filament\Resources\SubscriptionResource\Pages;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentEventsRelationManager;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentProofsRelationManager;
 use App\Jobs\ProcessSubscriptionReceipt;
-use App\Models\BankDetail;
 use App\Models\Subscription;
 use App\Models\User;
-use App\Services\Payments\BankPaymentService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -189,6 +188,7 @@ class SubscriptionResource extends Resource
                 Tables\Columns\TextColumn::make('mobile_state')->label('État mobile')->badge(),
             ])
             ->filters([
+                \App\Filament\Filters\DashboardFilter::make(static::class),
                 //
             ])
             ->actions([
@@ -214,32 +214,8 @@ class SubscriptionResource extends Resource
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\Action::make('reviewAccounting')
-                    ->label('Confirmer les fonds reçus')
-                    ->authorize(fn () => auth()->user()->can('confirm_bank_payment'))
-                    ->form([
-                        Forms\Components\DatePicker::make('received_at')->label('Date effective de réception des fonds')->maxDate(now())->required(),
-                        Forms\Components\TextInput::make('amount')->label('Montant effectivement reçu (XAF)')->numeric()->minValue(1)->required(),
-                        Forms\Components\TextInput::make('reference')->label('Référence de l’écriture bancaire')->maxLength(120)->required(),
-                        Forms\Components\Select::make('bank_detail_id')->label('Compte ayant reçu les fonds (ancienne demande)')
-                            ->options(fn () => BankDetail::pluck('bank_name', 'id'))
-                            ->visible(fn (Subscription $record) => ! $record->bank_snapshot)
-                            ->required(fn (Subscription $record) => ! $record->bank_snapshot),
-                    ])
-                    ->icon('heroicon-o-check-badge')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Valider le rapprochement comptable interne')
-                    ->modalDescription('Confirmez-vous la réception des fonds et le rapprochement comptable pour cette souscription ?')
-                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement']) && ! $record->funds_received_at && $record->statut !== 'Succès')
-                    ->action(function (Subscription $record, array $data) {
-                        $record = app(BankPaymentService::class)->confirm($record, auth()->user(), $data);
-
-                        Notification::make()
-                            ->title($record->statut === 'Succès' ? 'Fonds confirmés et parts valorisées' : 'Fonds confirmés — en attente de la VL de la date de réception')
-                            ->success()
-                            ->send();
-                    }),
+                BankSubscriptionActions::confirm(Tables\Actions\Action::class),
+                BankSubscriptionActions::value(Tables\Actions\Action::class),
                 Tables\Actions\Action::make('resendReceipt')
                     ->authorize(fn () => auth()->user()->can('update_subscription'))
                     ->visible(fn (Subscription $record) => $record->statut === 'Succès')
@@ -263,6 +239,13 @@ class SubscriptionResource extends Resource
                                 ->send();
                         }
                     }),
+                Tables\Actions\Action::make('viewBulletin')
+                    ->label('Bulletin de souscription')
+                    ->icon('heroicon-o-document-text')
+                    ->color('warning')
+                    ->visible(fn (Subscription $record) => $record->statut === 'Succès')
+                    ->url(fn (Subscription $record) => route('subscriptions.bulletin.show', $record))
+                    ->openUrlInNewTab(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

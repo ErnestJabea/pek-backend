@@ -12,6 +12,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 
 class ViewOnboardingSession extends ViewRecord
@@ -31,13 +32,14 @@ class ViewOnboardingSession extends ViewRecord
                     $missingDocuments = $record?->missingRequiredDocuments() ?? [];
 
                     if ($missingDocuments !== []) {
-                        return 'Note : '.count($missingDocuments).' justificatif(s) manquant(s) ('.implode(', ', $missingDocuments).'), mais vous pouvez valider ce dossier d\'onboarding. Le client sera notifié par e-mail des pièces à fournir ultérieurement.';
+                        return 'Note : '.count($missingDocuments).' justificatif(s) non fourni(s) ('.implode(', ', $missingDocuments).'), mais vous pouvez valider ce dossier d\'onboarding. Le client recevra un e-mail de confirmation d\'activation de compte.';
                     }
 
                     return 'Êtes-vous sûr de vouloir valider ce dossier d\'onboarding ? Le client recevra un e-mail de confirmation d\'activation de compte.';
                 })
                 ->visible(fn ($record) => $record && $record->status === 'completed')
                 ->action(function ($record) {
+                    Gate::authorize('update', $record);
                     DB::transaction(function () use ($record) {
                         $locked = $record->newQuery()->lockForUpdate()->findOrFail($record->id);
                         abort_unless($locked->status === 'completed', 409, 'Le statut du dossier a changé.');
@@ -100,6 +102,7 @@ class ViewOnboardingSession extends ViewRecord
                 ->modalDescription('Veuillez indiquer le motif du rejet. Le client en sera notifié par e-mail.')
                 ->visible(fn ($record) => $record && $record->status === 'completed')
                 ->action(function ($record, array $data) {
+                    Gate::authorize('update', $record);
                     DB::transaction(function () use ($record, $data) {
                         $locked = $record->newQuery()->lockForUpdate()->findOrFail($record->id);
                         abort_unless($locked->status === 'completed', 409, 'Le statut du dossier a changé.');

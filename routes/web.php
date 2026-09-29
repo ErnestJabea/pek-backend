@@ -2,10 +2,21 @@
 
 use App\Http\Controllers\Admin\PdfDownloadController;
 use App\Http\Controllers\PaymentProofController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\SubscriptionBulletinController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/admin/payment-proofs/{proof}/download', [PaymentProofController::class, 'download'])
     ->middleware(['web', 'auth'])->name('admin.payment-proofs.download');
+
+Route::get('/subscriptions/{subscription}/bulletin', [SubscriptionBulletinController::class, 'show'])
+    ->name('subscriptions.bulletin.show');
+Route::get('/subscriptions/{subscription}/bulletin/download', [SubscriptionBulletinController::class, 'downloadPdf'])
+    ->name('subscriptions.bulletin.download');
+
+Route::get('/products/{product}/download/{type}', [ProductController::class, 'downloadDocument'])
+    ->name('products.download')
+    ->where('type', 'depliant|document_information|dici|document-info');
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +38,16 @@ Route::get('language/{locale}', function ($locale) {
 })->name('language.switch');
 
 Route::get('/', function () {
+    if (request()->wantsJson()) {
+        return response()->json(['status' => 'online', 'service' => 'PEK FCP API']);
+    }
+
+    $frontendUrl = config('app.frontend_url', env('FRONTEND_URL', 'https://pek-v2.koriassetmanagement.com'));
+
+    return redirect()->away($frontendUrl);
+});
+
+Route::get('/health', function () {
     return response()->json(['status' => 'online', 'service' => 'PEK FCP API']);
 });
 

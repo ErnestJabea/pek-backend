@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Payments\S3pGateway;
 use App\Services\Payments\S3pTimestamp;
+use App\Services\Payments\S3pTransactionNotFound;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -50,6 +51,40 @@ class S3pGatewayContractTest extends TestCase
             '*/quotestd' => Http::response(array_replace(['quoteId' => 'QUOTE-1', 'payItemId' => 'COLLECTION-1', 'priceLocalCur' => 75750, 'amountLocalCur' => 75750, 'localCur' => 'XAF', 'expiresIn' => 120], $quote)),
             '*/collectstd' => Http::response(['ptn' => 'PTN-1', 'trid' => 'PEK-contract', 'status' => 'PENDING']),
         ]);
+    }
+
+    public function test_production_requires_valid_endpoint_and_callback_timezone(): void
+    {
+        $this->app->instance('env', 'production');
+        config(['payments.s3p.base_url' => 'https://s3p.smobilpay.maviance.info',
+            'payments.s3p.allowed_hosts' => ['s3p.smobilpay.maviance.info']]);
+        $gateway = app(S3pGateway::class);
+        $this->assertFalse($gateway->available('orange_money'));
+        config(['payments.s3p.timestamp_timezone' => 'UTC']);
+        $this->assertTrue($gateway->available('orange_money'));
+        config(['payments.s3p.base_url' => 'https://s3p.smobilpay.maviance.info/v2']);
+        $this->assertFalse($gateway->available('orange_money'));
+        Http::assertNothingSent();
+    }
+
+    public function test_empty_lookup_is_distinct_from_ambiguous_lookup(): void
+    {
+        Http::fake([
+            '*/oauth/token' => Http::response(['access_token' => 'contract-token', 'expires_in' => 120]),
+            '*/verifytx*' => Http::response([]),
+        ]);
+        $this->expectException(S3pTransactionNotFound::class);
+        app(S3pGateway::class)->verify($this->sub);
+    }
+
+    public function test_multiple_lookup_results_are_still_rejected(): void
+    {
+        Http::fake([
+            '*/oauth/token' => Http::response(['access_token' => 'contract-token', 'expires_in' => 120]),
+            '*/verifytx*' => Http::response([$this->state, $this->state]),
+        ]);
+        $this->expectExceptionMessage('Résultat S3P ambigu.');
+        app(S3pGateway::class)->verify($this->sub);
     }
 
     public static function invalidTransactions(): array
@@ -224,4 +259,39 @@ class S3pGatewayContractTest extends TestCase
         $this->expectException(\RuntimeException::class);
         S3pTimestamp::parse('2026-02-30T12:00:00+00:00');
     }
+
+    public function test_staging_allows_forced_test_amount(): void
+    {
+        config(['payments.s3p.force_test_amount' => 100]);
+        $gateway = app(S3pGateway::class);
+        $this->assertTrue($gateway->isStaging());
+        $this->assertSame(100, $gateway->getDebitAmount($this->sub));
+        $this->assertSame(75750, (int) $this->sub->montant_total);
+
+        $this->fake(quote: ['priceLocalCur' => 100, 'amountLocalCur' => 100]);
+        $quote = $gateway->quote($this->sub);
+        $this->assertSame('100', $quote['context']['amount']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/quotestd') && $r['amount'] === 100);
+    }
+
+    public function test_production_strictly_rejects_forced_test_amount(): void
+    {
+        $this->app->instance('env', 'production');
+        config(['payments.s3p.force_test_amount' => 100]);
+        $gateway = app(S3pGateway::class);
+        // Même si configuré à 100 en staging, la production retourne obligatoirement le vrai montant total
+        $this->assertSame(75750, $gateway->getDebitAmount($this->sub));
+    }
+
+    public function test_production_host_strictly_rejects_forced_test_amount(): void
+    {
+        config([
+            'payments.s3p.base_url' => 'https://s3p.smobilpay.maviance.info',
+            'payments.s3p.force_test_amount' => 100,
+        ]);
+        $gateway = app(S3pGateway::class);
+        $this->assertFalse($gateway->isStaging());
+        $this->assertSame(75750, $gateway->getDebitAmount($this->sub));
+    }
 }
+

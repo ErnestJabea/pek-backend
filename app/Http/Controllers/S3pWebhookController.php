@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessS3pCallbacks;
 use App\Models\Subscription;
 use App\Services\Payments\PaymentAudit;
 use Illuminate\Http\Request;
@@ -28,6 +29,12 @@ class S3pWebhookController extends Controller
         if ($data['status'] === 'ERROR') {
             $data['status'] = 'ERRORED';
         }
+        $error = $data['errorCode'] === null ? null : (int) $data['errorCode'];
+        abort_if($error !== null && (
+            (in_array($data['status'], ['SUCCESS', 'PENDING'], true) && $error !== 0)
+            || ($data['status'] === 'ERRORED' && $error === 0)
+            || ($data['status'] === 'REVERSED' && $error !== 3)
+        ), 422, 'Statut et code fournisseur incohÃ©rents.');
         $ptn = $request->header('X-Ptn');
         $delivery = $request->header('X-Delivery');
         validator(['ptn' => $ptn, 'delivery' => $delivery], [
@@ -38,7 +45,7 @@ class S3pWebhookController extends Controller
         if (! $sub) {
             return response()->json(['received' => true]);
         }
-        abort_if($sub->s3p_ptn && $sub->s3p_ptn !== $ptn, 409, 'PTN incohérent.');
+        abort_if($sub->s3p_ptn && $sub->s3p_ptn !== $ptn, 409, 'PTN incohÃ©rent.');
         // Persist before acknowledging. No external API call in the webhook request.
         // Deduplication is based on signed bytes, not on unsigned delivery headers.
         DB::transaction(function () use ($request, $sub, $ptn, $delivery, $data) {
@@ -52,6 +59,8 @@ class S3pWebhookController extends Controller
                 PaymentAudit::record($sub->id, 'mobile_callback_received', ['body_hash' => $hash, 'status' => $data['status']]);
             }
         });
+
+        ProcessS3pCallbacks::dispatchAfterResponse($sub->id);
 
         return response()->json(['received' => true]);
     }

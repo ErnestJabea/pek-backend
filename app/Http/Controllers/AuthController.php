@@ -26,7 +26,21 @@ class AuthController extends Controller
             'country' => 'required|string|max:255',
             'employer' => 'nullable|string|max:255',
             'password' => 'required|string|min:12|confirmed',
+            'type_piece' => 'required|string|in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport',
+            'num_piece' => 'required|string|max:100',
+            'piece_recto' => 'required_without:doc_piece_identite|nullable|string',
+            'doc_piece_identite' => 'required_without:piece_recto|nullable|string',
+            'piece_verso' => 'nullable|string',
+            'doc_piece_verso' => 'nullable|string',
+        ], [
+            'type_piece.required' => 'Le type d\'identification (Carte de séjour, CNI ou Passeport) est obligatoire.',
+            'num_piece.required' => 'Le numéro de la pièce d\'identification est obligatoire.',
+            'piece_recto.required_without' => 'L\'image de la pièce d\'identité est obligatoire.',
+            'doc_piece_identite.required_without' => 'L\'image de la pièce d\'identité est obligatoire.',
         ]);
+
+        $rectoDoc = $request->input('doc_piece_identite') ?: $request->input('piece_recto');
+        $versoDoc = $request->input('doc_piece_verso') ?: $request->input('piece_verso');
 
         $user = User::create([
             'first_name' => $request->first_name,
@@ -36,6 +50,10 @@ class AuthController extends Controller
             'city' => $request->city,
             'country' => $request->country,
             'employer' => $request->employer,
+            'type_piece' => $request->type_piece,
+            'num_piece' => $request->num_piece,
+            'doc_piece_identite' => $rectoDoc,
+            'doc_piece_verso' => $versoDoc,
             'password' => Hash::make($request->password),
         ]);
 
@@ -134,10 +152,10 @@ class AuthController extends Controller
             1440, // 24 heures
             '/',
             null,
-            (bool) config('session.secure'),
+            app()->environment('production') || config('session.same_site') === 'none' || (bool) config('session.secure'),
             true, // HttpOnly
             false,
-            app()->environment('local') ? 'Lax' : 'Strict'
+            config('session.same_site', 'lax')
         );
 
         return response()->json([

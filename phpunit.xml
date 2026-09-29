@@ -20,7 +20,9 @@
     <env name="SESSION_DRIVER" value="array"/>
     <env name="TELESCOPE_ENABLED" value="false"/>
     <env name="MOBILE_MONEY_SIMULATION" value="false"/>
+    <env name="S3P_FORCE_TEST_AMOUNT" value=""/>
   </php>
+
   <source>
     <include>
       <directory suffix=".php">./app</directory>

@@ -20,6 +20,8 @@ class OnboardingValidatedMail extends Mailable
     /** @var string[] Documents manquants dans le dossier */
     public array $missingDocs = [];
 
+    public string $loginUrl;
+
     /**
      * Create a new message instance.
      */
@@ -28,6 +30,9 @@ class OnboardingValidatedMail extends Mailable
         $this->session = $session;
         $this->user = $session->user;
         $this->missingDocs = $session->missingRequiredDocuments();
+
+        $frontendUrl = config('app.frontend_url') ?: env('FRONTEND_URL', 'https://pek.koriassetmanagement.com');
+        $this->loginUrl = rtrim($frontendUrl, '/').'/login';
     }
 
     /**

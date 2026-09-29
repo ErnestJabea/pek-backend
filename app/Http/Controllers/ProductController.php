@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
@@ -63,12 +65,58 @@ class ProductController extends Controller
                     'risk' => $riskText,
                     'depliant_url' => $depliantUrl,
                     'depliant_en_url' => $product->depliant_en_url,
+                    'depliant_download_url' => $depliantUrl ? url("/api/v1/products/{$product->id}/download/depliant") : null,
                     'document_information_url' => $documentInfoUrl,
                     'document_information_en_url' => $product->document_information_en_url,
+                    'document_information_download_url' => $documentInfoUrl ? url("/api/v1/products/{$product->id}/download/dici") : null,
                     'history' => $history,
                 ];
             });
         });
+    }
+
+    public function downloadDocument(Request $request, Product $product, string $type)
+    {
+        $lang = strtolower(substr($request->header('Accept-Language', $request->query('lang', 'fr')), 0, 2));
+        $isEn = $lang === 'en';
+
+        $relativePath = match ($type) {
+            'depliant' => $isEn ? ($product->depliant_en ?: $product->depliant) : $product->depliant,
+            'document_information', 'dici', 'document-info' => $isEn ? ($product->document_information_en ?: $product->document_information) : $product->document_information,
+            default => null,
+        };
+
+        if (! $relativePath) {
+            abort(404, 'Document non configuré pour ce produit.');
+        }
+
+        $cleanPath = ltrim(preg_replace('#^/??storage/#', '', $relativePath), '/');
+
+        if (! Storage::disk('public')->exists($cleanPath)) {
+            abort(404, 'Fichier physique introuvable.');
+        }
+
+        $fullPath = Storage::disk('public')->path($cleanPath);
+        $slug = Str::slug($product->libelle ?: 'fcp-kori');
+
+        $filename = match ($type) {
+            'depliant' => "depliant-commercial-{$slug}.pdf",
+            'document_information', 'dici', 'document-info' => "document-information-cle-{$slug}.pdf",
+            default => "document-{$slug}.pdf",
+        };
+
+        $headers = [
+            'Content-Type' => 'application/pdf',
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Expose-Headers' => 'Content-Disposition',
+            'Cache-Control' => 'public, max-age=86400',
+        ];
+
+        if ($request->boolean('inline') || $request->query('view') === '1') {
+            return response()->file($fullPath, $headers);
+        }
+
+        return response()->download($fullPath, $filename, $headers);
     }
 
     public function show(Product $product)

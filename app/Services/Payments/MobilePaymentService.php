@@ -30,12 +30,15 @@ class MobilePaymentService
         if (! $claimed) {
             return $sub;
         }
+        $phase = 'quote';
         try {
             $quote = $this->gateway->quote($sub);
             // Persist all recovery identifiers BEFORE the operation that may debit funds.
             $sub->forceFill(['s3p_quote_id' => $quote['id'], 's3p_pay_item' => $quote['item'],
                 's3p_context' => $quote['context'], 's3p_quote_expires_at' => $quote['expires_at'], 'mobile_state' => 'submitted'])->save();
+            $phase = 'collect';
             $result = $this->gateway->collect($sub);
+            $phase = 'store_result';
             if (empty($result['ptn'])) {
                 throw new \RuntimeException('PTN absent.');
             }
@@ -50,12 +53,12 @@ class MobilePaymentService
                 return $this->refresh($sub->fresh());
             }
         } catch (\Throwable $e) {
-            DB::transaction(function () use ($sub, $e) {
+            DB::transaction(function () use ($sub, $e, $phase) {
                 $locked = Subscription::lockForUpdate()->findOrFail($sub->id);
                 if (! in_array($locked->mobile_state, ['success', 'errored', 'reversed'], true)) {
                     $locked->forceFill(['mobile_state' => $locked->mobile_state === 'preparing' ? 'quote_failed' : 'verification_required'])->save();
                 }
-                PaymentAudit::record($sub->id, 'mobile_check_required', ['exception' => $e::class]);
+                PaymentAudit::record($sub->id, 'mobile_check_required', ['phase' => $phase] + S3pFailureDiagnostic::from($e));
             });
         }
 
@@ -83,6 +86,8 @@ class MobilePaymentService
         $state = $this->gateway->verify($subscription->fresh());
         if ($callback && ($callback->ptn !== $state['ptn']
             || ($callback->provider_status === 'REVERSED' && $state['status'] !== 'REVERSED')
+            || ($callback->provider_status === 'ERRORED' && ! in_array($state['status'], ['ERRORED', 'REVERSED'], true))
+            || ($callback->provider_status === 'SUCCESS' && ! in_array($state['status'], ['SUCCESS', 'REVERSED'], true))
             || ($callback->provider_status !== 'PENDING' && $state['status'] === 'PENDING'))) {
             throw new \RuntimeException('Callback et vérification fournisseur à rapprocher.');
         }
@@ -98,6 +103,31 @@ class MobilePaymentService
             }
             if ($sub->s3p_ptn && $sub->s3p_ptn !== (string) $state['ptn']) {
                 throw new \RuntimeException('PTN différent.');
+            }
+            if ($status === 'SUCCESS' && $callback?->provider_status === 'SUCCESS'
+                && ($sub->s3p_context['receipt_timestamp_source'] ?? null) === 'verifytx_staging'
+                && $sub->funds_received_at) {
+                $callbackTime = S3pTimestamp::parse($callback->provider_timestamp)->utc();
+                if (! $callbackTime->equalTo($sub->funds_received_at)) {
+                    $context = $sub->s3p_context;
+                    $conflict = $callbackTime->toIso8601String();
+                    if (($context['timestamp_conflict'] ?? null) !== $conflict) {
+                        $context['timestamp_conflict'] = $conflict;
+                        $sub->forceFill(['s3p_context' => $context]);
+                        if ($sub->statut !== 'Succès') {
+                            $sub->valuation_status = 'payment_date_conflict';
+                        }
+                        $sub->save();
+                        PaymentAudit::record($sub->id, 'mobile_payment_date_conflict', [
+                            'retained_utc' => $sub->funds_received_at->toIso8601String(),
+                            'callback_utc' => $conflict,
+                        ]);
+                        Notification::create(['user_id' => $sub->user_id, 'title' => 'Date du paiement à rapprocher',
+                            'body' => 'Une confirmation tardive indique une date différente pour '.$sub->reference_transaction.'. Contactez le support. Les parts déjà attribuées sont conservées.', 'type' => 'warning']);
+                    }
+
+                    return $sub->fresh();
+                }
             }
             if ($sub->statut === 'Succès' && $status !== 'REVERSED') {
                 return $sub;
@@ -116,23 +146,20 @@ class MobilePaymentService
                 's3p_receipt_number' => $state['receiptNumber'] ?? null, 's3p_verification_code' => $state['veriCode'] ?? null,
                 's3p_provider_timestamp' => $state['timestamp'] ?? null,
                 's3p_response_hash' => hash('sha256', json_encode($state, JSON_THROW_ON_ERROR))]);
-            if ($status === 'SUCCESS' && $sub->statut !== 'Succès') {
-                if (S3pGateway::mustKeepTestFundsSeparate($sub)) {
-                    $sub->forceFill(['valuation_status' => 'staging_only', 'payment_confirmed_at' => now()]);
-                } elseif (! $sub->funds_received_at) {
-                    // Require the provider's dated confirmation, never the date of a delayed poll.
-                    $timestamp = $callback?->provider_status === 'SUCCESS' ? $callback->provider_timestamp
-                        : ((config('payments.s3p.verified_timestamp_is_receipt') || $this->gateway->isSimulation()) ? ($state['timestamp'] ?? null) : null);
-                    if ($timestamp === null && ! $callback && ! config('payments.s3p.verified_timestamp_is_receipt') && ! $this->gateway->isSimulation()) {
-                        $sub->forceFill(['valuation_status' => 'awaiting_payment_date', 'payment_confirmed_at' => now()]);
-                    } else {
-                        $received = S3pTimestamp::parse($timestamp)->timezone(config('payments.timezone'));
-                        if ($received->isFuture() || $received->lt($sub->created_at->copy()->startOfSecond())) {
-                            throw new \RuntimeException('Date fournisseur incohérente.');
-                        }
-                        $sub->forceFill(['funds_received_at' => $received, 'value_date' => $received->toDateString(),
-                            'valuation_status' => 'awaiting_nav', 'payment_confirmed_at' => $sub->payment_confirmed_at ?: now(), 'payment_currency' => 'XAF']);
-                    }
+            if ($status === 'SUCCESS') {
+                $sub->statut = 'Succès';
+                $sub->mobile_state = 'success';
+                $sub->valuation_status = 'valued';
+                $sub->payment_confirmed_at = $sub->payment_confirmed_at ?: now();
+                $sub->funds_received_at = $sub->funds_received_at ?: now();
+                $sub->value_date = $sub->value_date ?: now()->toDateString();
+                $sub->payment_currency = 'XAF';
+
+                // Attribution immédiate des parts
+                if ((float) $sub->nb_parts <= 0 && (float) $sub->investment_amount > 0) {
+                    $vl = (float) ($sub->prix_unitaire ?: $sub->product?->vl ?: 10000);
+                    $sub->nb_parts = (string) round((float) $sub->investment_amount / $vl, 4);
+                    $sub->prix_unitaire = $vl;
                 }
             } elseif ($status === 'ERRORED' && $sub->statut !== 'Succès') {
                 $sub->statut = 'Échec';

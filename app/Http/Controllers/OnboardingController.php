@@ -27,11 +27,42 @@ class OnboardingController extends Controller
 
     public function status(Request $request): JsonResponse
     {
-        $session = $request->user()->onboardingSession()->firstOrCreate([], [
+        $user = $request->user();
+        $session = $user->onboardingSession()->firstOrCreate([], [
             'current_step' => 'kyc',
             'status' => 'in_progress',
             'payload' => [],
         ]);
+
+        // Ensure user registration fields (piece, num_piece, docs) are pre-filled into payload
+        $payload = $session->payload ?? [];
+        $dirtyPayload = false;
+        if (empty($payload['piece']) && ! empty($user->type_piece)) {
+            $payload['piece'] = match(strtolower($user->type_piece)) {
+                'carte_sejour', 'carte résident', 'carte de séjour' => 'Carte Résident',
+                'passeport', 'passport' => 'Passeport',
+                default => 'CNI',
+            };
+            $dirtyPayload = true;
+        }
+        if (empty($payload['num_piece']) && ! empty($user->num_piece)) {
+            $payload['num_piece'] = $user->num_piece;
+            $dirtyPayload = true;
+        }
+        if (empty($payload['doc_piece_identite']) && ! empty($user->doc_piece_identite)) {
+            $payload['doc_piece_identite'] = $user->doc_piece_identite;
+            $payload['piece_recto'] = $user->doc_piece_identite;
+            $dirtyPayload = true;
+        }
+        if (empty($payload['doc_piece_verso']) && ! empty($user->doc_piece_verso)) {
+            $payload['doc_piece_verso'] = $user->doc_piece_verso;
+            $payload['piece_verso'] = $user->doc_piece_verso;
+            $dirtyPayload = true;
+        }
+        if ($dirtyPayload) {
+            $session->payload = $payload;
+            $session->save();
+        }
 
         $verification = $session->latestIdentityVerification()->first();
 
@@ -57,6 +88,11 @@ class OnboardingController extends Controller
             'payload' => ['required', 'array:'.implode(',', $this->allowedPayloadFields())],
             ...$this->draftRules(),
         ]);
+
+        $validated['payload'] = array_intersect_key(
+            $validated['payload'],
+            array_flip($this->allowedPayloadFields())
+        );
 
         try {
             $session = DB::transaction(function () use ($request, $validated) {

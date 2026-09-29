@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\SubscriptionResource\Pages;
 
+use App\Filament\Actions\BankSubscriptionActions;
 use App\Filament\Resources\SubscriptionResource;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\EditRecord;
 
 class EditSubscription extends EditRecord
@@ -11,7 +13,15 @@ class EditSubscription extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [];
+        $refresh = function () {
+            $this->getRecord()->refresh();
+            $this->refreshFormData(['statut', 'nb_parts', 'prix_unitaire', 'value_date', 'valuation_status']);
+        };
+
+        return [
+            BankSubscriptionActions::confirm(Action::class)->after($refresh),
+            BankSubscriptionActions::value(Action::class)->after($refresh),
+        ];
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

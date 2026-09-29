@@ -1,0 +1,193 @@
+{
+  "info": {
+    "_postman_id": "9b12a83e-7a91-447e-8c31-9a7c36a8d7e2",
+    "name": "PEK - Webhooks Maviance S3P",
+    "description": "Collection pour tester les notifications asynchrones Webhook Maviance S3P (Orange Money & MTN MoMo) sur l'environnement local ou via tunnel HTTPS.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string",
+      "description": "URL de base (local ou URL du tunnel HTTPS)"
+    },
+    {
+      "key": "webhookSecret",
+      "value": "5d2ffb6f8933d8263656d91854a0f713a67fc98c65411219206c7946920f9fe3",
+      "type": "string",
+      "description": "Valeur de S3P_WEBHOOK_SECRET dans votre .env"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Calcul automatique de la signature HMAC-SHA1 requise par Maviance S3P",
+          "const secret = pm.collectionVariables.get('webhookSecret') || '5d2ffb6f8933d8263656d91854a0f713a67fc98c65411219206c7946920f9fe3';",
+          "const rawBody = pm.request.body.raw;",
+          "if (rawBody) {",
+          "    const signature = CryptoJS.HmacSHA1(rawBody, secret).toString(CryptoJS.enc.Hex);",
+          "    pm.variables.set('calculated_signature', signature);",
+          "} else {",
+          "    pm.variables.set('calculated_signature', '');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Notification S3P - SUCCESS (Paiement Validé)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{calculated_signature}}",
+            "description": "Signature HMAC-SHA1 calculée dynamiquement dans le Pre-request Script"
+          },
+          {
+            "key": "X-Ptn",
+            "value": "PTN99999178962381900079982890865590",
+            "description": "Identifiant unique de transaction Maviance (PTN)"
+          },
+          {
+            "key": "X-Delivery",
+            "value": "{{$guid}}",
+            "description": "UUID unique de livraison de la notification"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trid\": \"PEK-dcaf944335734bb9a0184421078e18df\",\n  \"timestamp\": \"2026-09-21 19:45:00\",\n  \"status\": \"SUCCESS\",\n  \"errorCode\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/s3p/webhook",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "s3p",
+            "webhook"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Notification S3P - ERRORED (Échec / Solde Insuffisant)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{calculated_signature}}"
+          },
+          {
+            "key": "X-Ptn",
+            "value": "PTN99999178962382500065657040989968"
+          },
+          {
+            "key": "X-Delivery",
+            "value": "{{$guid}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trid\": \"PEK-dcaf944335734bb9a0184421078e18df\",\n  \"timestamp\": \"2026-09-21 19:45:00\",\n  \"status\": \"ERRORED\",\n  \"errorCode\": 100\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/s3p/webhook",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "s3p",
+            "webhook"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3. Test Sécurité - Signature Falsifiée (Attendu: 403 Forbidden)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// On injecte volontairement une fausse signature pour vérifier la protection contre l'usurpation",
+              "pm.variables.set('calculated_signature', '0000000000000000000000000000000000000000');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{calculated_signature}}"
+          },
+          {
+            "key": "X-Ptn",
+            "value": "PTN_FAKE_ATTACK_999"
+          },
+          {
+            "key": "X-Delivery",
+            "value": "{{$guid}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trid\": \"PEK-dcaf944335734bb9a0184421078e18df\",\n  \"timestamp\": \"2026-09-21 19:45:00\",\n  \"status\": \"SUCCESS\",\n  \"errorCode\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/s3p/webhook",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "s3p",
+            "webhook"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

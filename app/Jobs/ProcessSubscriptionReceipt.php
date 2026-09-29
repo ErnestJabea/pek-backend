@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Mail\SubscriptionMail;
 use App\Models\Subscription;
+use App\Services\SubscriptionBulletinService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,13 +26,21 @@ class ProcessSubscriptionReceipt implements ShouldQueue
     public function handle(): void
     {
         $subscription = $this->subscription->fresh(['user', 'product']);
-        if (! $subscription || $subscription->statut !== 'Succès') {
+        $isConfirmedBank = in_array($subscription?->moyen_paiement, ['bank_transfer', 'virement'], true)
+            && ($subscription?->payment_confirmed_at || $subscription?->funds_received_at);
+
+        if (! $subscription || ($subscription->statut !== 'Succès' && ! $isConfirmedBank)) {
             return;
         }
         $mail = new SubscriptionMail($subscription);
-        $pdf = Pdf::loadView('pdfs.receipt', ['subscription' => $subscription]);
+        $bulletinService = app(SubscriptionBulletinService::class);
+        $bulletinData = $bulletinService->getBulletinData($subscription);
+        $pdf = Pdf::loadView('pdfs.bulletin', ['data' => $bulletinData])
+            ->setPaper('a4', 'portrait')
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isHtml5ParserEnabled', true);
 
-        $mail->attachData($pdf->output(), "recu_{$subscription->reference_transaction}.pdf", [
+        $mail->attachData($pdf->output(), "bulletin_souscription_{$subscription->reference_transaction}.pdf", [
             'mime' => 'application/pdf',
         ]);
 

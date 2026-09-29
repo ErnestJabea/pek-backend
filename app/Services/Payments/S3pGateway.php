@@ -15,13 +15,43 @@ class S3pGateway
         return parse_url((string) config('payments.s3p.base_url'), PHP_URL_HOST) === 's3p.smobilpay.staging.maviance.info';
     }
 
+    /**
+     * Retourne le montant réel à débiter auprès de l'opérateur (OM / MOMO).
+     * En production, TOUT montant forcé de test est STRICTEMENT INTERDIT.
+     */
+    public function getDebitAmount(Subscription $sub): int
+    {
+        $realAmount = (int) round((float) $sub->montant_total);
+
+        // RÈGLE DE SÉCURITÉ ABSOLUE : Toujours le montant réel en production
+        if (app()->environment('production')) {
+            return $realAmount;
+        }
+
+        // En staging ou environnement hors-production, uniquement si connecté au staging Maviance
+        $forced = config('payments.s3p.force_test_amount');
+        if ($this->isStaging() && is_numeric($forced) && (int) $forced > 0) {
+            return (int) $forced;
+        }
+
+        return $realAmount;
+    }
+
     public static function mustKeepTestFundsSeparate(Subscription $sub): bool
     {
-        $staging = parse_url((string) ($sub->s3p_context['base_url'] ?? ''), PHP_URL_HOST) === 's3p.smobilpay.staging.maviance.info';
-        $isolatedTest = app()->runningUnitTests() && config('database.default') === 'sqlite'
-            && config('database.connections.sqlite.database') === ':memory:';
+        // Les parts doivent être attribuées dès confirmation du paiement SUCCESS
+        return false;
+    }
 
-        return $staging && ! $isolatedTest;
+    public static function allowsStagingTimestamp(Subscription $sub): bool
+    {
+        $host = 's3p.smobilpay.staging.maviance.info';
+
+        return app()->environment('staging')
+            && config('payments.s3p.credit_test_parts') === true
+            && config('payments.s3p.staging_use_provider_timestamp') === true
+            && parse_url((string) config('payments.s3p.base_url'), PHP_URL_HOST) === $host
+            && parse_url((string) ($sub->s3p_context['base_url'] ?? ''), PHP_URL_HOST) === $host;
     }
 
     public function isSimulation(): bool
@@ -37,7 +67,7 @@ class S3pGateway
         if (! in_array($operator, ['orange_money', 'mtn_momo'], true)) {
             return false;
         }
-        if (app()->environment('production') && $this->isStaging()) {
+        if (app()->environment('production') && $this->isStaging() && ! config('payments.s3p.allow_staging')) {
             return false;
         }
         if (config('payments.s3p.simulation') && ! $this->isSimulation()) {
@@ -45,6 +75,15 @@ class S3pGateway
         }
         if ($this->isSimulation() && in_array($operator, ['orange_money', 'mtn_momo'], true)) {
             return true;
+        }
+        try {
+            $this->base();
+        } catch (RuntimeException) {
+            return false;
+        }
+        if (app()->environment('production') && ! in_array(config('payments.s3p.timestamp_timezone'), \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) {
+            // The signed callback uses a legacy timestamp without a timezone.
+            return false;
         }
 
         return (bool) (config('payments.s3p.enabled') && config('payments.s3p.public_key')
@@ -131,10 +170,11 @@ class S3pGateway
             || ($catalog[0]['amountType'] ?? null) !== 'CUSTOM') {
             throw new RuntimeException('Produit d’encaissement incompatible.');
         }
-        $quote = $this->request()->post($this->base().'/v2/quotestd', ['payItemId' => $item, 'amount' => (int) $sub->montant_total])->throw()->json();
+        $debitAmount = $this->getDebitAmount($sub);
+        $quote = $this->request()->post($this->base().'/v2/quotestd', ['payItemId' => $item, 'amount' => $debitAmount])->throw()->json();
         if (! is_array($quote) || ! $this->validId($quote['quoteId'] ?? null) || ($quote['payItemId'] ?? null) !== $item
             || ! $this->matchesAmount($sub, $quote)
-            || (isset($quote['amountLocalCur']) && ! $this->sameMoney($quote['amountLocalCur'], $sub->montant_total))) {
+            || (isset($quote['amountLocalCur']) && ! $this->sameMoney($quote['amountLocalCur'], $debitAmount))) {
             throw new RuntimeException('Le devis S3P ne correspond pas au total confirmé.');
         }
         $expiry = isset($quote['expiresAt']) ? S3pTimestamp::parse($quote['expiresAt'])
@@ -150,7 +190,7 @@ class S3pGateway
         return ['id' => $quote['quoteId'], 'item' => $item, 'expires_at' => $expiry,
             'context' => ['base_url' => $this->base(), 'account_hash' => hash('sha256', (string) config('payments.s3p.public_key')),
                 'merchant' => $merchant, 'serviceid' => $service, 'wallet_format' => $format,
-                'amount' => (string) $sub->montant_total, 'currency' => 'XAF']];
+                'amount' => (string) $debitAmount, 'currency' => 'XAF']];
     }
 
     public function collect(Subscription $sub): array
@@ -196,7 +236,7 @@ class S3pGateway
                 'payItemId' => $sub->s3p_pay_item ?: 'SIM-ITEM-'.$sub->mobile_provider,
                 'status' => 'SUCCESS',
                 'timestamp' => now()->toIso8601String(),
-                'priceLocalCur' => (float) $sub->montant_total,
+                'priceLocalCur' => (float) $this->getDebitAmount($sub),
                 'localCur' => 'XAF',
             ];
         }
@@ -204,6 +244,9 @@ class S3pGateway
         $this->assertContext($sub);
         $data = $this->read('verifytx', ['trid' => $sub->s3p_reference]);
         if (is_array($data) && array_is_list($data)) {
+            if ($data === []) {
+                throw new S3pTransactionNotFound;
+            }
             if (count($data) !== 1) {
                 throw new RuntimeException('Résultat S3P ambigu.');
             }
@@ -246,10 +289,11 @@ class S3pGateway
     private function matchesAmount(Subscription $sub, array $data): bool
     {
         $amount = $data['priceLocalCur'] ?? null;
+        $expected = $this->getDebitAmount($sub);
 
-        return ($data['localCur'] ?? null) === 'XAF' && $this->sameMoney($amount, $sub->montant_total)
+        return ($data['localCur'] ?? null) === 'XAF' && $this->sameMoney($amount, $expected)
             && (! isset($data['systemCur']) || $data['systemCur'] === 'XAF')
-            && (! isset($data['priceSystemCur']) || $this->sameMoney($data['priceSystemCur'], $sub->montant_total));
+            && (! isset($data['priceSystemCur']) || $this->sameMoney($data['priceSystemCur'], $expected));
     }
 
     private function sameMoney(mixed $amount, mixed $expected): bool
@@ -274,7 +318,7 @@ class S3pGateway
             || ($context['account_hash'] ?? null) !== hash('sha256', (string) config('payments.s3p.public_key'))
             || empty($context['merchant']) || empty($context['serviceid'])
             || ! in_array($context['wallet_format'] ?? null, ['national', 'international'], true)
-            || ! $this->sameMoney($context['amount'] ?? null, $sub->montant_total)) {
+            || ! $this->sameMoney($context['amount'] ?? null, $this->getDebitAmount($sub))) {
             throw new RuntimeException('Contexte de transaction absent ou modifié.');
         }
     }

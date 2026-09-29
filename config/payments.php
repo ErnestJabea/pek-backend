@@ -8,6 +8,10 @@ return [
     'scanner_binary' => env('PAYMENT_PROOF_SCANNER'),
     's3p' => [
         'enabled' => (bool) env('S3P_ENABLED', false),
+        'allow_staging' => (bool) env('S3P_ALLOW_STAGING', false),
+        'force_test_amount' => env('S3P_FORCE_TEST_AMOUNT') !== null ? (int) env('S3P_FORCE_TEST_AMOUNT') : null,
+        'credit_test_parts' => filter_var(env('S3P_CREDIT_TEST_PARTS', false), FILTER_VALIDATE_BOOLEAN),
+        'staging_use_provider_timestamp' => filter_var(env('S3P_STAGING_USE_PROVIDER_TIMESTAMP', false), FILTER_VALIDATE_BOOLEAN),
         'simulation' => (bool) env('MOBILE_MONEY_SIMULATION', false),
         'base_url' => env('S3P_BASE_URL', 'https://s3p.smobilpay.staging.maviance.info'),
         'allowed_hosts' => array_filter(explode(',', env('S3P_ALLOWED_HOSTS', 's3p.smobilpay.staging.maviance.info'))),
@@ -16,7 +20,7 @@ return [
         'webhook_secret' => env('S3P_WEBHOOK_SECRET'),
         'api_version' => env('S3P_API_VERSION', '3.0.0'),
         'ca_bundle' => env('S3P_CA_BUNDLE'),
-        'timestamp_timezone' => env('S3P_TIMESTAMP_TIMEZONE'),
+        'timestamp_timezone' => env('S3P_TIMESTAMP_TIMEZONE', 'Africa/Douala'),
         // Enable only after Maviance confirms verifytx.timestamp is the receipt time for this service.
         'verified_timestamp_is_receipt' => (bool) env('S3P_VERIFY_TIMESTAMP_IS_RECEIPT', false),
         'merchants' => [

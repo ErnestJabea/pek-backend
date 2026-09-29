@@ -51,6 +51,7 @@ class UserResource extends Resource
                     ->required(fn (string $context): bool => $context === 'create')
                     ->dehydrated(fn ($state) => filled($state)),
                 Forms\Components\Select::make('role')
+                    ->disabled(fn () => ! auth()->user()->hasRole('super_admin'))
                     ->label('Rôle Système')
                     ->options([
                         'admin' => 'Administrateur',
@@ -58,9 +59,18 @@ class UserResource extends Resource
                     ])
                     ->required()
                     ->default('client'),
+                Forms\Components\Select::make('admin_department_id')->label('Département administratif')
+                    ->options(fn () => \App\Models\AdminDepartment::orderBy('name')->pluck('name', 'id'))
+                    ->searchable()->nullable()->rules(['nullable', 'exists:admin_departments,id'])
+                    ->disabled(fn () => ! auth()->user()->hasRole('super_admin'))
+                    ->helperText('Sans département : droits historiques conservés. Les super-administrateurs conservent leur accès global.'),
                 Forms\Components\Select::make('roles')
                     ->label('Rôles de sécurité (Permissions)')
                     ->relationship('roles', 'name')
+                    ->disabled(fn () => ! auth()->user()->hasRole('super_admin'))
+                    ->saveRelationshipsUsing(function (User $record, $state) {
+                        if (auth()->user()->hasRole('super_admin')) $record->syncRoles(array_map('intval', $state ?? []));
+                    })
                     ->multiple()
                     ->preload(),
             ]);
@@ -91,6 +101,7 @@ class UserResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
+                Tables\Columns\TextColumn::make('adminDepartment.name')->label('Département')->placeholder('Non affecté')->sortable(),
                 Tables\Columns\TextColumn::make('roles.name')
                     ->label('Rôles Shield')
                     ->badge()
@@ -107,6 +118,8 @@ class UserResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                \App\Filament\Filters\DashboardFilter::make(static::class),
+                Tables\Filters\SelectFilter::make('admin_department_id')->label('Département')->relationship('adminDepartment', 'name'),
                 Tables\Filters\SelectFilter::make('role')
                     ->label('Filtrer par rôle')
                     ->options([

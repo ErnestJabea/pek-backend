@@ -193,6 +193,7 @@ class ProductResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                \App\Filament\Filters\DashboardFilter::make(static::class),
                 //
             ])
             ->actions([

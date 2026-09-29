@@ -248,7 +248,7 @@
                                                                                                             <td align="center"
                                                                                                                 bgcolor="#491d00"
                                                                                                                 style="border-radius:10px;background-color:#491d00">
-                                                                                                                <a href="{{ config('app.frontend_url', 'https://pek.koriassetmanagement.com') }}"
+                                                                                                                <a href="{{ $loginUrl ?? (rtrim(config('app.frontend_url', 'https://pek.koriassetmanagement.com'), '/') . '/login') }}"
                                                                                                                     target="_blank"
                                                                                                                     style="display:inline-block;padding:16px 36px;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.5px">
                                                                                                                     Accéder

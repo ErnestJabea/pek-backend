@@ -28,6 +28,10 @@ class Subscription extends Model
                 } elseif ($subscription->statut === 'Échec') {
                     self::dispatchFailureEffects($subscription->id);
                 }
+            } elseif ($subscription->wasChanged('payment_confirmed_at') || $subscription->wasChanged('funds_received_at')) {
+                if ($subscription->payment_confirmed_at || $subscription->funds_received_at) {
+                    self::dispatchSuccessEffects($subscription->id);
+                }
             }
         });
     }
@@ -123,6 +127,7 @@ class Subscription extends Model
         'payment_phone' => 'encrypted',
         'funds_received_at' => 'datetime',
         'value_date' => 'date',
+        'nav_date' => 'date',
         'mobile_checked_at' => 'datetime',
         'mobile_initiated_at' => 'datetime',
         'nb_parts' => 'decimal:8',

@@ -6,16 +6,19 @@ use App\Models\BankDetail;
 use App\Models\Notification;
 use App\Models\Product;
 use App\Models\Subscription;
+use App\Services\Payments\BankPaymentService;
 use App\Services\Payments\LocalPaymentGateway;
 use App\Services\Payments\MobilePaymentService;
 use App\Services\Payments\PaymentCheckoutGateway;
 use App\Services\Payments\S3pGateway;
 use App\Services\Payments\S3pPaymentError;
+use App\Services\Payments\S3pTransactionNotFound;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -51,11 +54,34 @@ class SubscriptionController extends Controller
             'idempotency_key' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
         ]);
 
+        if ($validated['moyen_paiement'] === 'orange_money') {
+            if (! preg_match('/^2376(9[0-9]|4[0-9]|5[5-9])[0-9]{6}$/', (string) ($validated['payment_phone'] ?? ''))) {
+                abort(422, 'Le numéro renseigné n’est pas un numéro Orange Cameroun valide (préfixes autorisés : 69x, 64x ou 655-659).');
+            }
+        } elseif ($validated['moyen_paiement'] === 'mtn_momo') {
+            if (! preg_match('/^2376(7[0-9]|8[0-3]|5[0-4])[0-9]{6}$/', (string) ($validated['payment_phone'] ?? ''))) {
+                abort(422, 'Le numéro renseigné n’est pas un numéro MTN Cameroun valide (préfixes autorisés : 67x, 68x ou 650-654).');
+            }
+        }
+
         $user = $request->user()->loadMissing('onboardingSession');
-        if ($user->onboarding_status !== 'validated') {
-            return response()->json([
-                'message' => 'Votre dossier KYC doit être validé avant toute souscription.',
-            ], 403);
+        $existingSubscriptionsCount = Subscription::query()
+            ->where('user_id', $user->id)
+            ->whereNotIn('statut', ['Annulée', 'Rejetée'])
+            ->count();
+
+        if ($existingSubscriptionsCount === 0) {
+            if (isset($validated['investment_amount']) && (int) $validated['investment_amount'] > 250000) {
+                return response()->json([
+                    'message' => 'Pour votre première souscription avant la validation de votre onboarding, le montant est plafonné à 250 000 FCFA.',
+                ], 422);
+            }
+        } else {
+            if ($user->onboarding_status !== 'validated') {
+                return response()->json([
+                    'message' => 'Pour effectuer votre 2ème souscription, vous devez obligatoirement remplir et soumettre votre onboarding, et celui-ci doit être validé par la partie Conformité.',
+                ], 403);
+            }
         }
 
         if (in_array($validated['moyen_paiement'], ['orange_money', 'mtn_momo'], true)) {
@@ -97,6 +123,9 @@ class SubscriptionController extends Controller
                     : round((float) $validated['nb_parts'], 8);
                 // XAF is a zero-decimal currency: every payable amount must be a whole FCFA.
                 $subtotal = isset($validated['investment_amount']) ? (int) $validated['investment_amount'] : (int) round($parts * $unitPrice);
+                if ($existingSubscriptionsCount === 0 && $subtotal > 250000) {
+                    abort(422, 'Pour votre première souscription avant la validation de votre onboarding, le montant est plafonné à 250 000 FCFA.');
+                }
                 abort_if($subtotal > config('payments.max_investment'), 422, 'Montant maximum dépassé.');
                 $minimum = max((float) $product->seuil_minimum, $unitPrice);
 
@@ -258,8 +287,23 @@ class SubscriptionController extends Controller
         if ($subscription->mobile_provider) {
             try {
                 return $this->s3pResponse(app(MobilePaymentService::class)->refresh($subscription));
+            } catch (S3pTransactionNotFound) {
+                $current = $subscription->fresh();
+                if (in_array($current->mobile_state, ['success', 'errored', 'reversed'], true)) {
+                    return $this->s3pResponse($current);
+                }
+
+                return response()->json([
+                    'status' => 'pending',
+                    'code' => 'S3P_TRANSACTION_NOT_FOUND',
+                    'can_retry' => false,
+                    'action_advice' => 'Vérifiez cette transaction avant toute nouvelle tentative.',
+                    'payment' => ['provider' => 's3p', 'status' => $current->mobile_state, 'redirect_required' => false],
+                    'message' => 'Maviance ne retourne pas encore de transaction pour cette référence. Le rapprochement reste en attente ; ne relancez pas de débit. Si cela persiste, contactez le support avec votre référence PEK.',
+                    'subscription' => $current,
+                ], 202);
             } catch (Throwable) {
-                return response()->json(['message' => 'Vérification temporairement indisponible. Ne relancez pas de débit.', 'subscription' => $subscription->fresh()], 503);
+                return response()->json(['status' => 'pending', 'can_retry' => false, 'action_advice' => 'Vérifiez cette transaction avant toute nouvelle tentative.', 'payment' => ['provider' => 's3p', 'redirect_required' => false], 'message' => 'Vérification temporairement indisponible. Ne relancez pas de débit.', 'subscription' => $subscription->fresh()], 503);
             }
         }
 
@@ -691,32 +735,66 @@ class SubscriptionController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+
+        // Réconciliation et attribution automatique des parts pour les transactions en succès
+        Subscription::where('user_id', $user->id)
+            ->where(function ($q) {
+                $q->where('mobile_state', 'success')
+                    ->orWhere('valuation_status', 'staging_only');
+            })
+            ->where('statut', '!=', 'Succès')
+            ->each(function (Subscription $sub) {
+                app(BankPaymentService::class)->value($sub);
+            });
+
         return response()->json(
-            $request->user()->subscriptions()->with(['product', 'paymentProofs'])->latest()->paginate(20)
+            $user->subscriptions()->with(['product', 'paymentProofs'])->latest()->paginate(20)
         );
     }
 
     private function s3pResponse(Subscription $subscription, int $status = 200): JsonResponse
     {
-        if ($subscription->valuation_status === 'staging_only') {
-            return response()->json(['message' => 'Paiement de test Maviance réussi. Aucune part réelle n’est créditée.',
-                'subscription' => $subscription, 'payment' => ['provider' => 's3p', 'status' => 'success', 'mode' => 'staging', 'redirect_required' => false]], $status);
+        if ($subscription->mobile_state === 'success' && $subscription->statut !== 'Succès') {
+            $subscription = app(BankPaymentService::class)->value($subscription);
         }
 
+        $normalizedStatus = match ($subscription->mobile_state) {
+            'success' => 'paid',
+            'errored', 'quote_failed' => 'failed',
+            default => ($subscription->statut === 'Succès' ? 'paid' : 'pending'),
+        };
+
+        $errorCode = $subscription->s3p_error_code;
+        $isErrored = $subscription->mobile_state === 'errored';
+
         return response()->json([
+            'status' => $normalizedStatus,
             'message' => match ($subscription->mobile_state) {
-                'success' => $subscription->statut === 'Succès' ? 'Paiement confirmé.' : ($subscription->valuation_status === 'awaiting_payment_date'
-                    ? 'Paiement confirmé par le prestataire. La date de réception doit encore être rapprochée avant attribution des parts.'
-                    : 'Fonds reçus. Attribution des parts en attente de la VL à la date de réception.'),
+                'success' => 'Paiement confirmé et parts attribuées.',
                 'quote_failed' => 'Préparation du paiement impossible. Vous pouvez réessayer.',
                 'verification_required' => 'Résultat du paiement à vérifier. Ne relancez pas le débit.',
-                'errored' => S3pPaymentError::message($subscription->s3p_error_code),
+                'errored' => S3pPaymentError::message($errorCode, $subscription->mobile_provider),
                 'reversed' => 'Paiement annulé par le prestataire. Contactez le support.',
-                default => 'Demande enregistrée. Consultez votre téléphone puis vérifiez le statut.',
+                default => 'Demande enregistrée. Confirmez sur votre téléphone ; le suivi est automatique.',
             },
-            'subscription' => $subscription,
-            'payment' => ['provider' => 's3p', 'status' => $subscription->mobile_state, 'redirect_required' => false,
-                'error_code' => $subscription->s3p_error_code, 'receipt_number' => $subscription->s3p_receipt_number],
+            'action_advice' => $isErrored ? S3pPaymentError::advice($errorCode) : null,
+            'can_retry' => $isErrored ? S3pPaymentError::canRetry($errorCode) : ($subscription->mobile_state === 'quote_failed'),
+            'subscription' => $subscription->fresh('product'),
+            'payment' => [
+                'provider' => 's3p',
+                'status' => $subscription->mobile_state,
+                'redirect_required' => false,
+                'error_code' => $errorCode,
+                'error_label' => $errorCode ? S3pPaymentError::label($errorCode) : null,
+                'receipt_number' => $subscription->s3p_receipt_number,
+            ],
         ], $status);
+    }
+
+    public function directS3pTest(Request $request): JsonResponse
+    {
+        // Keep old cached routes harmless until route:cache is rebuilt.
+        abort(404);
     }
 }

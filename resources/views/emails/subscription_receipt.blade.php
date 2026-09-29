@@ -229,7 +229,7 @@
                                                                                                         <tr>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#666666;">
-                                                                                                                <strong>Frais de souscription (1%) :</strong>
+                                                                                                                <strong>Frais d'entrée (1%) :</strong>
                                                                                                             </td>
                                                                                                             <td
                                                                                                                 style="padding:12px 15px;border-bottom:1px solid #eeeeee;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:14px;color:#333333;">

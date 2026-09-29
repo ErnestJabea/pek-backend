@@ -576,6 +576,7 @@ class OnboardingSessionResource extends Resource
                     ->sortable(),
             ])
             ->filters([
+                \App\Filament\Filters\DashboardFilter::make(static::class),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Statut')
                     ->options([

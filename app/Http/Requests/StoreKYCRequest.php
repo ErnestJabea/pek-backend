@@ -21,6 +21,8 @@ class StoreKYCRequest extends FormRequest
     {
         return [
             'civ' => 'required|string|in:M.,Mme',
+            'nature_client' => 'required|string|in:personne_physique,personne_morale',
+            'categorie_client' => 'required|string|max:255',
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'situation_mat' => 'required|string|max:50',
@@ -47,6 +49,7 @@ class StoreKYCRequest extends FormRequest
             'ocr_num_piece_match' => 'nullable|boolean',
             'ocr_snippet' => 'nullable|string',
             'doc_piece_identite' => 'nullable|string',
+            'doc_piece_verso' => 'nullable|string',
             'doc_justificatif_domicile' => 'nullable|string',
             'doc_photo' => 'nullable|string',
             'doc_origine_fonds' => 'nullable|string',

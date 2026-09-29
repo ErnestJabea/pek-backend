@@ -29,6 +29,23 @@ La collection contient des exemples d'autres services (cashin, factures, produit
 
 ## Exploitation et contrôle de staging
 
+### Relecture du 21 septembre 2026 pour le déploiement
+
+Le contrat public OAuth/collectstd/verifytx et la signature HMAC-SHA1 du corps brut
+ont été revérifiés. Le code refuse désormais aussi un callback signé dont le code
+d'erreur contredit l'état annoncé ; une divergence entre deux états terminaux du
+callback et de verifytx reste à rapprocher sans crédit. En production, l'opérateur
+reste indisponible si l'URL configurée est invalide ou si le fuseau du callback
+historique n'est pas renseigné. Le modèle `.env.production.example` ne présume plus
+Africa/Douala comme fuseau du fournisseur : la date métier reste en Africa/Douala,
+mais le timestamp d'origine doit être décodé selon le contrat marchand.
+
+Les vérifications HTTP publiques sur l'API en ligne ont retourné 404 pour les deux
+routes payment-options. Elles ne prouvent donc pas le déploiement de cette
+intégration. Aucun nouveau collectstd ni débit de production n'a été déclenché
+pendant cette revue. Voir `DEPLOYMENT_PEK.md` pour les commandes, le callback exact
+et les prérequis cron/queue.
+
 Le défaut de confiance TLS de PHP/MAMP a été corrigé localement avec les autorités racines approuvées par Windows, exportées dans un fichier privé et référencées par `S3P_CA_BUNDLE`. La vérification du certificat et du nom d'hôte reste active. Le fichier d'autorités ne contient aucune clé privée et est exclu de Git. Sur le serveur de production, utiliser son magasin de confiance maintenu, pas ce fichier de développement.
 
 Les accès staging fournis dans la collection ont permis OAuth HTTP 200, `/ping` HTTP 200, lecture du catalogue et devis via le véritable adaptateur PHP. Ils sont configurés uniquement dans le `.env` local ignoré par Git. `S3P_ENABLED=true` active désormais les essais interactifs locaux Orange et MTN, avec une mention explicite du mode test dans l'interface ; la simulation reste désactivée. Un succès de staging sur une base persistante reçoit `valuation_status=staging_only` et ne peut pas créditer de parts réelles, même après un callback. Le service refuse de proposer le staging en environnement de production. Un secret de webhook local a été généré mais son enregistrement chez Maviance n'est pas confirmé. La commande de diagnostic réseau peut lire le catalogue sans activer les encaissements.
@@ -37,7 +54,7 @@ Le 17 septembre 2026, avec les deux numéros de staging fournis par l'utilisateu
 
 | Opérateur | Marchand / service | Total | PTN | Résultat confirmé par verifytx |
 |---|---|---|---|---|
-| Orange Money | CMORANGEOM / 300215 | 75 750 XAF | 99999178962381900079982890865590 | SUCCESS |
+| Orange Money | CMORANGEOM / 30053 | 75 750 XAF | 99999178962381900079982890865590 | SUCCESS |
 | MTN Mobile Money | MTNMOMO / 20053 | 75 750 XAF | 99999178962382500065657040989968 | SUCCESS |
 
 Les deux transactions ont passé les contrôles d'identité, marchand, service, produit, montant et devises. Le numéro de reçu a été conservé. Les constats réels ont nécessité d'accepter `errorCode: null` et `veriCode: ""`, normalisé en null, sans relâcher les contrôles financiers. Les réponses verifytx sont des listes d'un élément. Le validateur refuse toujours un succès accompagné d'un code d'erreur explicite ou une liste ambiguë.

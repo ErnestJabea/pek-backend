@@ -31,12 +31,6 @@ class EnsureTrustedOriginForCookieAuthentication
             }
         }
 
-        if (! $isAllowed && $origin !== '' && (app()->environment('local') || config('app.debug'))) {
-            if (preg_match('#^https?://(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[01]))\.\d+\.\d+(:\d+)?$#', $origin)) {
-                $isAllowed = true;
-            }
-        }
-
         abort_unless($isAllowed, 403, 'Origine de requête non autorisée.');
 
         return $next($request);

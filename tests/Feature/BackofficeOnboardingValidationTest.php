@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class BackofficeOnboardingValidationTest extends TestCase
@@ -46,7 +47,27 @@ class BackofficeOnboardingValidationTest extends TestCase
             'from_status' => 'completed',
             'to_status' => 'validated',
         ]);
-        Mail::assertSent(OnboardingValidatedMail::class, 1);
+        Mail::assertSent(OnboardingValidatedMail::class, function ($mail) {
+            return str_ends_with($mail->loginUrl, '/login') && str_contains($mail->render(), $mail->loginUrl);
+        });
+    }
+
+    public function test_view_only_reviewer_cannot_validate_or_reject(): void
+    {
+        $reviewer = User::create(['first_name' => 'Read', 'last_name' => 'Only',
+            'email' => 'reader@example.test', 'password' => 'Testing-only-2026!']);
+        foreach (['access_admin_panel', 'view_onboarding_session', 'view_any_onboarding_session'] as $permission) {
+            $reviewer->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+        $session = $this->createCompletedSession();
+        Livewire::actingAs($reviewer)
+            ->test(ViewOnboardingSession::class, ['record' => $session->getRouteKey()])
+            ->mountAction('validate')->call('callMountedAction')->assertForbidden();
+        Livewire::actingAs($reviewer)
+            ->test(ViewOnboardingSession::class, ['record' => $session->getRouteKey()])
+            ->mountAction('reject')->setActionData(['reason' => 'Unauthorized review'])->call('callMountedAction')->assertForbidden();
+        $this->assertSame('completed', $session->fresh()->status);
+        Mail::assertNothingSent();
     }
 
     public function test_backoffice_validates_only_when_every_required_document_exists(): void

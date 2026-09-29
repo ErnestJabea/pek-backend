@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ProductVl;
 use App\Models\Subscription;
+use App\Services\Payments\BankPaymentService;
 use Carbon\Carbon;
 
 class PortfolioService
@@ -13,12 +14,23 @@ class PortfolioService
      *
      * Formule :
      *   Valorisation = Σ (nb_parts × VL_actuelle_du_produit)
-     *   Plus-value   = Valorisation - Coût_de_revient
-     *   Rendement    = (Plus-value / Coût_de_revient) × 100
+     *   Plus-value   = Valorisation - Capital_net_investi
+     *   Rendement    = (Plus-value / Capital_net_investi) × 100
      */
     public function getClientValuation(int $userId): array
     {
-        // Charger uniquement les souscriptions validées (statut = 'Succès')
+        // Auto-valider et attribuer les parts pour toute transaction confirmée
+        Subscription::where('user_id', $userId)
+            ->where(function ($q) {
+                $q->where('mobile_state', 'success')
+                    ->orWhere('valuation_status', 'staging_only');
+            })
+            ->where('statut', '!=', 'Succès')
+            ->each(function (Subscription $sub) {
+                app(BankPaymentService::class)->value($sub);
+            });
+
+        // Charger toutes les souscriptions validées (statut = 'Succès')
         $subscriptions = Subscription::where('user_id', $userId)
             ->where('statut', 'Succès')
             ->with('product')
@@ -51,9 +63,10 @@ class PortfolioService
                 : ($product ? (float) $product->vl : (float) $sub->prix_unitaire);
 
             $nb_parts = (float) $sub->nb_parts;
-            $cout_revient = (float) $sub->montant_total;
+            // Performance excludes entry fees; legacy records use the model net-amount fallback.
+            $cout_revient = (float) $sub->montant_net;
             $valorisation_ligne = $nb_parts * $vl_actuelle;
-            $plus_value_ligne = $valorisation_ligne - $cout_revient;
+            $plus_value_ligne = round($valorisation_ligne - $cout_revient, 2) + 0.0;
             $rendement_ligne = $cout_revient > 0
                 ? ($plus_value_ligne / $cout_revient) * 100
                 : 0.0;
@@ -105,7 +118,7 @@ class PortfolioService
             $vlActuelle = $data['vl_actuelle'];
             $pmp = $nbParts > 0 ? $coutRevient / $nbParts : 0.0;
             $valorisation = $nbParts * $vlActuelle;
-            $plusValue = $valorisation - $coutRevient;
+            $plusValue = round($valorisation - $coutRevient, 2) + 0.0;
             $rendementPct = $coutRevient > 0 ? ($plusValue / $coutRevient) * 100 : 0.0;
 
             $productPositions[] = [
@@ -124,7 +137,7 @@ class PortfolioService
             ];
         }
 
-        $plus_value_totale = $valorisation_totale - $cout_revient_total;
+        $plus_value_totale = round($valorisation_totale - $cout_revient_total, 2) + 0.0;
         $rendement_global = $cout_revient_total > 0
             ? ($plus_value_totale / $cout_revient_total) * 100
             : 0.0;
