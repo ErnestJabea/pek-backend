@@ -181,6 +181,8 @@ class OnboardingSession extends Model
                     512,
                     JSON_THROW_ON_ERROR
                 );
+            } catch (\Illuminate\Contracts\Encryption\DecryptException $exception) {
+                report($exception);
             } catch (JsonException $exception) {
                 report($exception);
             }
@@ -208,12 +210,18 @@ class OnboardingSession extends Model
             return [];
         }
 
-        return json_decode(
-            Crypt::decryptString($this->attributes['submitted_payload']),
-            true,
-            512,
-            JSON_THROW_ON_ERROR
-        );
+        try {
+            return json_decode(
+                Crypt::decryptString($this->attributes['submitted_payload']),
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            );
+        } catch (\Illuminate\Contracts\Encryption\DecryptException | JsonException $exception) {
+            report($exception);
+
+            return [];
+        }
     }
 
     public function setSubmittedPayload(array $payload): void
