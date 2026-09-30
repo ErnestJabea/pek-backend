@@ -7,6 +7,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser, HasName
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
     use HasRoles { hasPermissionTo as private hasPermissionWithoutDepartment; }
 
     public function adminDepartment()
@@ -49,7 +50,7 @@ class User extends Authenticatable implements FilamentUser, HasName
             }
         });
 
-        static::deleting(function ($user) {
+        static::forceDeleting(function ($user) {
             DB::transaction(function () use ($user) {
                 // 1. Delete payment_proofs, payment_events, s3p_callback_inbox related to user's subscriptions
                 $subscriptionIds = DB::table('subscriptions')->where('user_id', $user->id)->pluck('id');

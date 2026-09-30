@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Collection;
 
 class ClientResource extends Resource
@@ -22,6 +23,9 @@ class ClientResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ])
             ->where('role', '!=', 'admin')
             ->whereDoesntHave('roles', fn (Builder $query) => $query->where('name', 'super_admin'));
     }
@@ -98,11 +102,13 @@ class ClientResource extends Resource
                     ->sortable(),
             ])
             ->filters([
-                //
+                Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
+                Tables\Actions\RestoreAction::make(),
+                Tables\Actions\ForceDeleteAction::make(),
                 Tables\Actions\Action::make('create_onboarding')
                     ->label('Créer Onboarding')
                     ->icon('heroicon-o-document-plus')
@@ -111,7 +117,7 @@ class ClientResource extends Resource
                     ->modalHeading('Créer la session d\'onboarding')
                     ->modalDescription('Êtes-vous sûr de vouloir initialiser la session d\'onboarding pour ce client ? Ses informations de base seront pré-remplies.')
                     ->modalSubmitActionLabel('Créer')
-                    ->visible(fn (Client $record) => ! $record->onboardingSession()->exists())
+                    ->visible(fn (Client $record) => ! $record->trashed() && ! $record->onboardingSession()->exists())
                     ->action(function (Client $record) {
                         $record->onboardingSession()->create([
                             'current_step' => 'kyc',
@@ -148,6 +154,8 @@ class ClientResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\RestoreBulkAction::make(),
+                    Tables\Actions\ForceDeleteBulkAction::make(),
                     Tables\Actions\BulkAction::make('export_csv')
                         ->label('Exporter en CSV')
                         ->icon('heroicon-o-arrow-down-tray')
