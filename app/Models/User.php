@@ -9,6 +9,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -38,7 +39,6 @@ class User extends Authenticatable implements FilamentUser, HasName
             || $this->getAllPermissions()->contains('name', 'access_admin_panel');
     }
 
-
     protected static function boot()
     {
         parent::boot();
@@ -50,8 +50,71 @@ class User extends Authenticatable implements FilamentUser, HasName
         });
 
         static::deleting(function ($user) {
-            $user->subscriptions()->delete();
-            $user->notifications()->delete();
+            DB::transaction(function () use ($user) {
+                // 1. Delete payment_proofs, payment_events, s3p_callback_inbox related to user's subscriptions
+                $subscriptionIds = DB::table('subscriptions')->where('user_id', $user->id)->pluck('id');
+                if ($subscriptionIds->isNotEmpty()) {
+                    DB::table('payment_events')->whereIn('subscription_id', $subscriptionIds)->delete();
+                    DB::table('s3p_callback_inbox')->whereIn('subscription_id', $subscriptionIds)->delete();
+                    DB::table('payment_proofs')->whereIn('subscription_id', $subscriptionIds)->delete();
+                    DB::table('subscriptions')->whereIn('id', $subscriptionIds)->delete();
+                }
+
+                // 2. Clear reviewer references on subscriptions
+                DB::table('subscriptions')->where('compliance_reviewed_by_user_id', $user->id)->update(['compliance_reviewed_by_user_id' => null]);
+                DB::table('subscriptions')->where('accounting_reviewed_by_user_id', $user->id)->update(['accounting_reviewed_by_user_id' => null]);
+
+                // 3. Delete any remaining payment_proofs linked to this user
+                DB::table('payment_proofs')->where('user_id', $user->id)->delete();
+                DB::table('payment_proofs')->where('reviewed_by', $user->id)->update(['reviewed_by' => null]);
+
+                // 4. Clear payment_events actor_id
+                DB::table('payment_events')->where('actor_id', $user->id)->update(['actor_id' => null]);
+
+                // 5. Delete onboarding_sessions and sub-relations
+                $sessionIds = DB::table('onboarding_sessions')->where('user_id', $user->id)->pluck('id');
+                if ($sessionIds->isNotEmpty()) {
+                    $ivIds = DB::table('identity_verifications')->whereIn('onboarding_session_id', $sessionIds)->pluck('id');
+                    if ($ivIds->isNotEmpty()) {
+                        DB::table('identity_verification_events')->whereIn('identity_verification_id', $ivIds)->delete();
+                        DB::table('identity_verifications')->whereIn('onboarding_session_id', $sessionIds)->delete();
+                    }
+                    DB::table('onboarding_events')->whereIn('onboarding_session_id', $sessionIds)->delete();
+                    DB::table('onboarding_sessions')->whereIn('id', $sessionIds)->delete();
+                }
+                DB::table('onboarding_events')->where('actor_user_id', $user->id)->update(['actor_user_id' => null]);
+
+                // 6. Delete notifications
+                DB::table('notifications')->where('user_id', $user->id)->delete();
+
+                // 7. Delete OTP codes
+                if ($user->email) {
+                    DB::table('otp_codes')->where('email', $user->email)->delete();
+                }
+
+                // 8. Delete personal access tokens
+                DB::table('personal_access_tokens')
+                    ->where('tokenable_id', $user->id)
+                    ->where(function ($q) use ($user) {
+                        $q->where('tokenable_type', get_class($user))
+                            ->orWhere('tokenable_type', User::class);
+                    })
+                    ->delete();
+
+                // 9. Delete sessions
+                DB::table('sessions')->where('user_id', $user->id)->delete();
+
+                // 10. Delete admin_access_events
+                DB::table('admin_access_events')->where('user_id', $user->id)->orWhere('actor_id', $user->id)->delete();
+
+                // 11. Detach roles and permissions
+                if (method_exists($user, 'roles')) {
+                    $user->roles()->detach();
+                }
+                if (method_exists($user, 'permissions')) {
+                    $user->permissions()->detach();
+                }
+            });
         });
     }
 
