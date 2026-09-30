@@ -227,6 +227,7 @@ class ProductResource extends Resource
                         ->url(fn (Product $record) => $record->document_information_en_url)
                         ->openUrlInNewTab(),
                     Tables\Actions\EditAction::make(),
+                    Tables\Actions\DeleteAction::make(),
                 ]),
             ])
             ->bulkActions([

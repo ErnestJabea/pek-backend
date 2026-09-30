@@ -20,8 +20,8 @@ class AdminDepartmentResource extends Resource
     public static function canViewAny(): bool { return auth()->user()?->hasRole('super_admin') ?? false; }
     public static function canCreate(): bool { return static::canViewAny(); }
     public static function canEdit(Model $record): bool { return static::canViewAny(); }
-    public static function canDelete(Model $record): bool { return false; }
-    public static function canDeleteAny(): bool { return false; }
+    public static function canDelete(Model $record): bool { return static::canViewAny(); }
+    public static function canDeleteAny(): bool { return static::canViewAny(); }
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -64,7 +64,16 @@ class AdminDepartmentResource extends Resource
             Tables\Columns\TextColumn::make('name')->label('Département')->searchable(),
             Tables\Columns\TextColumn::make('users_count')->counts('users')->label('Membres'),
             Tables\Columns\IconColumn::make('is_active')->label('Actif')->boolean(),
-        ])->actions([Tables\Actions\EditAction::make()]);
+        ])
+        ->actions([
+            Tables\Actions\EditAction::make(),
+            Tables\Actions\DeleteAction::make(),
+        ])
+        ->bulkActions([
+            Tables\Actions\BulkActionGroup::make([
+                Tables\Actions\DeleteBulkAction::make(),
+            ]),
+        ]);
     }
     public static function getPages(): array
     {

@@ -41,6 +41,16 @@ class OnboardingSessionResource extends Resource
         return false;
     }
 
+    public static function canDelete(Model $record): bool
+    {
+        return true;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return true;
+    }
+
     public static function canEdit(Model $record): bool
     {
         return $record->status === 'completed' && parent::canEdit($record);
@@ -631,10 +641,13 @@ class OnboardingSessionResource extends Resource
                             'type' => 'labft',
                         ]))
                         ->openUrlInNewTab(),
+                    Tables\Actions\DeleteAction::make(),
                 ]),
             ])
             ->bulkActions([
-                // Pas d'actions de masse en lecture seule en dehors de l'export éventuel
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ])
             ->emptyStateActions([
                 // Pas de création manuelle

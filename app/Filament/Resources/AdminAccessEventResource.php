@@ -13,8 +13,8 @@ class AdminAccessEventResource extends Resource
     public static function canViewAny(): bool { return auth()->user()?->hasRole('super_admin') ?? false; }
     public static function canCreate(): bool { return false; }
     public static function canEdit(Model $record): bool { return false; }
-    public static function canDelete(Model $record): bool { return false; }
-    public static function canDeleteAny(): bool { return false; }
+    public static function canDelete(Model $record): bool { return auth()->user()?->hasRole('super_admin') ?? false; }
+    public static function canDeleteAny(): bool { return auth()->user()?->hasRole('super_admin') ?? false; }
     public static function table(Table $table): Table
     {
         return $table->defaultSort('id', 'desc')->columns([
@@ -24,6 +24,14 @@ class AdminAccessEventResource extends Resource
             Tables\Columns\TextColumn::make('department_id')->label('Département (ID)'),
             Tables\Columns\TextColumn::make('event')->label('Action'),
             Tables\Columns\TextColumn::make('changes')->label('Modifications')->getStateUsing(fn ($record) => json_encode($record->changes, JSON_UNESCAPED_UNICODE))->wrap(),
+        ])
+        ->actions([
+            Tables\Actions\DeleteAction::make(),
+        ])
+        ->bulkActions([
+            Tables\Actions\BulkActionGroup::make([
+                Tables\Actions\DeleteBulkAction::make(),
+            ]),
         ]);
     }
     public static function getPages(): array { return ['index' => AdminAccessEventResource\Pages\ListAdminAccessEvents::route('/')]; }

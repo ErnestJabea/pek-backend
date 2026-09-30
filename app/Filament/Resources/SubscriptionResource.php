@@ -26,12 +26,12 @@ class SubscriptionResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return false;
+        return true;
     }
 
     public static function canDeleteAny(): bool
     {
-        return false;
+        return true;
     }
 
     protected static ?string $model = Subscription::class;
@@ -227,8 +227,8 @@ class SubscriptionResource extends Resource
                         try {
                             ProcessSubscriptionReceipt::dispatch($record);
                             Notification::make()
-                                ->title('Reçu envoyé')
-                                ->body('Le reçu de souscription a été mis en file d\'attente pour envoi.')
+                                ->title('Reçu et bulletin envoyés')
+                                ->body('Le récapitulatif et le bulletin de souscription ont été mis en file d\'attente pour envoi par email.')
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -246,6 +246,14 @@ class SubscriptionResource extends Resource
                     ->visible(fn (Subscription $record) => $record->statut === 'Succès')
                     ->url(fn (Subscription $record) => route('subscriptions.bulletin.show', $record))
                     ->openUrlInNewTab(),
+                Tables\Actions\Action::make('downloadPaymentProof')
+                    ->label('Preuve de paiement')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('info')
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists())
+                    ->url(fn (Subscription $record) => route('admin.payment-proofs.download', $record->paymentProofs()->latest()->first()))
+                    ->openUrlInNewTab(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
