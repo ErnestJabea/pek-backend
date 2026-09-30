@@ -3,8 +3,11 @@
 namespace App\Filament\Resources\OnboardingSessionResource\Pages;
 
 use App\Filament\Resources\OnboardingSessionResource;
+use App\Models\OnboardingSession;
 use Filament\Actions;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 
 class ListOnboardingSessions extends ListRecords
 {
@@ -14,6 +17,26 @@ class ListOnboardingSessions extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+        ];
+    }
+
+    public function getTabs(): array
+    {
+        return [
+            'pending' => Tab::make('À traiter / En cours')
+                ->icon('heroicon-o-clock')
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['completed', 'in_progress']))
+                ->badge(OnboardingSession::whereIn('status', ['completed', 'in_progress'])->count())
+                ->badgeColor('warning'),
+            'validated' => Tab::make('Dossiers Validés')
+                ->icon('heroicon-o-check-circle')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'validated'))
+                ->badge(OnboardingSession::where('status', 'validated')->count())
+                ->badgeColor('success'),
+            'rejected' => Tab::make('Rejetés')
+                ->icon('heroicon-o-x-circle')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'rejected')),
+            'all' => Tab::make('Tous les dossiers'),
         ];
     }
 }
