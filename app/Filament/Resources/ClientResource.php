@@ -10,6 +10,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class ClientResource extends Resource
@@ -17,6 +18,13 @@ class ClientResource extends Resource
     protected static ?string $model = Client::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('role', '!=', 'admin')
+            ->whereDoesntHave('roles', fn (Builder $query) => $query->where('name', 'super_admin'));
+    }
 
     public static function getModelLabel(): string
     {

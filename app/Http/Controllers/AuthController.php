@@ -136,6 +136,9 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $otp->email)->firstOrFail();
+        if ($user->role === 'admin' || $user->hasRole('super_admin')) {
+            return response()->json(['message' => 'Identifiants invalides.'], 401);
+        }
         if ($otp->purpose === 'register') {
             $user->email_verified_at = Carbon::now();
         }
@@ -175,7 +178,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password) || $user->role === 'admin' || $user->hasRole('super_admin')) {
             return response()->json(['message' => 'Identifiants invalides.'], 401);
         }
 
