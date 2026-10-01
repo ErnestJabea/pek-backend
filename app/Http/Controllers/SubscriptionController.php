@@ -89,7 +89,7 @@ class SubscriptionController extends Controller
         }
 
         try {
-            [$subscription, $created] = DB::transaction(function () use ($user, $validated) {
+            [$subscription, $created] = DB::transaction(function () use ($user, $validated, $existingSubscriptionsCount) {
                 $existing = Subscription::query()
                     ->where('user_id', $user->id)
                     ->where('idempotency_key', $validated['idempotency_key'])

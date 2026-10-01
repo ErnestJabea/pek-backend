@@ -28,15 +28,16 @@ class AuthController extends Controller
             'password' => 'required|string|min:12|confirmed',
             'type_piece' => 'required|string|in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport',
             'num_piece' => 'required|string|max:100',
-            'piece_recto' => 'required_without:doc_piece_identite|nullable|string',
-            'doc_piece_identite' => 'required_without:piece_recto|nullable|string',
+            'expiration_piece' => 'required|date|after:today',
+            'piece_recto' => 'nullable|string',
+            'doc_piece_identite' => 'nullable|string',
             'piece_verso' => 'nullable|string',
             'doc_piece_verso' => 'nullable|string',
         ], [
             'type_piece.required' => 'Le type d\'identification (Carte de séjour, CNI ou Passeport) est obligatoire.',
             'num_piece.required' => 'Le numéro de la pièce d\'identification est obligatoire.',
-            'piece_recto.required_without' => 'L\'image de la pièce d\'identité est obligatoire.',
-            'doc_piece_identite.required_without' => 'L\'image de la pièce d\'identité est obligatoire.',
+            'expiration_piece.required' => 'La date d\'expiration de la pièce d\'identification est obligatoire.',
+            'expiration_piece.after' => 'La date d\'expiration doit être supérieure à la date du jour.',
         ]);
 
         $rectoDoc = $request->input('doc_piece_identite') ?: $request->input('piece_recto');
@@ -55,6 +56,32 @@ class AuthController extends Controller
             'doc_piece_identite' => $rectoDoc,
             'doc_piece_verso' => $versoDoc,
             'password' => Hash::make($request->password),
+        ]);
+
+        $pieceType = match(strtolower($user->type_piece ?? 'cni')) {
+            'carte_sejour', 'carte résident', 'carte de séjour' => 'Carte Résident',
+            'passeport', 'passport' => 'Passeport',
+            default => 'CNI',
+        };
+        $user->onboardingSession()->create([
+            'current_step' => 'kyc',
+            'status' => 'in_progress',
+            'payload' => [
+                'nom' => $user->last_name,
+                'prenom' => $user->first_name,
+                'email' => $user->email,
+                'tel' => $user->phone,
+                'pays_residence' => $user->country,
+                'adresse' => $user->city,
+                'piece' => $pieceType,
+                'type_piece' => $pieceType,
+                'num_piece' => $user->num_piece,
+                'expiration_piece' => $request->expiration_piece,
+                'doc_piece_identite' => $rectoDoc,
+                'piece_recto' => $rectoDoc,
+                'doc_piece_verso' => $versoDoc,
+                'piece_verso' => $versoDoc,
+            ],
         ]);
 
         [$otpCode, $challengeId] = $this->issueOtp($user, 'register');

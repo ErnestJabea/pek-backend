@@ -40,7 +40,7 @@ $defineApiRoutes = function () {
     Route::post('/stripe/webhook', [WebhookController::class, 'handleStripe'])->middleware('throttle:provider-webhooks');
     Route::post('/s3p/webhook', S3pWebhookController::class)->middleware('throttle:provider-webhooks');
     Route::get('/payment-options', function (S3pGateway $gateway) {
-        return response()->json(['orange_money' => $gateway->available('orange_money'), 'mtn_momo' => $gateway->available('mtn_momo'),
+        return response()->json(['card' => true, 'stripe' => true, 'orange_money' => $gateway->available('orange_money'), 'mtn_momo' => $gateway->available('mtn_momo'),
             's3p_mode' => $gateway->isStaging() ? 'staging' : 'live',
             'fee_basis_points' => config('payments.fee_basis_points'), 'max_investment' => config('payments.max_investment')]);
     });
@@ -101,3 +101,5 @@ Route::prefix('v1')->name('api.v1.')->group($defineApiRoutes);
 
 // Fallback pour la compatibilité legacy (/api/...)
 $defineApiRoutes();
+
+Route::get('/app-contents', [\App\Http\Controllers\Api\AppContentController::class, 'index']);
