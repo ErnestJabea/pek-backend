@@ -12,7 +12,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
-use Illuminate\Cookie\Middleware\EncryptCookies;
+use App\Http\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
@@ -29,6 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('PEK Admin')
+            ->sidebarCollapsibleOnDesktop()
             ->renderHook(
                 'panels::sidebar.nav.start',
                 fn () => view('filament.logo'),

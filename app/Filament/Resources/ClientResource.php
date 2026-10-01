@@ -20,6 +20,10 @@ class ClientResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
+    protected static ?string $navigationGroup = 'Opérations & Souscriptions';
+
+    protected static ?int $navigationSort = 1;
+
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

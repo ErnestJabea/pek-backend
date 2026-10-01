@@ -33,9 +33,9 @@ class AuthServiceProvider extends ServiceProvider
                 .'?email='.urlencode($user->getEmailForPasswordReset());
         });
 
-        // Implicitly grant "super_admin" role all permissions
+        // Implicitly grant "super_admin" role and "admin" users all permissions
         Gate::before(function ($user, $ability) {
-            return $user->hasRole('super_admin') ? true : null;
+            return ($user->hasRole('super_admin') || $user->role === 'admin') ? true : null;
         });
 
         Gate::define('viewLogViewer', function ($user) {

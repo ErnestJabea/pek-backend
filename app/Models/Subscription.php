@@ -34,6 +34,16 @@ class Subscription extends Model
                 }
             }
         });
+
+        static::deleting(function (Subscription $subscription) {
+            // Delete associated physical payment proof files if any
+            $proofs = DB::table('payment_proofs')->where('subscription_id', $subscription->id)->get();
+            foreach ($proofs as $proof) {
+                if (!empty($proof->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($proof->path)) {
+                    \Illuminate\Support\Facades\Storage::disk('local')->delete($proof->path);
+                }
+            }
+        });
     }
 
     private static function dispatchSuccessEffects(int $subscriptionId): void

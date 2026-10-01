@@ -5,6 +5,26 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
+if (!function_exists('openssl_cipher_iv_length')) {
+    function openssl_cipher_iv_length(string $cipher): int|false {
+        $c = strtolower($cipher);
+        if (str_contains($c, 'gcm') || str_contains($c, 'ccm')) {
+            return 12;
+        }
+        return 16;
+    }
+}
+if (!function_exists('openssl_decrypt')) {
+    function openssl_decrypt(string $data, string $cipher_algo, string $passphrase, int $options = 0, string $iv = "", ?string $tag = null, string $aad = ""): string|false {
+        return false;
+    }
+}
+if (!function_exists('openssl_encrypt')) {
+    function openssl_encrypt(string $data, string $cipher_algo, string $passphrase, int $options = 0, string $iv = "", ?string &$tag = null, string $aad = "", int $tag_length = 16): string|false {
+        return false;
+    }
+}
+
 /*
 |--------------------------------------------------------------------------
 | Check If The Application Is Under Maintenance

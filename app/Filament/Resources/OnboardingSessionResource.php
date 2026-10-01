@@ -30,6 +30,10 @@ class OnboardingSessionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
+    protected static ?string $navigationGroup = 'Opérations & Souscriptions';
+
+    protected static ?int $navigationSort = 2;
+
     protected static ?string $navigationLabel = 'Onboarding Clients';
 
     protected static ?string $modelLabel = 'Session d\'Onboarding';

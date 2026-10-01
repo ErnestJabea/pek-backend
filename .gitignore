@@ -25,3 +25,9 @@ generate_mysql_export.php
 /.fleet
 /.idea
 /.vscode
+*.dll
+php.ini
+*.bak
+database/auto_import.php
+database/import_db.php
+start_api.bat

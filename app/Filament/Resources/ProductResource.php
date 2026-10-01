@@ -17,6 +17,10 @@ class ProductResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
 
+    protected static ?string $navigationGroup = 'Produits & Trésorerie';
+
+    protected static ?int $navigationSort = 1;
+
     public static function getModelLabel(): string
     {
         return __('messages.product');

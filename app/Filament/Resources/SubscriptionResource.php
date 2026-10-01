@@ -38,6 +38,10 @@ class SubscriptionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-credit-card';
 
+    protected static ?string $navigationGroup = 'Opérations & Souscriptions';
+
+    protected static ?int $navigationSort = 3;
+
     public static function getModelLabel(): string
     {
         return __('messages.subscription');
@@ -152,7 +156,17 @@ class SubscriptionResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('moyen_paiement')
                     ->label('Moyen')
-                    ->searchable(),
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'orange_money' => 'Orange Money',
+                        'mtn_momo' => 'MTN MoMo',
+                        'mobile_money' => 'Mobile Money',
+                        'card' => 'Carte Bancaire',
+                        'stripe' => 'Stripe',
+                        'bank_transfer', 'virement' => 'Virement Bancaire',
+                        default => $state ?? '-',
+                    })
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('statut')
                     ->label(__('messages.status'))
                     ->badge()
@@ -162,7 +176,8 @@ class SubscriptionResource extends Resource
                         'Échec' => 'danger',
                         default => 'gray',
                     })
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('compliance_reviewed_at')
                     ->label('Conformité Int.')
                     ->boolean()
@@ -170,7 +185,8 @@ class SubscriptionResource extends Resource
                     ->falseIcon('heroicon-o-clock')
                     ->trueColor('success')
                     ->falseColor('warning')
-                    ->tooltip(fn (Subscription $record) => $record->compliance_reviewed_at ? "Validé par {$record->complianceReviewer?->first_name} le {$record->compliance_reviewed_at->format('d/m/Y H:i')}" : 'En attente de revue conformité'),
+                    ->tooltip(fn (Subscription $record) => $record->compliance_reviewed_at ? "Validé par {$record->complianceReviewer?->first_name} le {$record->compliance_reviewed_at->format('d/m/Y H:i')}" : 'En attente de revue conformité')
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('accounting_reviewed_at')
                     ->label('Comptabilité Int.')
                     ->boolean()
@@ -178,15 +194,26 @@ class SubscriptionResource extends Resource
                     ->falseIcon('heroicon-o-clock')
                     ->trueColor('success')
                     ->falseColor('warning')
-                    ->tooltip(fn (Subscription $record) => $record->accounting_reviewed_at ? "Validé par {$record->accountingReviewer?->first_name} le {$record->accounting_reviewed_at->format('d/m/Y H:i')}" : 'En attente de rapprochement comptable'),
+                    ->tooltip(fn (Subscription $record) => $record->accounting_reviewed_at ? "Validé par {$record->accountingReviewer?->first_name} le {$record->accounting_reviewed_at->format('d/m/Y H:i')}" : 'En attente de rapprochement comptable')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('messages.date'))
-                    ->dateTime()
+                    ->dateTime('d/m/Y H:i')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('value_date')->label('Date de valeur')->date(),
-                Tables\Columns\TextColumn::make('valuation_status')->label('Valorisation')->badge(),
-                Tables\Columns\TextColumn::make('mobile_state')->label('État mobile')->badge(),
+                Tables\Columns\TextColumn::make('value_date')
+                    ->label('Date de valeur')
+                    ->date('d/m/Y')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('valuation_status')
+                    ->label('Valorisation')
+                    ->badge()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('mobile_state')
+                    ->label('État mobile')
+                    ->badge()
+                    ->sortable(),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 \App\Filament\Filters\DashboardFilter::make(static::class),
                 //
