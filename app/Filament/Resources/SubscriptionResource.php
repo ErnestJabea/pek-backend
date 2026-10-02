@@ -194,12 +194,31 @@ class SubscriptionResource extends Resource
                         if ($code) {
                             return "Code: {$code}";
                         }
+                        $lastEvent = $record->paymentEvents()->latest('id')->first();
+                        if ($lastEvent && is_array($lastEvent->details)) {
+                            $d = $lastEvent->details;
+                            if (!empty($d['provider_code'])) {
+                                return "Code {$d['provider_code']}" . (!empty($d['http_status']) ? " (HTTP {$d['http_status']})" : '');
+                            }
+                            if (!empty($d['http_status'])) {
+                                return "HTTP {$d['http_status']} : " . ($d['reason'] ?? 'Erreur S3P');
+                            }
+                            if (!empty($d['reason'])) {
+                                return match ($d['reason']) {
+                                    'connection_error' => 'Erreur de connexion S3P',
+                                    'invalid_access_token' => 'Jeton API S3P invalide',
+                                    'catalog_selection_invalid' => 'Produit/Marchand non trouvé',
+                                    'quote_mismatch' => 'Montant devis rejeté',
+                                    default => 'Devis: ' . $d['reason'],
+                                };
+                            }
+                        }
+
+                        if ($record->mobile_state === 'quote_failed') {
+                            return 'Devis échoué (Vérifier S3P/Montant)';
+                        }
                         if ($record->mobile_state) {
                             return "État: {$record->mobile_state}";
-                        }
-                        $lastEvent = $record->paymentEvents()->latest('id')->first();
-                        if ($lastEvent && isset($lastEvent->details['error'])) {
-                            return is_string($lastEvent->details['error']) ? $lastEvent->details['error'] : json_encode($lastEvent->details['error']);
                         }
                         return 'Échec';
                     })
