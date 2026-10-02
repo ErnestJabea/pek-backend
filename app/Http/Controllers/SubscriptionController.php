@@ -65,12 +65,16 @@ class SubscriptionController extends Controller
         }
 
         $user = $request->user()->loadMissing('onboardingSession');
-        $existingSubscriptionsCount = Subscription::query()
+        $validatedSubscriptionsCount = Subscription::query()
             ->where('user_id', $user->id)
-            ->whereNotIn('statut', ['Annulée', 'Rejetée'])
+            ->where(function ($query) {
+                $query->where('statut', 'SuccÃ¨s')
+                    ->orWhereNotNull('payment_confirmed_at')
+                    ->orWhereNotNull('funds_received_at');
+            })
             ->count();
 
-        if ($existingSubscriptionsCount === 0) {
+        if ($validatedSubscriptionsCount === 0) {
             if (isset($validated['investment_amount']) && (int) $validated['investment_amount'] > 250000) {
                 return response()->json([
                     'message' => 'Pour votre première souscription avant la validation de votre onboarding, le montant est plafonné à 250 000 FCFA.',
@@ -89,7 +93,7 @@ class SubscriptionController extends Controller
         }
 
         try {
-            [$subscription, $created] = DB::transaction(function () use ($user, $validated, $existingSubscriptionsCount) {
+            [$subscription, $created] = DB::transaction(function () use ($user, $validated, $validatedSubscriptionsCount) {
                 $existing = Subscription::query()
                     ->where('user_id', $user->id)
                     ->where('idempotency_key', $validated['idempotency_key'])
@@ -123,7 +127,7 @@ class SubscriptionController extends Controller
                     : round((float) $validated['nb_parts'], 8);
                 // XAF is a zero-decimal currency: every payable amount must be a whole FCFA.
                 $subtotal = isset($validated['investment_amount']) ? (int) $validated['investment_amount'] : (int) round($parts * $unitPrice);
-                if ($existingSubscriptionsCount === 0 && $subtotal > 250000) {
+                if ($validatedSubscriptionsCount === 0 && $user->onboarding_status !== 'validated' && $subtotal > 250000) {
                     abort(422, 'Pour votre première souscription avant la validation de votre onboarding, le montant est plafonné à 250 000 FCFA.');
                 }
                 abort_if($subtotal > config('payments.max_investment'), 422, 'Montant maximum dépassé.');

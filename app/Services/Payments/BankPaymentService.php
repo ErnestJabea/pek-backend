@@ -27,7 +27,20 @@ class BankPaymentService
             $sub = Subscription::lockForUpdate()->findOrFail($subscription->id);
             abort_unless(in_array($sub->moyen_paiement, ['bank_transfer', 'virement'], true), 422);
             abort_if($sub->statut === 'Succès' && ! $sub->funds_received_at, 409, 'Cette ancienne souscription est déjà validée.');
-            abort_unless($sub->user->onboarding_status === 'validated', 422, 'Le KYC doit être validé.');
+            $isFirstUnderCeiling = (int) ($sub->investment_amount ?? $sub->montant_total) <= 250000
+                && Subscription::query()
+                    ->where('user_id', $sub->user_id)
+                    ->where('id', '!=', $sub->id)
+                    ->where(function ($query) {
+                        $query->where('statut', 'SuccÃ¨s')
+                            ->orWhereNotNull('payment_confirmed_at')
+                            ->orWhereNotNull('funds_received_at');
+                    })
+                    ->count() === 0;
+
+            if (! $isFirstUnderCeiling) {
+                abort_unless($sub->user->onboarding_status === 'validated', 422, 'Le KYC doit Ãªtre validÃ©.');
+            }
             $date = CarbonImmutable::parse($data['received_at'], config('payments.timezone'));
             abort_if($date->toDateString() < $sub->created_at->timezone(config('payments.timezone'))->toDateString(), 422, 'La réception ne peut pas précéder la demande.');
             abort_unless((int) $data['amount'] === (int) $sub->montant_total, 422, 'Le montant reçu doit correspondre au total attendu. Traitez séparément les écarts.');
