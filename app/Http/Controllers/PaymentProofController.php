@@ -71,7 +71,9 @@ class PaymentProofController extends Controller
     public function download(Request $request, PaymentProof $proof)
     {
         abort_unless($request->user()->id === $proof->user_id || $request->user()->can('view_payment_proof'), 404);
-        abort_unless($proof->scan_status === 'clean', 423, 'Document en quarantaine ou rejeté par le contrôle de sécurité.');
+        abort_if($proof->scan_status === 'infected', 423, 'Document bloqué par le contrôle de sécurité.');
+abort_unless($proof->scan_status === 'clean' || ($proof->scan_status === 'quarantined' && $request->user()->can('view_payment_proof')), 423, 'Document en quarantaine ou rejeté par le contrôle de sécurité.');
+
         $path = Storage::disk('payment_private')->path($proof->path);
         abort_unless(is_file($path) && hash_equals($proof->sha256, hash_file('sha256', $path)), 423, 'Intégrité du justificatif non vérifiée.');
         PaymentAudit::record($proof->subscription_id, 'proof_downloaded', ['proof_id' => $proof->id], $request->user()->id);
