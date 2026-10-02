@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Filament\Resources\SubscriptionResource\RelationManagers;
 
@@ -37,7 +37,7 @@ class PaymentProofsRelationManager extends RelationManager
             Tables\Columns\TextColumn::make('review_note')->label('Motif')->wrap(),
         ])->actions([
             Tables\Actions\Action::make('download')->label('Télécharger')
-                ->visible(fn (PaymentProof $record) => $record->scan_status === 'clean' && auth()->user()->can('view_payment_proof'))
+                ->visible(fn (PaymentProof $record) => in_array($record->scan_status, ['clean', 'quarantined'], true) && auth()->user()->can('view_payment_proof'))
                 ->url(fn (PaymentProof $record) => route('admin.payment-proofs.download', $record))->openUrlInNewTab(),
             Tables\Actions\Action::make('review')->label('Examiner le justificatif')
                 ->authorize(fn () => auth()->user()->can('review_payment_proof'))

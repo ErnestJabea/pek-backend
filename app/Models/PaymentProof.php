@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Models;
 
@@ -11,6 +11,11 @@ class PaymentProof extends Model
     protected $hidden = ['path', 'sha256'];
 
     protected $casts = ['declared_date' => 'date', 'reviewed_at' => 'datetime'];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function subscription()
     {

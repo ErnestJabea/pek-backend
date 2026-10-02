@@ -77,11 +77,18 @@ abort_unless($proof->scan_status === 'clean' || ($proof->scan_status === 'quaran
         $path = Storage::disk('payment_private')->path($proof->path);
         abort_unless(is_file($path) && hash_equals($proof->sha256, hash_file('sha256', $path)), 423, 'Intégrité du justificatif non vérifiée.');
         PaymentAudit::record($proof->subscription_id, 'proof_downloaded', ['proof_id' => $proof->id], $request->user()->id);
-        $extension = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'][$proof->mime];
+        $extension = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'][$proof->mime] ?? 'pdf';
+        $user = $proof->user ?? $proof->subscription?->user;
+        $clientName = $user ? trim($user->first_name . ' ' . $user->last_name) : 'client';
+        $clientSlug = Str::slug($clientName) ?: 'client';
+        $dateTime = ($proof->created_at ?? now())->format('Y-m-d-His');
+        $filename = "justificatif-paiement-{$clientSlug}-{$dateTime}.{$extension}";
 
-        return Storage::disk('payment_private')->download($proof->path, 'justificatif-'.$proof->id.'.'.$extension, [
-            'Content-Type' => 'application/octet-stream', 'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'no-store, private', 'Content-Security-Policy' => "default-src 'none'; sandbox",
+        return response()->file($path, [
+            'Content-Type' => $proof->mime,
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store, private',
         ]);
     }
 }
