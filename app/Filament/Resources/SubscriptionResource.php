@@ -178,6 +178,36 @@ class SubscriptionResource extends Resource
                     })
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('error_info')
+                    ->label('Code Erreur / Motif')
+                    ->getStateUsing(function (Subscription $record): ?string {
+                        if ($record->statut !== 'Échec' && $record->mobile_state !== 'errored' && $record->mobile_state !== 'quote_failed') {
+                            return null;
+                        }
+                        $code = $record->s3p_error_code;
+                        $label = $code && class_exists(\App\Services\Payments\S3pPaymentError::class) 
+                            ? \App\Services\Payments\S3pPaymentError::label($code) 
+                            : null;
+                        if ($code && $label) {
+                            return "{$code} - {$label}";
+                        }
+                        if ($code) {
+                            return "Code: {$code}";
+                        }
+                        if ($record->mobile_state) {
+                            return "État: {$record->mobile_state}";
+                        }
+                        $lastEvent = $record->paymentEvents()->latest('id')->first();
+                        if ($lastEvent && isset($lastEvent->details['error'])) {
+                            return is_string($lastEvent->details['error']) ? $lastEvent->details['error'] : json_encode($lastEvent->details['error']);
+                        }
+                        return 'Échec';
+                    })
+                    ->badge()
+                    ->color('danger')
+                    ->placeholder('—')
+                    ->wrap()
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('compliance_reviewed_at')
                     ->label('Conformité Int.')
                     ->boolean()
