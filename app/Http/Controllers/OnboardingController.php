@@ -85,7 +85,7 @@ class OnboardingController extends Controller
     {
         $validated = $request->validate([
             'step' => ['required', Rule::in(self::EDITABLE_STEPS)],
-            'payload' => ['required', 'array:'.implode(',', $this->allowedPayloadFields())],
+            'payload' => ['required', 'array'],
             ...$this->draftRules(),
         ]);
 
@@ -321,6 +321,8 @@ class OnboardingController extends Controller
             ...array_keys((new StoreLABFTRequest)->rules()),
             ...array_keys($this->riskRules()),
             'agent_kam',
+            'type_piece',
+            'rccm',
         ]));
     }
 

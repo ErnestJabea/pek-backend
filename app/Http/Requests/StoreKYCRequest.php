@@ -32,7 +32,7 @@ class StoreKYCRequest extends FormRequest
             'adresse' => 'required|string|max:255',
             'tel' => 'required|string|max:50',
             'email' => 'required|email|max:255',
-            'piece' => 'required|string|in:CNI,Passeport,Carte Résident',
+            'piece' => 'required|string|in:CNI,Passeport,Carte Résident,Permis de Conduire',
             'num_piece' => 'required|string|max:100',
             'expiration_piece' => 'required|date|after:today',
             'profession' => 'nullable|string|max:255',
