@@ -16,6 +16,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('payments:reconcile')->everyMinute()->withoutOverlapping();
         $schedule->command('payments:scan-proofs')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('onboarding:send-reminders')->daily();
+        $schedule->command('id:send-expiry-reminders')->daily();
+        $schedule->command('birthdays:send-wishes')->dailyAt('08:00');
         $schedule->command('sanctum:prune-expired --hours=24')->daily();
         $schedule->call(function () {
             OtpCode::where('expires_at', '<', now()->subDay())->delete();

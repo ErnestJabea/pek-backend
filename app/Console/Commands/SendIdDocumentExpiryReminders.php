@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Mail\IdDocumentExpiryReminderMail;
 use App\Models\Notification;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -36,7 +37,16 @@ class SendIdDocumentExpiryReminders extends Command
         $force = (bool) $this->option('force');
         $targetUserId = $this->option('user-id');
 
-        $this->info("Debut de la verification des pieces d'identite arrivant a expiration...");
+        $enabled = SystemSetting::get('id_expiry_reminders_enabled', true);
+        if (! $enabled && ! $force && ! $targetUserId) {
+            $this->info("Les rappels automatiques d'expiration de pieces d'identite sont desactives dans les reglages.");
+            return Command::SUCCESS;
+        }
+
+        $noticeDays = (int) SystemSetting::get('id_expiry_notice_days', 30);
+        $throttleDays = (int) SystemSetting::get('id_expiry_throttle_days', 7);
+
+        $this->info("Debut de la verification des pieces d'identite arrivant a expiration (seuil : {} jours)...");
 
         $query = User::query()->whereNull('deleted_at');
 
@@ -45,8 +55,8 @@ class SendIdDocumentExpiryReminders extends Command
         }
 
         $users = $query->with('onboardingSession')->get();
-        $sevenDaysAgo = Carbon::now()->subDays(7);
-        $thirtyDaysFromNow = Carbon::now()->addDays(30)->endOfDay();
+        $sevenDaysAgo = Carbon::now()->subDays($throttleDays);
+        $thirtyDaysFromNow = Carbon::now()->addDays($noticeDays)->endOfDay();
 
         $processedCount = 0;
         $skippedCount = 0;

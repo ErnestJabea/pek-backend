@@ -149,6 +149,8 @@ class User extends Authenticatable implements FilamentUser, HasName
         'doc_piece_verso',
         'expiration_piece',
         'last_id_expiry_reminder_at',
+        'dob',
+        'last_birthday_wish_sent_at',
         'last_onboarding_reminder_at',
     ];
 
@@ -163,6 +165,8 @@ class User extends Authenticatable implements FilamentUser, HasName
         'email_verified_at' => 'datetime',
         'expiration_piece' => 'date:Y-m-d',
         'last_id_expiry_reminder_at' => 'datetime',
+        'dob' => 'date:Y-m-d',
+        'last_birthday_wish_sent_at' => 'datetime',
         'last_onboarding_reminder_at' => 'datetime',
         'password' => 'hashed',
     ];
@@ -175,6 +179,10 @@ class User extends Authenticatable implements FilamentUser, HasName
         'is_id_expired',
         'is_id_expiring_soon',
         'id_days_until_expiration',
+        'effective_dob',
+        'age',
+        'is_birthday_today',
+        'days_until_next_birthday',
     ];
 
     public function subscriptions()
@@ -241,5 +249,50 @@ class User extends Authenticatable implements FilamentUser, HasName
             return null;
         }
         return (int) now()->diffInDays(\Carbon\Carbon::parse($expiry)->endOfDay(), false);
+    }
+    public function getEffectiveDobAttribute(): ?string
+    {
+        if (! empty($this->attributes['dob'])) {
+            return substr((string) $this->attributes['dob'], 0, 10);
+        }
+        $payload = $this->onboardingSession?->payload ?? [];
+        return ! empty($payload['dob']) ? substr((string) $payload['dob'], 0, 10) : null;
+    }
+
+    public function getAgeAttribute(): ?int
+    {
+        $dob = $this->effective_dob;
+        if (! $dob) {
+            return null;
+        }
+        return (int) \Carbon\Carbon::parse($dob)->age;
+    }
+
+    public function getIsBirthdayTodayAttribute(): bool
+    {
+        $dob = $this->effective_dob;
+        if (! $dob) {
+            return false;
+        }
+        $birth = \Carbon\Carbon::parse($dob);
+        $today = now();
+        return $birth->month === $today->month && $birth->day === $today->day;
+    }
+
+    public function getDaysUntilNextBirthdayAttribute(): ?int
+    {
+        $dob = $this->effective_dob;
+        if (! $dob) {
+            return null;
+        }
+        $today = now()->startOfDay();
+        $birth = \Carbon\Carbon::parse($dob);
+        $nextBirthday = \Carbon\Carbon::create($today->year, $birth->month, $birth->day)->startOfDay();
+
+        if ($nextBirthday->lt($today)) {
+            $nextBirthday->addYear();
+        }
+
+        return (int) $today->diffInDays($nextBirthday);
     }
 }
