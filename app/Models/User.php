@@ -147,6 +147,8 @@ class User extends Authenticatable implements FilamentUser, HasName
         'num_piece',
         'doc_piece_identite',
         'doc_piece_verso',
+        'expiration_piece',
+        'last_id_expiry_reminder_at',
         'last_onboarding_reminder_at',
     ];
 
@@ -159,6 +161,8 @@ class User extends Authenticatable implements FilamentUser, HasName
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'expiration_piece' => 'date:Y-m-d',
+        'last_id_expiry_reminder_at' => 'datetime',
         'last_onboarding_reminder_at' => 'datetime',
         'password' => 'hashed',
     ];
@@ -167,6 +171,10 @@ class User extends Authenticatable implements FilamentUser, HasName
         'onboarding_completed',
         'onboarding_status',
         'needs_category',
+        'effective_expiration_piece',
+        'is_id_expired',
+        'is_id_expiring_soon',
+        'id_days_until_expiration',
     ];
 
     public function subscriptions()
@@ -197,5 +205,41 @@ class User extends Authenticatable implements FilamentUser, HasName
     public function getNeedsCategoryAttribute(): bool
     {
         return empty($this->categorie_client);
+    }
+    public function getEffectiveExpirationPieceAttribute(): ?string
+    {
+        if (! empty($this->attributes['expiration_piece'])) {
+            return substr((string) $this->attributes['expiration_piece'], 0, 10);
+        }
+        $payload = $this->onboardingSession?->payload ?? [];
+        return ! empty($payload['expiration_piece']) ? substr((string) $payload['expiration_piece'], 0, 10) : null;
+    }
+
+    public function getIsIdExpiredAttribute(): bool
+    {
+        $expiry = $this->effective_expiration_piece;
+        if (! $expiry) {
+            return false;
+        }
+        return \Carbon\Carbon::parse($expiry)->endOfDay()->isPast();
+    }
+
+    public function getIsIdExpiringSoonAttribute(): bool
+    {
+        $expiry = $this->effective_expiration_piece;
+        if (! $expiry) {
+            return false;
+        }
+        $date = \Carbon\Carbon::parse($expiry)->endOfDay();
+        return ! $date->isPast() && $date->lte(now()->addDays(30));
+    }
+
+    public function getIdDaysUntilExpirationAttribute(): ?int
+    {
+        $expiry = $this->effective_expiration_piece;
+        if (! $expiry) {
+            return null;
+        }
+        return (int) now()->diffInDays(\Carbon\Carbon::parse($expiry)->endOfDay(), false);
     }
 }

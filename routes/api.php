@@ -91,6 +91,8 @@ $defineApiRoutes = function () {
         Route::post('/onboarding/finalize', [OnboardingController::class, 'finalize']);
         Route::post('/onboarding/missing-info', [OnboardingController::class, 'updateMissingInfo']);
         Route::post('/onboarding/update-category', [OnboardingController::class, 'updateMissingInfo']);
+        Route::post('/user/renew-identity-document', [OnboardingController::class, 'renewIdentityDocument']);
+        Route::post('/onboarding/renew-identity', [OnboardingController::class, 'renewIdentityDocument']);
 
         Route::get('/identity-verification/status', [IdentityVerificationController::class, 'status']);
         Route::post('/identity-verification/session', [IdentityVerificationController::class, 'start'])

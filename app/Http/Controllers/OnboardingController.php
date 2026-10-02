@@ -136,6 +136,101 @@ class OnboardingController extends Controller
         ]);
     }
 
+    public function renewIdentityDocument(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'type_piece' => ['required', 'string', 'in:CNI,Passeport,Carte RÃ©sident,Carte de sÃ©jour,carte_sejour,cni,passeport'],
+            'num_piece' => ['required', 'string', 'max:100'],
+            'expiration_piece' => ['required', 'date', 'after:today'],
+            'piece_recto' => ['nullable', 'string'],
+            'doc_piece_identite' => ['nullable', 'string'],
+            'piece_verso' => ['nullable', 'string'],
+            'doc_piece_verso' => ['nullable', 'string'],
+        ], [
+            'type_piece.required' => 'Le type de piÃ¨ce dâ€™identification est obligatoire.',
+            'num_piece.required' => 'Le numÃ©ro de la piÃ¨ce dâ€™identification est obligatoire.',
+            'expiration_piece.required' => 'La date dâ€™expiration de la piÃ¨ce est obligatoire.',
+            'expiration_piece.after' => 'La nouvelle date dâ€™expiration doit Ãªtre dans le futur.',
+        ]);
+
+        $user = $request->user();
+
+        $recto = $request->input('doc_piece_identite') ?: $request->input('piece_recto');
+        $verso = $request->input('doc_piece_verso') ?: $request->input('piece_verso');
+
+        $user->type_piece = $validated['type_piece'];
+        $user->num_piece = $validated['num_piece'];
+        $user->expiration_piece = $validated['expiration_piece'];
+        if ($recto) {
+            $user->doc_piece_identite = $recto;
+        }
+        if ($verso) {
+            $user->doc_piece_verso = $verso;
+        }
+        $user->last_id_expiry_reminder_at = null;
+        $user->save();
+
+        $session = $user->onboardingSession()->first();
+        if ($session) {
+            $payload = $session->payload ?? [];
+            $payload['piece'] = $validated['type_piece'];
+            $payload['type_piece'] = $validated['type_piece'];
+            $payload['num_piece'] = $validated['num_piece'];
+            $payload['expiration_piece'] = $validated['expiration_piece'];
+            if ($recto) {
+                $payload['piece_recto'] = $recto;
+                $payload['doc_piece_identite'] = $recto;
+            }
+            if ($verso) {
+                $payload['piece_verso'] = $verso;
+                $payload['doc_piece_verso'] = $verso;
+            }
+            $session->payload = $payload;
+
+            $submitted = $session->submitted_payload ?? [];
+            if (! empty($submitted)) {
+                $submitted['piece'] = $validated['type_piece'];
+                $submitted['type_piece'] = $validated['type_piece'];
+                $submitted['num_piece'] = $validated['num_piece'];
+                $submitted['expiration_piece'] = $validated['expiration_piece'];
+                if ($recto) {
+                    $submitted['piece_recto'] = $recto;
+                    $submitted['doc_piece_identite'] = $recto;
+                }
+                if ($verso) {
+                    $submitted['piece_verso'] = $verso;
+                    $submitted['doc_piece_verso'] = $verso;
+                }
+                $session->submitted_payload = $submitted;
+            }
+
+            $this->syncSupportingDocuments($session, $session->payload);
+            $session->save();
+
+            OnboardingEvent::create([
+                'onboarding_session_id' => $session->id,
+                'actor_user_id' => $user->id,
+                'event_type' => 'identity_document_renewed',
+                'from_status' => $session->status,
+                'to_status' => $session->status,
+                'reason' => 'Renouvellement de la piÃ¨ce dâ€™identitÃ© : ' . $validated['type_piece'] . ' nÂ°' . $validated['num_piece'] . ' (exp. ' . $validated['expiration_piece'] . ')',
+            ]);
+        }
+
+        Notification::create([
+            'user_id' => $user->id,
+            'title' => 'PiÃ¨ce dâ€™identitÃ© mise Ã  jour',
+            'body' => 'Votre piÃ¨ce dâ€™identification a Ã©tÃ© mise Ã  jour avec succÃ¨s.',
+            'type' => 'success',
+        ]);
+
+        return response()->json([
+            'message' => 'PiÃ¨ce dâ€™identification mise Ã  jour avec succÃ¨s.',
+            'user' => $user->fresh(),
+            'session' => $session,
+        ]);
+    }
+
     public function saveProgress(Request $request): JsonResponse
     {
         $validated = $request->validate([

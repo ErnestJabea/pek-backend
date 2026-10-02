@@ -53,6 +53,7 @@ class AuthController extends Controller
             'employer' => $request->employer,
             'type_piece' => $request->type_piece,
             'num_piece' => $request->num_piece,
+            'expiration_piece' => $request->expiration_piece,
             'doc_piece_identite' => $rectoDoc,
             'doc_piece_verso' => $versoDoc,
             'password' => Hash::make($request->password),
