@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Models;
 
@@ -142,6 +142,7 @@ class User extends Authenticatable implements FilamentUser, HasName
         'city',
         'country',
         'employer',
+        'categorie_client',
         'type_piece',
         'num_piece',
         'doc_piece_identite',

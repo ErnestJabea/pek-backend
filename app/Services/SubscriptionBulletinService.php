@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Services;
 
@@ -35,10 +35,9 @@ class SubscriptionBulletinService
         $isPersonneMorale = str_contains($natureClient, 'morale') || ! empty($payload['rccm']);
         $isPersonnePhysique = ! $isPersonneMorale;
 
-        $categorieClient = $payload['categorie_client'] ?? 'Particulier';
-        if (! $isPersonneMorale || str_contains(mb_strtolower((string) $categorieClient), 'particulier') || str_contains(mb_strtolower((string) $categorieClient), 'detail') || str_contains(mb_strtolower((string) $categorieClient), 'détail')) {
-            $categorieClient = 'Particulier';
-        }
+        $categorieClient = $user?->categorie_client
+            ?? $payload['categorie_client']
+            ?? 'Particulier';
 
         // Type de pièce
         $pieceRaw = strtolower($payload['piece'] ?? $payload['type_piece'] ?? 'cni');

@@ -8,18 +8,15 @@
        KORI ASSET MANAGEMENT · Bulletin officiel de souscription FCP
        Conception 100% compatible DomPDF & impression A4 standard
        ========================================================================== */
-
     @page {
       size: A4 portrait;
       margin: 10mm 14mm 10mm 14mm;
     }
-
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-
     body {
       font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif;
       font-size: 8.5pt;
@@ -29,7 +26,6 @@
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-
     /* Barre d'outils écran (invisible à l'impression / PDF) */
     .barre-outils {
       background: #ECE6DC;
@@ -69,12 +65,10 @@
       color: #FBF6EC;
       border: none;
     }
-
     @media print {
       .barre-outils { display: none !important; }
       body { margin: 0; padding: 0; }
     }
-
     /* En-tête */
     .table-header {
       width: 100%;
@@ -117,7 +111,6 @@
       color: #5E3208;
       margin-top: 1px;
     }
-
     /* Titres de section */
     .section-titre {
       background: #FBF6EC;
@@ -130,7 +123,6 @@
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
-
     /* Tableaux de champs */
     .table-champs {
       width: 100%;
@@ -154,7 +146,6 @@
       color: #3B1300;
       padding: 2px 4px;
     }
-
     /* Cases à cocher compatibles DomPDF (X sécurisé contre les polices manquantes) */
     .box-check {
       display: inline-block;
@@ -175,7 +166,6 @@
       background: #FBF6EC;
       color: #3B1300;
     }
-
     /* Tableau d'opération financière */
     .table-financiere {
       width: 100%;
@@ -207,7 +197,6 @@
       background: #FFF9E6;
       color: #3B1300;
     }
-
     /* Signatures */
     .table-signatures {
       width: 100%;
@@ -217,7 +206,7 @@
     .table-signatures td.signature-cadre {
       width: 48%;
       border: 1px solid #8E5E0A;
-      background: #FAF7F2;
+      background: transparent;
       padding: 6px 10px;
       vertical-align: top;
       border-radius: 3px;
@@ -246,7 +235,6 @@
       margin-top: 3px;
       font-weight: bold;
     }
-
     .badge-kam-visa {
       display: inline-block;
       border: 1.5px solid #8E5E0A;
@@ -258,11 +246,10 @@
       text-align: center;
       background: #FFFFFF;
     }
-
     .badge-sig-elec {
       display: inline-block;
       padding: 4px 8px;
-      background: #eff6ff;
+      background: transparent;
       border: 1px dashed #93c5fd;
       border-radius: 4px;
       font-size: 6.8pt;
@@ -270,7 +257,6 @@
       line-height: 1.25;
       text-align: center;
     }
-
     /* Pied de page */
     .pied-page {
       margin-top: 12px;
@@ -285,7 +271,6 @@
   </style>
 </head>
 <body>
-
   <!-- Barre d'outils écran -->
   <div class="barre-outils">
     <div class="barre-gauche">
@@ -295,7 +280,6 @@
       <button class="btn-action btn-imprimer" type="button" onclick="window.print()">Imprimer / Enregistrer en PDF</button>
     </div>
   </div>
-
   <!-- En-tête officiel -->
   <table class="table-header">
     <tr>
@@ -314,10 +298,8 @@
       </td>
     </tr>
   </table>
-
   <!-- ==================== I - IDENTIFICATION DU CLIENT ==================== -->
   <div class="section-titre">I- IDENTIFICATION DU CLIENT</div>
-
   <table class="table-champs">
     <tr>
       <td class="lbl">Nom ou Raison sociale&nbsp;:</td>
@@ -348,7 +330,7 @@
     </tr>
     <tr>
       <td class="lbl">Catégorie du client*&nbsp;:</td>
-      <td class="val-ligne" colspan="3">{{ (empty($data['is_personne_morale']) || str_contains(mb_strtolower($data['categorie_client'] ?? ''), 'particulier') || str_contains(mb_strtolower($data['categorie_client'] ?? ''), 'detail') || str_contains(mb_strtolower($data['categorie_client'] ?? ''), 'détail')) ? 'Particulier' : $data['categorie_client'] }}</td>
+      <td class="val-ligne" colspan="3">{{ !empty($data['categorie_client']) ? $data['categorie_client'] : 'Particulier' }}</td>
     </tr>
     <tr>
       <td class="lbl">Pièce d’identité&nbsp;:</td>
@@ -379,14 +361,11 @@
       <td class="val-ligne" colspan="3">{{ $data['compte_bancaire'] }}</td>
     </tr>
   </table>
-
   <!-- ==================== II - TYPE D'OPÉRATION ==================== -->
   <div class="section-titre">II- TYPE D’OPÉRATION</div>
-
   <div style="font-size: 7.8pt; color: #5E3208; margin-bottom: 5px; line-height: 1.3;">
     Demande dans les conditions fixées par la réglementation et la documentation du <strong>{{ $data['fcp_nom'] }}</strong>, notamment le règlement de gestion et document d’information, l’exécution de la transaction suivante&nbsp;:
   </div>
-
   <table style="width: 100%; border-collapse: collapse; margin-bottom: 5px; font-size: 8pt;">
     <tr>
       <td style="width: 38%;">
@@ -401,7 +380,6 @@
       </td>
     </tr>
   </table>
-
   <!-- Tableau financier officiel -->
   <table class="table-financiere">
     <thead>
@@ -425,14 +403,12 @@
       </tr>
     </tbody>
   </table>
-
   <table class="table-champs" style="margin-top: 4px;">
     <tr>
       <td class="lbl" style="width: 195px;">Montant à payer (en toutes lettres)&nbsp;:</td>
       <td class="val-ligne">{{ ucfirst($data['montant_en_lettres']) }} francs CFA</td>
     </tr>
   </table>
-
   <table class="table-champs" style="margin-top: 4px;">
     <tr>
       <td class="lbl" style="width: 140px;">Moyen de paiement*&nbsp;:</td>
@@ -455,7 +431,6 @@
       </td>
     </tr>
   </table>
-
   <!-- ==================== SIGNATURES ==================== -->
   <table class="table-signatures">
     <tr>
@@ -477,29 +452,19 @@
       <td style="width: 4%;"></td>
       <td class="signature-cadre">
         <div class="signature-titre">Visa KORI Asset Management&nbsp;:</div>
-        <div class="signature-zone">
-          <div class="badge-kam-visa">
-            <strong style="color: #8E5E0A; font-size: 7.5pt;">KORI ASSET MANAGEMENT</strong><br>
-            <span style="color: #047857; font-weight: bold; font-size: 7.5pt;">✓ TRANSACTION VALIDÉE</span><br>
-            Douala, le {{ $data['date_valeur'] }}
-          </div>
-        </div>
-        <div class="signature-nom">Société de Gestion agréée COSUMAF</div>
+        <div class="signature-zone"></div>
       </td>
     </tr>
   </table>
-
   <!-- Renvoi -->
   <div style="font-size: 6.5pt; color: #5E3208; margin-top: 8px; text-align: center;">
     * Liste catégorie du client et Référence bancaire / compte titres {{ $data['fcp_nom'] }} disponibles dans la documentation officielle.
   </div>
-
   <!-- Pied de page officiel -->
   <div class="pied-page">
     <strong style="color: #E8B008;">KORI ASSET MANAGEMENT S.A.</strong> · Société de Gestion d'OPCVM au capital de 300 000 000 FCFA<br>
     Agrément COSUMAF N° COSUMAF-SGP-02/2021 · Siège social : Douala, Cameroun<br>
     Tél : +237 233 42 00 00 · E-mail : contact@koriassetmanagement.com · Site web : www.koriassetmanagement.com
   </div>
-
 </body>
 </html>

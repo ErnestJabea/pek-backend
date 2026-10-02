@@ -67,6 +67,16 @@ class ClientResource extends Resource
                 Forms\Components\TextInput::make('country')
                     ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays')
                     ->required(),
+                Forms\Components\Select::make('categorie_client')
+                    ->label('Catégorie du client')
+                    ->options([
+                        'Particulier' => 'Particulier',
+                        'Professionnel' => 'Professionnel',
+                        'Institutionnel' => 'Institutionnel',
+                        'Personne Morale' => 'Personne Morale',
+                    ])
+                    ->default('Particulier')
+                    ->required(),
                 Forms\Components\TextInput::make('password')
                     ->label(__('messages.password'))
                     ->password()
@@ -100,6 +110,13 @@ class ClientResource extends Resource
                 Tables\Columns\TextColumn::make('country')
                     ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('categorie_client')
+                    ->label('Catégorie')
+                    ->badge()
+                    ->color('info')
+                    ->default('Particulier')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('messages.inscribed_at'))
                     ->dateTime()
@@ -109,6 +126,46 @@ class ClientResource extends Resource
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
+                Tables\Actions\Action::make('update_categorie')
+                    ->label('Catégorie')
+                    ->icon('heroicon-o-identification')
+                    ->color('warning')
+                    ->modalHeading('Modifier la catégorie du client')
+                    ->modalDescription('Définissez la catégorie d\'investisseur du client pour ses bulletins de souscription.')
+                    ->form([
+                        Forms\Components\Select::make('categorie_client')
+                            ->label('Catégorie du client')
+                            ->options([
+                                'Particulier' => 'Particulier',
+                                'Professionnel' => 'Professionnel',
+                                'Institutionnel' => 'Institutionnel',
+                                'Personne Morale' => 'Personne Morale',
+                            ])
+                            ->default(fn (Client $record) => $record->categorie_client ?? ($record->onboardingSession?->payload['categorie_client'] ?? 'Particulier'))
+                            ->required(),
+                    ])
+                    ->action(function (Client $record, array $data) {
+                        $record->update(['categorie_client' => $data['categorie_client']]);
+
+                        if ($record->onboardingSession) {
+                            $session = $record->onboardingSession;
+                            $payload = $session->payload ?? [];
+                            $payload['categorie_client'] = $data['categorie_client'];
+                            $session->payload = $payload;
+
+                            $submitted = $session->submitted_payload ?? [];
+                            $submitted['categorie_client'] = $data['categorie_client'];
+                            $session->submitted_payload = $submitted;
+
+                            $session->save();
+                        }
+
+                        Notification::make()
+                            ->title('Catégorie client mise à jour')
+                            ->body("La catégorie de {$record->first_name} {$record->last_name} est désormais : {$data['categorie_client']}")
+                            ->success()
+                            ->send();
+                    }),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
                 Tables\Actions\RestoreAction::make(),

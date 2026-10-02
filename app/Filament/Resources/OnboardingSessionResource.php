@@ -200,6 +200,7 @@ class OnboardingSessionResource extends Resource
                                     Placeholder::make('payload.tel')->label('Téléphone')->content(fn ($state) => $state ?? '-'),
                                     Placeholder::make('payload.email')->label('E-mail déclaré')->content(fn ($state) => $state ?? '-'),
                                     Placeholder::make('payload.adresse')->label('Adresse de résidence')->content(fn ($state) => $state ?? '-'),
+                                    Placeholder::make('payload.categorie_client')->label('Catégorie du client')->content(fn ($record) => $record->payload['categorie_client'] ?? ($record->user?->categorie_client ?? 'Particulier')),
                                     Placeholder::make('payload.piece')->label('Type de pièce')->content(fn ($state) => $state ?? '-'),
                                     Placeholder::make('payload.num_piece')->label('N° de pièce')->content(fn ($state) => $state ?? '-'),
                                     Placeholder::make('payload.expiration_piece')->label('Date d\'expiration')->content(fn ($state) => new HtmlString('<div style="font-weight: 600; color: #1e293b;">'.($state ? date('d/m/Y', strtotime($state)) : '-').'</div>')),
@@ -609,6 +610,44 @@ class OnboardingSessionResource extends Resource
             ->actions([
                 ActionGroup::make([
                     Tables\Actions\ViewAction::make()->label('Voir les détails'),
+                    TableAction::make('update_categorie')
+                        ->label('Modifier Catégorie Client')
+                        ->icon('heroicon-o-identification')
+                        ->color('warning')
+                        ->modalHeading('Mettre à jour la catégorie du client')
+                        ->modalDescription('Modifie la catégorie du client pour ses futurs bulletins officiels.')
+                        ->form([
+                            Forms\Components\Select::make('categorie_client')
+                                ->label('Catégorie du client')
+                                ->options([
+                                    'Particulier' => 'Particulier',
+                                    'Professionnel' => 'Professionnel',
+                                    'Institutionnel' => 'Institutionnel',
+                                    'Personne Morale' => 'Personne Morale',
+                                ])
+                                ->default(fn (OnboardingSession $record) => $record->payload['categorie_client'] ?? ($record->user?->categorie_client ?? 'Particulier'))
+                                ->required(),
+                        ])
+                        ->action(function (OnboardingSession $record, array $data) {
+                            $payload = $record->payload ?? [];
+                            $payload['categorie_client'] = $data['categorie_client'];
+                            $record->payload = $payload;
+
+                            $submitted = $record->submitted_payload ?? [];
+                            $submitted['categorie_client'] = $data['categorie_client'];
+                            $record->submitted_payload = $submitted;
+                            $record->save();
+
+                            if ($record->user) {
+                                $record->user->update(['categorie_client' => $data['categorie_client']]);
+                            }
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Catégorie client mise à jour')
+                                ->body("La catégorie a été enregistrée : {$data['categorie_client']}")
+                                ->success()
+                                ->send();
+                        }),
                     Tables\Actions\EditAction::make()->label('Uploader Documents'),
                     TableAction::make('download_zip')
                         ->label('Télécharger Dossier Complet (ZIP)')
