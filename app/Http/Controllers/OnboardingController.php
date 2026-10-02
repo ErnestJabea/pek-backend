@@ -66,8 +66,16 @@ class OnboardingController extends Controller
 
         $verification = $session->latestIdentityVerification()->first();
 
+        $sessionPayload = $session->payload ?? [];
+        $categorieClient = $user->categorie_client ?? ($sessionPayload['categorie_client'] ?? null);
+        $needsCategory = empty($categorieClient);
+
         return $this->privateResponse([
             'session' => $session,
+            'needs_category' => $needsCategory,
+            'missing_fields' => array_values(array_filter([
+                $needsCategory ? 'categorie_client' : null,
+            ])),
             'identity_verification' => $verification ? [
                 'status' => $verification->status,
                 'final' => $verification->is_final,
@@ -78,6 +86,53 @@ class OnboardingController extends Controller
                 ),
             ] : null,
             'identity_verification_required' => (bool) config('identity_verification.required'),
+        ]);
+    }
+
+    public function updateMissingInfo(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'categorie_client' => ['required', 'string', 'max:255'],
+            'nature_client' => ['nullable', 'string', 'in:personne_physique,personne_morale'],
+        ]);
+
+        $user = $request->user();
+        $user->categorie_client = $validated['categorie_client'];
+        $user->save();
+
+        $session = $user->onboardingSession()->first();
+        if ($session) {
+            $payload = $session->payload ?? [];
+            $payload['categorie_client'] = $validated['categorie_client'];
+            if (! empty($validated['nature_client'])) {
+                $payload['nature_client'] = $validated['nature_client'];
+            }
+            $session->payload = $payload;
+
+            $submitted = $session->submitted_payload ?? [];
+            if (! empty($submitted)) {
+                $submitted['categorie_client'] = $validated['categorie_client'];
+                if (! empty($validated['nature_client'])) {
+                    $submitted['nature_client'] = $validated['nature_client'];
+                }
+                $session->submitted_payload = $submitted;
+            }
+            $session->save();
+
+            OnboardingEvent::create([
+                'onboarding_session_id' => $session->id,
+                'actor_user_id' => $user->id,
+                'event_type' => 'missing_info_updated',
+                'from_status' => $session->status,
+                'to_status' => $session->status,
+                'reason' => 'Mise a jour de la categorie client : ' . $validated['categorie_client'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Categorie de client enregistree avec succes.',
+            'user' => $user->fresh(),
+            'session' => $session,
         ]);
     }
 

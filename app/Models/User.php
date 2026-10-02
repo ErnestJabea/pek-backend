@@ -166,6 +166,7 @@ class User extends Authenticatable implements FilamentUser, HasName
     protected $appends = [
         'onboarding_completed',
         'onboarding_status',
+        'needs_category',
     ];
 
     public function subscriptions()
@@ -191,5 +192,10 @@ class User extends Authenticatable implements FilamentUser, HasName
     public function getOnboardingStatusAttribute(): ?string
     {
         return $this->onboardingSession ? $this->onboardingSession->status : null;
+    }
+
+    public function getNeedsCategoryAttribute(): bool
+    {
+        return empty($this->categorie_client);
     }
 }
