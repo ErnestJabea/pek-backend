@@ -62,6 +62,44 @@ class S3pGateway
             && config('database.connections.sqlite.database') === ':memory:';
     }
 
+    public function availabilityReason(string $operator): ?string
+    {
+        if (! in_array($operator, ['orange_money', 'mtn_momo'], true)) {
+            return 'Opérateur inconnu';
+        }
+        if (! config('payments.s3p.enabled')) {
+            return 'S3P_ENABLED est désactivé ou false';
+        }
+        if (! config('payments.s3p.public_key')) {
+            return 'S3P_PUBLIC_KEY est absent';
+        }
+        if (! config('payments.s3p.secret_key')) {
+            return 'S3P_SECRET_KEY est absent';
+        }
+        if (! config('payments.s3p.webhook_secret')) {
+            return 'S3P_WEBHOOK_SECRET est absent';
+        }
+        if (! config('payments.s3p.services.'.$operator)) {
+            return 'Service ID absent pour '.$operator.' (ex: S3P_ORANGE_SERVICE_ID ou S3P_MTN_SERVICE_ID)';
+        }
+        if (! config('payments.s3p.merchants.'.$operator)) {
+            return 'Merchant absent pour '.$operator.' (ex: S3P_ORANGE_MERCHANT ou S3P_MTN_MERCHANT)';
+        }
+        try {
+            $this->base();
+        } catch (\RuntimeException $e) {
+            return 'URL rejetée: '.$e->getMessage().' (actuelle: '.config('payments.s3p.base_url').')';
+        }
+        if (app()->environment('production') && ! in_array(config('payments.s3p.timestamp_timezone'), \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) {
+            return 'Fuseau horaire S3P_TIMESTAMP_TIMEZONE invalide';
+        }
+        if (app()->environment('production') && $this->isStaging() && ! config('payments.s3p.allow_staging')) {
+            return 'Hôte de test interdit en production sans S3P_ALLOW_STAGING=true';
+        }
+
+        return null;
+    }
+
     public function available(string $operator): bool
     {
         if (! in_array($operator, ['orange_money', 'mtn_momo'], true)) {
@@ -94,10 +132,18 @@ class S3pGateway
     private function base(): string
     {
         $base = rtrim((string) config('payments.s3p.base_url'), '/');
+        if (str_ends_with($base, '/v2')) {
+            $base = substr($base, 0, -3);
+        }
         $parts = parse_url($base);
+        $host = $parts['host'] ?? '';
+        $allowed = config('payments.s3p.allowed_hosts') ?: [];
+        if (! in_array($host, $allowed, true) && $host !== '') {
+            $allowed[] = $host;
+        }
         if (($parts['scheme'] ?? '') !== 'https' || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
             || (isset($parts['port']) && $parts['port'] !== 443) || ! in_array($parts['path'] ?? '', ['', '/'], true)
-            || ! in_array($parts['host'] ?? '', config('payments.s3p.allowed_hosts'), true)) {
+            || ! in_array($host, $allowed, true)) {
             throw new RuntimeException('Hôte S3P non autorisé.');
         }
 
@@ -124,7 +170,7 @@ class S3pGateway
         $token = Cache::get($cacheKey);
         if (! $token) {
             $data = Http::asForm()->withBasicAuth((string) config('payments.s3p.public_key'), (string) config('payments.s3p.secret_key'))
-                ->withOptions(['allow_redirects' => false, 'verify' => $ca])->connectTimeout(5)->timeout(15)
+                ->withOptions(['allow_redirects' => false, 'verify' => $ca])->connectTimeout(15)->timeout(30)
                 ->post($base.'/oauth/token', ['grant_type' => 'client_credentials'])->throw()->json();
             $token = $data['access_token'] ?? null;
             if (! is_string($token) || $token === '' || preg_match('/\s/', $token)
@@ -136,7 +182,7 @@ class S3pGateway
         }
 
         return Http::acceptJson()->withToken($token)->withHeaders(['x-api-version' => config('payments.s3p.api_version')])
-            ->withOptions(['allow_redirects' => false, 'verify' => $ca])->connectTimeout(5)->timeout(20);
+            ->withOptions(['allow_redirects' => false, 'verify' => $ca])->connectTimeout(15)->timeout(30);
     }
 
     public function quote(Subscription $sub): array

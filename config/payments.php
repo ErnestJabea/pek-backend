@@ -14,7 +14,10 @@ return [
         'staging_use_provider_timestamp' => filter_var(env('S3P_STAGING_USE_PROVIDER_TIMESTAMP', false), FILTER_VALIDATE_BOOLEAN),
         'simulation' => (bool) env('MOBILE_MONEY_SIMULATION', false),
         'base_url' => env('S3P_BASE_URL', 'https://s3p.smobilpay.staging.maviance.info'),
-        'allowed_hosts' => array_filter(explode(',', env('S3P_ALLOWED_HOSTS', 's3p.smobilpay.staging.maviance.info'))),
+        'allowed_hosts' => array_values(array_unique(array_filter(array_merge(
+            explode(',', (string) env('S3P_ALLOWED_HOSTS', '')),
+            [(string) parse_url((string) env('S3P_BASE_URL', 'https://s3p.smobilpay.staging.maviance.info'), PHP_URL_HOST), 's3p.smobilpay.staging.maviance.info']
+        )))),
         'public_key' => env('S3P_PUBLIC_KEY'),
         'secret_key' => env('S3P_SECRET_KEY'),
         'webhook_secret' => env('S3P_WEBHOOK_SECRET'),
