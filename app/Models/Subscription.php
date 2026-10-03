@@ -53,6 +53,10 @@ class Subscription extends Model
             if (! $confirmed) {
                 return;
             }
+            // Mode silencieux : les opérations historiques et antidatées ne déclenchent aucun email ni notification au client
+            if ($confirmed->is_historical) {
+                return;
+            }
             Notification::firstOrCreate([
                 'user_id' => $confirmed->user_id,
                 'title' => 'Souscription Validée ✅',
@@ -67,7 +71,7 @@ class Subscription extends Model
     {
         DB::afterCommit(function () use ($subscriptionId) {
             $failed = self::with(['user', 'product'])->find($subscriptionId);
-            if (! $failed) {
+            if (! $failed || $failed->is_historical) {
                 return;
             }
             Notification::firstOrCreate([
@@ -105,6 +109,13 @@ class Subscription extends Model
         'accounting_reviewed_at',
         'accounting_reviewed_by_user_id',
         'internal_notes',
+        'is_historical',
+        'manager_reviewed_at',
+        'manager_reviewed_by_user_id',
+        'investment_amount',
+        'value_date',
+        'nav_date',
+        'bank_reference',
     ];
 
     protected $hidden = [
@@ -112,6 +123,13 @@ class Subscription extends Model
         's3p_response_hash',
         's3p_verification_code',
         'internal_notes',
+        'is_historical',
+        'manager_reviewed_at',
+        'manager_reviewed_by_user_id',
+        'investment_amount',
+        'value_date',
+        'nav_date',
+        'bank_reference',
         'payment_phone',
         'bank_transaction_key',
         's3p_quote_id',
@@ -148,6 +166,8 @@ class Subscription extends Model
         'payment_expires_at' => 'datetime',
         'compliance_reviewed_at' => 'datetime',
         'accounting_reviewed_at' => 'datetime',
+        'manager_reviewed_at' => 'datetime',
+        'is_historical' => 'boolean',
     ];
 
     public function getMontantNetAttribute(): float
@@ -200,5 +220,9 @@ class Subscription extends Model
     public function accountingReviewer()
     {
         return $this->belongsTo(User::class, 'accounting_reviewed_by_user_id');
+    }
+    public function managerReviewer()
+    {
+        return $this->belongsTo(User::class, 'manager_reviewed_by_user_id');
     }
 }

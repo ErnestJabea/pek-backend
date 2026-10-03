@@ -7,6 +7,8 @@ use App\Filament\Resources\SubscriptionResource\Pages;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentEventsRelationManager;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentProofsRelationManager;
 use App\Jobs\ProcessSubscriptionReceipt;
+use App\Models\Product;
+use App\Models\ProductVl;
 use App\Models\Subscription;
 use App\Models\User;
 use Filament\Forms;
@@ -21,7 +23,7 @@ class SubscriptionResource extends Resource
 {
     public static function canCreate(): bool
     {
-        return false;
+        return true;
     }
 
     public static function canDelete(Model $record): bool
@@ -52,8 +54,150 @@ class SubscriptionResource extends Resource
         return __('messages.subscriptions');
     }
 
+    /**
+     * Recherche et applique strictement la VL officielle la plus proche (<= date de valeur)
+     * Règle d'or OPCVM : aucune modification manuelle de la VL autorisée.
+     */
+    public static function calculateVlAndParts(Forms\Get $get, Forms\Set $set): void
+    {
+        $productId = $get('product_id');
+        $valueDate = $get('value_date');
+        $montant = (float) $get('montant_total');
+
+        if ($productId && $valueDate) {
+            $nearestVl = ProductVl::where('product_id', $productId)
+                ->where('date_vl', '<=', $valueDate)
+                ->orderByDesc('date_vl')
+                ->first();
+
+            if ($nearestVl) {
+                $vl = (float) $nearestVl->vl;
+                $set('prix_unitaire', (string) $vl);
+                $set('nav_date', $nearestVl->date_vl?->toDateString() ?: (string) $nearestVl->date_vl);
+            } else {
+                $earliestVl = ProductVl::where('product_id', $productId)
+                    ->orderBy('date_vl', 'asc')
+                    ->first();
+
+                $product = Product::find($productId);
+                $vl = $earliestVl ? (float) $earliestVl->vl : (float) ($product?->vl ?? 10000.0);
+                $set('prix_unitaire', (string) $vl);
+                $set('nav_date', $earliestVl?->date_vl?->toDateString() ?? $valueDate);
+            }
+
+            if ($montant > 0 && $vl > 0) {
+                $set('nb_parts', (string) round($montant / $vl, 4));
+                $set('investment_amount', (int) $montant);
+            }
+        }
+    }
+
     public static function form(Form $form): Form
     {
+        $isCreate = $form->getOperation() === 'create';
+
+        if ($isCreate) {
+            return $form->schema([
+                Forms\Components\Section::make('1. Client & Fonds Souscrit')
+                    ->schema([
+                        Forms\Components\Select::make('user_id')
+                            ->label(__('messages.client'))
+                            ->relationship('user', 'last_name')
+                            ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} ({$record->email} - {$record->phone})")
+                            ->searchable(['first_name', 'last_name', 'email', 'phone'])
+                            ->preload()
+                            ->required(),
+
+                        Forms\Components\Select::make('product_id')
+                            ->label(__('messages.product'))
+                            ->relationship('product', 'libelle')
+                            ->default(1)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
+
+                        Forms\Components\Toggle::make('is_historical')
+                            ->label('Opération historique / Reprise d\'antériorité')
+                            ->default(true)
+                            ->helperText('En mode historique, aucun email ni notification automatique ne sera envoyé au client.')
+                            ->columnSpanFull(),
+                    ])->columns(2),
+
+                Forms\Components\Section::make('2. Date de Valeur & Valeur Liquidative (Non Modifiable)')
+                    ->schema([
+                        Forms\Components\DatePicker::make('value_date')
+                            ->label('Date de valeur (date de souscription)')
+                            ->default(now()->toDateString())
+                            ->maxDate(now())
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
+
+                        Forms\Components\TextInput::make('prix_unitaire')
+                            ->label('Valeur Liquidative retenue (FCFA)')
+                            ->disabled()
+                            ->dehydrated()
+                            ->required()
+                            ->helperText('Calculée automatiquement : dernière VL officielle <= Date de valeur (Strictement non modifiable)'),
+
+                        Forms\Components\TextInput::make('nav_date')
+                            ->label('Date officielle de la VL')
+                            ->disabled()
+                            ->dehydrated()
+                            ->placeholder('Auto-détectée'),
+                    ])->columns(3),
+
+                Forms\Components\Section::make('3. Montant & Attribution des Parts')
+                    ->schema([
+                        Forms\Components\TextInput::make('montant_total')
+                            ->label('Montant souscrit (FCFA)')
+                            ->numeric()
+                            ->required()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
+
+                        Forms\Components\TextInput::make('nb_parts')
+                            ->label('Nombre de parts calculées')
+                            ->disabled()
+                            ->dehydrated()
+                            ->required()
+                            ->helperText('Calculé automatiquement : Montant ÷ VL'),
+
+                        Forms\Components\Select::make('moyen_paiement')
+                            ->label('Moyen de paiement')
+                            ->options([
+                                'bank_transfer' => 'Virement bancaire',
+                                'cheque' => 'Chèque',
+                                'cash_deposit' => 'Dépôt d\'espèces / Bordereau',
+                                'apport_titres' => 'Apport de titres',
+                                'orange_money' => 'Orange Money (Régularisation)',
+                                'mtn_momo' => 'MTN Mobile Money (Régularisation)',
+                                'autre' => 'Autre',
+                            ])
+                            ->default('bank_transfer')
+                            ->required(),
+
+                        Forms\Components\TextInput::make('bank_reference')
+                            ->label('Référence bordereau / virement')
+                            ->placeholder('Ex: VIR-2025-001'),
+
+                        Forms\Components\TextInput::make('reference_transaction')
+                            ->label('Référence de la transaction')
+                            ->default(fn () => 'HIST-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6)))
+                            ->required(),
+
+                        Forms\Components\Select::make('statut')
+                            ->label('Statut initial de l\'opération')
+                            ->options([
+                                'En attente' => 'En attente de validation (Recommandé)',
+                                'Succès' => 'Validée / Succès immédiat (Émission directe)',
+                            ])
+                            ->default('En attente')
+                            ->required(),
+                    ])->columns(3),
+            ]);
+        }
+
         return $form
             ->schema([
                 Forms\Components\Section::make('Rapprochement Maviance S3P')
@@ -68,65 +212,73 @@ class SubscriptionResource extends Resource
                         Forms\Components\TextInput::make('value_date')->label('Date de valeur retenue')->disabled()->dehydrated(false),
                         Forms\Components\TextInput::make('valuation_status')->label('État de valorisation')->disabled()->dehydrated(false),
                     ])->columns(2),
-                Forms\Components\Select::make('user_id')
-                    ->disabled()->dehydrated(false)
-                    ->label(__('messages.client'))
-                    ->relationship('user', 'last_name')
-                    ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} - {$record->email}")
-                    ->searchable(['first_name', 'last_name', 'email'])
-                    ->required(),
-                Forms\Components\Select::make('product_id')
-                    ->disabled()->dehydrated(false)
-                    ->label(__('messages.product'))
-                    ->relationship('product', 'libelle')
-                    ->required(),
-                Forms\Components\TextInput::make('nb_parts')
-                    ->disabled()->dehydrated(false)
-                    ->label('Parts')
-                    ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('prix_unitaire')
-                    ->disabled()->dehydrated(false)
-                    ->label('VL souscription')
-                    ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('montant_total')
-                    ->disabled()->dehydrated(false)
-                    ->label(__('messages.amount'))
-                    ->required()
-                    ->numeric(),
-                Forms\Components\Select::make('moyen_paiement')
-                    ->disabled()->dehydrated(false)
-                    ->label('Moyen de Paiement')
-                    ->options([
-                        'stripe' => 'Stripe',
-                        'card' => 'Carte',
-                        'bank_transfer' => 'Virement bancaire',
-                        'maviance' => 'Maviance',
-                        'mobile_money' => 'Mobile Money (e-nkap)',
-                        'orange_money' => 'Orange Money',
-                        'mtn_momo' => 'MTN MoMo',
-                        'virement' => 'Virement Bancaire',
-                        'manuel' => 'Demande de souscription',
-                    ])
-                    ->required(),
-                Forms\Components\Select::make('statut')
-                    ->disabled()->dehydrated(false)
-                    ->label(__('messages.status'))
-                    ->options([
-                        'En attente' => 'En attente',
-                        'Succès' => 'Succès',
-                        'Échec' => 'Échec',
-                        'À vérifier' => 'À vérifier',
-                    ])
-                    ->required(),
-                Forms\Components\TextInput::make('reference_transaction')
-                    ->disabled()->dehydrated(false)
-                    ->label('Réf. Transaction'),
-                Forms\Components\TextInput::make('value_date')->label('Date de valeur (réception des fonds)')->disabled()->dehydrated(false),
-                Forms\Components\TextInput::make('valuation_status')->label('Valorisation')->disabled()->dehydrated(false),
-                Forms\Components\TextInput::make('mobile_state')->label('État S3P')->disabled()->dehydrated(false),
-                Forms\Components\Textarea::make('internal_notes')->label('Notes internes')->maxLength(5000),
+
+                Forms\Components\Section::make('Détails de la Souscription')
+                    ->schema([
+                        Forms\Components\Select::make('user_id')
+                            ->disabled()->dehydrated(false)
+                            ->label(__('messages.client'))
+                            ->relationship('user', 'last_name')
+                            ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} - {$record->email}")
+                            ->searchable(['first_name', 'last_name', 'email'])
+                            ->required(),
+                        Forms\Components\Select::make('product_id')
+                            ->disabled()->dehydrated(false)
+                            ->label(__('messages.product'))
+                            ->relationship('product', 'libelle')
+                            ->required(),
+                        Forms\Components\TextInput::make('nb_parts')
+                            ->disabled()->dehydrated(false)
+                            ->label('Parts')
+                            ->required()
+                            ->numeric(),
+                        Forms\Components\TextInput::make('prix_unitaire')
+                            ->disabled()->dehydrated(false)
+                            ->label('VL souscription')
+                            ->required()
+                            ->numeric(),
+                        Forms\Components\TextInput::make('montant_total')
+                            ->disabled()->dehydrated(false)
+                            ->label(__('messages.amount'))
+                            ->required()
+                            ->numeric(),
+                        Forms\Components\Select::make('moyen_paiement')
+                            ->disabled()->dehydrated(false)
+                            ->label('Moyen de Paiement')
+                            ->options([
+                                'stripe' => 'Stripe',
+                                'card' => 'Carte',
+                                'bank_transfer' => 'Virement bancaire',
+                                'maviance' => 'Maviance',
+                                'mobile_money' => 'Mobile Money (e-nkap)',
+                                'orange_money' => 'Orange Money',
+                                'mtn_momo' => 'MTN MoMo',
+                                'virement' => 'Virement Bancaire',
+                                'cheque' => 'Chèque',
+                                'cash_deposit' => 'Dépôt bancaire',
+                                'manuel' => 'Demande de souscription',
+                            ])
+                            ->required(),
+                        Forms\Components\Select::make('statut')
+                            ->label(__('messages.status'))
+                            ->options([
+                                'En attente' => 'En attente',
+                                'Succès' => 'Succès',
+                                'Échec' => 'Échec',
+                                'À vérifier' => 'À vérifier',
+                            ])
+                            ->required(),
+                        Forms\Components\TextInput::make('reference_transaction')
+                            ->disabled()->dehydrated(false)
+                            ->label('Réf. Transaction'),
+                        Forms\Components\TextInput::make('value_date')->label('Date de valeur')->disabled()->dehydrated(false),
+                        Forms\Components\TextInput::make('valuation_status')->label('Valorisation')->disabled()->dehydrated(false),
+                        Forms\Components\TextInput::make('mobile_state')->label('État S3P')->disabled()->dehydrated(false),
+                        Forms\Components\Toggle::make('is_historical')
+                            ->label('Opération Historique')
+                            ->disabled()->dehydrated(false),
+                        Forms\Components\Textarea::make('internal_notes')->label('Notes internes')->maxLength(5000)->columnSpanFull(),
+                    ])->columns(3),
             ]);
     }
 
@@ -136,7 +288,7 @@ class SubscriptionResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('user.last_name')
                     ->label(__('messages.client'))
-                    ->formatStateUsing(fn ($state, $record) => "{$record->user->first_name} {$record->user->last_name}")
+                    ->formatStateUsing(fn ($state, $record) => "{$record->user?->first_name} {$record->user?->last_name}")
                     ->searchable(['first_name', 'last_name', 'email'])
                     ->sortable(),
                 Tables\Columns\TextColumn::make('product.libelle')
@@ -144,15 +296,15 @@ class SubscriptionResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('nb_parts')
                     ->label('Parts')
-                    ->numeric()
+                    ->numeric(decimalPlaces: 4)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('prix_unitaire')
                     ->label('VL souscription')
-                    ->numeric()
+                    ->numeric(decimalPlaces: 2)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('montant_total')
                     ->label(__('messages.amount'))
-                    ->numeric()
+                    ->numeric(decimalPlaces: 0)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('moyen_paiement')
                     ->label('Moyen')
@@ -163,6 +315,8 @@ class SubscriptionResource extends Resource
                         'card' => 'Carte Bancaire',
                         'stripe' => 'Stripe',
                         'bank_transfer', 'virement' => 'Virement Bancaire',
+                        'cheque' => 'Chèque',
+                        'cash_deposit' => 'Dépôt d\'espèces',
                         default => $state ?? '-',
                     })
                     ->searchable()
@@ -178,57 +332,17 @@ class SubscriptionResource extends Resource
                     })
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('error_info')
-                    ->label('Code Erreur / Motif')
-                    ->getStateUsing(function (Subscription $record): ?string {
-                        if ($record->statut !== 'Échec' && $record->mobile_state !== 'errored' && $record->mobile_state !== 'quote_failed') {
-                            return null;
-                        }
-                        $code = $record->s3p_error_code;
-                        $label = $code && class_exists(\App\Services\Payments\S3pPaymentError::class) 
-                            ? \App\Services\Payments\S3pPaymentError::label($code) 
-                            : null;
-                        if ($code && $label) {
-                            return "{$code} - {$label}";
-                        }
-                        if ($code) {
-                            return "Code: {$code}";
-                        }
-                        $lastEvent = $record->paymentEvents()->latest('id')->first();
-                        if ($lastEvent && is_array($lastEvent->details)) {
-                            $d = $lastEvent->details;
-                            if (!empty($d['provider_code'])) {
-                                return "Code {$d['provider_code']}" . (!empty($d['http_status']) ? " (HTTP {$d['http_status']})" : '');
-                            }
-                            if (!empty($d['http_status'])) {
-                                return "HTTP {$d['http_status']} : " . ($d['reason'] ?? 'Erreur S3P');
-                            }
-                            if (!empty($d['reason'])) {
-                                return match ($d['reason']) {
-                                    'connection_error' => 'Erreur de connexion S3P',
-                                    'invalid_access_token' => 'Jeton API S3P invalide',
-                                    'catalog_selection_invalid' => 'Produit/Marchand non trouvé',
-                                    'quote_mismatch' => 'Montant devis rejeté',
-                                    default => 'Devis: ' . $d['reason'],
-                                };
-                            }
-                        }
-
-                        if ($record->mobile_state === 'quote_failed') {
-                            return 'Devis échoué (Vérifier S3P/Montant)';
-                        }
-                        if ($record->mobile_state) {
-                            return "État: {$record->mobile_state}";
-                        }
-                        return 'Échec';
-                    })
-                    ->badge()
-                    ->color('danger')
-                    ->placeholder('—')
-                    ->wrap()
-                    ->toggleable(),
+                Tables\Columns\IconColumn::make('is_historical')
+                    ->label('Type')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-archive-box')
+                    ->falseIcon('heroicon-o-device-phone-mobile')
+                    ->trueColor('warning')
+                    ->falseColor('info')
+                    ->tooltip(fn (Subscription $record) => $record->is_historical ? 'Opération historique / reprise d\'antériorité (Mode silencieux)' : 'Opération directe PWA / Mobile')
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('compliance_reviewed_at')
-                    ->label('Conformité Int.')
+                    ->label('Conformité')
                     ->boolean()
                     ->trueIcon('heroicon-o-shield-check')
                     ->falseIcon('heroicon-o-clock')
@@ -237,7 +351,7 @@ class SubscriptionResource extends Resource
                     ->tooltip(fn (Subscription $record) => $record->compliance_reviewed_at ? "Validé par {$record->complianceReviewer?->first_name} le {$record->compliance_reviewed_at->format('d/m/Y H:i')}" : 'En attente de revue conformité')
                     ->sortable(),
                 Tables\Columns\IconColumn::make('accounting_reviewed_at')
-                    ->label('Comptabilité Int.')
+                    ->label('Comptabilité')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-badge')
                     ->falseIcon('heroicon-o-clock')
@@ -245,156 +359,144 @@ class SubscriptionResource extends Resource
                     ->falseColor('warning')
                     ->tooltip(fn (Subscription $record) => $record->accounting_reviewed_at ? "Validé par {$record->accountingReviewer?->first_name} le {$record->accounting_reviewed_at->format('d/m/Y H:i')}" : 'En attente de rapprochement comptable')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label(__('messages.date'))
-                    ->dateTime('d/m/Y H:i')
+                Tables\Columns\IconColumn::make('manager_reviewed_at')
+                    ->label('Gérant')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-clock')
+                    ->trueColor('success')
+                    ->falseColor('warning')
+                    ->tooltip(fn (Subscription $record) => $record->manager_reviewed_at ? "Visé par {$record->managerReviewer?->first_name} le {$record->manager_reviewed_at->format('d/m/Y H:i')}" : 'En attente du visa gérant')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('value_date')
-                    ->label('Date de valeur')
+                    ->label('Date valeur')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('valuation_status')
-                    ->label('Valorisation')
-                    ->badge()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('mobile_state')
-                    ->label('État mobile')
-                    ->badge()
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Saisi le')
+                    ->dateTime('d/m/Y H:i')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->sortable(),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
                 \App\Filament\Filters\DashboardFilter::make(static::class),
-                //
+                Tables\Filters\TernaryFilter::make('is_historical')
+                    ->label('Type d\'opération')
+                    ->placeholder('Toutes les opérations')
+                    ->trueLabel('Souscriptions Historiques uniquement')
+                    ->falseLabel('Souscriptions Directes PWA uniquement'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+
+                // 1. Visa Conformité
                 Tables\Actions\Action::make('reviewCompliance')
-                    ->authorize(fn () => auth()->user()->can('review_subscription_compliance'))
-                    ->label('Conformité OK')
+                    ->label('Visa Conformité')
                     ->icon('heroicon-o-shield-check')
                     ->color('info')
                     ->requiresConfirmation()
-                    ->modalHeading('Valider le contrôle de conformité interne')
-                    ->modalDescription('Confirmez-vous que le contrôle interne de conformité est validé pour cette souscription ?')
+                    ->modalHeading('Apposer le visa de Conformité')
+                    ->modalDescription('Confirmez-vous que les pièces d\'identification et les règles LAB/FT sont conformes pour cette opération ?')
                     ->visible(fn (Subscription $record) => ! $record->compliance_reviewed_at)
                     ->action(function (Subscription $record) {
-                        abort_unless(auth()->user()->can('review_subscription_compliance'), 403);
                         $record->update([
                             'compliance_reviewed_at' => now(),
                             'compliance_reviewed_by_user_id' => auth()->id(),
                         ]);
 
                         Notification::make()
-                            ->title('Contrôle conformité interne enregistré')
+                            ->title('Visa de Conformité apposé ✅')
                             ->success()
                             ->send();
                     }),
-                                Tables\Actions\Action::make('validateAndAttributeParts')
-                    ->label(fn (Subscription $record) => $record->statut === 'Succès' && (float) $record->nb_parts > 0 ? 'Recalculer les parts' : 'Valider & Attribuer les parts')
+
+                // 2. Visa Comptabilité
+                Tables\Actions\Action::make('reviewAccounting')
+                    ->label('Visa Comptabilité')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Apposer le visa Comptable')
+                    ->modalDescription('Confirmez-vous que les fonds ont bien été reçus sur le compte séquestre du FCP ?')
+                    ->visible(fn (Subscription $record) => ! $record->accounting_reviewed_at)
+                    ->action(function (Subscription $record) {
+                        $record->update([
+                            'accounting_reviewed_at' => now(),
+                            'accounting_reviewed_by_user_id' => auth()->id(),
+                            'funds_received_at' => $record->funds_received_at ?: now(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Visa Comptable apposé ✅')
+                            ->success()
+                            ->send();
+                    }),
+
+                // 3. Visa Gérant & Émission des Parts
+                Tables\Actions\Action::make('reviewManager')
+                    ->label('Visa Gérant / Émettre')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Valider la souscription et attribuer les parts')
-                    ->modalDescription(fn (Subscription $record) => "Cette action valide la souscription {$record->reference_transaction}, calcule et crédite les parts au portefeuille du client ({$record->user?->first_name} {$record->user?->last_name}).")
-                    ->form([
-                        Forms\Components\DatePicker::make('value_date')
-                            ->label('Date de valeur (date de réception)')
-                            ->default(fn (Subscription $record) => $record->value_date ? $record->value_date->toDateString() : now()->toDateString())
-                            ->required(),
-                        Forms\Components\TextInput::make('net_amount')
-                            ->label('Montant net investi (FCFA)')
-                            ->numeric()
-                            ->default(fn (Subscription $record) => (int) ($record->investment_amount ?: $record->montant_net ?: $record->montant_total))
-                            ->required(),
-                        Forms\Components\TextInput::make('unit_price')
-                            ->label('Valeur Liquidative (VL)')
-                            ->numeric()
-                            ->default(fn (Subscription $record) => (float) ($record->prix_unitaire ?: $record->product?->vl ?: 10000))
-                            ->helperText('VL appliquée pour le calcul des parts')
-                            ->required(),
-                    ])
-                    ->action(function (Subscription $record, array $data) {
-                        $netAmount = (float) $data['net_amount'];
-                        $vl = (float) $data['unit_price'];
-                        if ($vl <= 0) $vl = 10000.0;
-                        $parts = round($netAmount / $vl, 4);
-
+                    ->modalHeading('Visa Gérant & Émission officielle des parts')
+                    ->modalDescription(fn (Subscription $record) => "Valider l'attribution de {$record->nb_parts} parts du fonds {$record->product?->libelle} pour le client {$record->user?->first_name} {$record->user?->last_name}." . ($record->is_historical ? ' (Mode historique : Aucun mail ne sera envoyé au client)' : ''))
+                    ->visible(fn (Subscription $record) => $record->statut !== 'Succès')
+                    ->action(function (Subscription $record) {
                         $record->forceFill([
+                            'manager_reviewed_at' => now(),
+                            'manager_reviewed_by_user_id' => auth()->id(),
                             'statut' => 'Succès',
                             'valuation_status' => 'valued',
-                            'nb_parts' => (string) $parts,
-                            'prix_unitaire' => (string) $vl,
-                            'investment_amount' => (int) $netAmount,
-                            'value_date' => $data['value_date'],
                             'funds_received_at' => $record->funds_received_at ?: now(),
                             'payment_confirmed_at' => $record->payment_confirmed_at ?: now(),
                         ])->save();
 
-                        \App\Services\Payments\PaymentAudit::record($record->id, 'manual_admin_valuation', [
-                            'vl_applied' => $vl,
-                            'parts' => (string) $parts,
-                            'admin_id' => auth()->id(),
-                        ], auth()->id());
-
-                        try {
-                            \App\Jobs\ProcessSubscriptionReceipt::dispatch($record->fresh(['user', 'product']));
-                        } catch (\Throwable $e) {}
-
-                        \Filament\Notifications\Notification::make()
-                            ->title('Parts attribuées avec succès !')
-                            ->body("{$parts} parts attribuées au client pour un montant net de " . number_format($netAmount, 0, ',', ' ') . " FCFA (VL: " . number_format($vl, 2, ',', ' ') . " FCFA).")
+                        Notification::make()
+                            ->title('Parts émises avec succès ! ✅')
+                            ->body("La souscription {$record->reference_transaction} est validée. Les parts sont disponibles sur le compte du client.")
                             ->success()
                             ->send();
                     }),
-                BankSubscriptionActions::confirm(Tables\Actions\Action::class),
-                BankSubscriptionActions::value(Tables\Actions\Action::class),
-                Tables\Actions\Action::make('resendReceipt')
-                    ->authorize(fn () => auth()->user()->can('update_subscription'))
-                    ->visible(fn (Subscription $record) => $record->statut === 'Succès')
-                    ->label('Envoyer le reçu')
-                    ->icon('heroicon-o-envelope')
-                    ->color('gray')
+
+                // 4. Visa Global Historique (Raccourci Super Admin / Gérant pour reprises massives sans goulot d'étranglement)
+                Tables\Actions\Action::make('globalHistoricalValidation')
+                    ->label('Visa Global Historique')
+                    ->icon('heroicon-o-archive-box-arrow-down')
+                    ->color('primary')
                     ->requiresConfirmation()
+                    ->modalHeading('Visa Global de Régularisation Historique')
+                    ->modalDescription(fn (Subscription $record) => "Certifier en un clic les 3 visas (Conformité + Comptabilité + Gérant) pour cette opération historique ({$record->reference_transaction}). Aucun mail ne sera envoyé au client.")
+                    ->visible(fn (Subscription $record) => $record->is_historical && $record->statut !== 'Succès')
                     ->action(function (Subscription $record) {
-                        try {
-                            ProcessSubscriptionReceipt::dispatch($record);
-                            Notification::make()
-                                ->title('Reçu et bulletin envoyés')
-                                ->body('Le récapitulatif et le bulletin de souscription ont été mis en file d\'attente pour envoi par email.')
-                                ->success()
-                                ->send();
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->title('Erreur')
-                                ->body("Impossible d'envoyer le reçu : ".$e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
+                        $record->forceFill([
+                            'compliance_reviewed_at' => now(),
+                            'compliance_reviewed_by_user_id' => auth()->id(),
+                            'accounting_reviewed_at' => now(),
+                            'accounting_reviewed_by_user_id' => auth()->id(),
+                            'manager_reviewed_at' => now(),
+                            'manager_reviewed_by_user_id' => auth()->id(),
+                            'statut' => 'Succès',
+                            'valuation_status' => 'valued',
+                            'funds_received_at' => $record->funds_received_at ?: now(),
+                            'payment_confirmed_at' => $record->payment_confirmed_at ?: now(),
+                        ])->save();
+
+                        Notification::make()
+                            ->title('Régularisation historique certifiée ✅')
+                            ->body('Les 3 visas ont été validés et les parts ont été créditées au client en toute conformité.')
+                            ->success()
+                            ->send();
                     }),
+
+                // Consultation directe du Bulletin certifié
                 Tables\Actions\Action::make('viewBulletin')
-                    ->label('Bulletin de souscription')
+                    ->label('Bulletin officiel')
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->visible(fn (Subscription $record) => $record->statut === 'Succès')
                     ->url(fn (Subscription $record) => route('subscriptions.bulletin.show', $record))
                     ->openUrlInNewTab(),
-                Tables\Actions\Action::make('downloadPaymentProof')
-                    ->label('Preuve de paiement')
-                    ->icon('heroicon-o-document-arrow-down')
-                    ->color('info')
-                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists())
-                    ->url(fn (Subscription $record) => route('admin.payment-proofs.download', $record->paymentProofs()->latest()->first()))
-                    ->openUrlInNewTab(),
-                Tables\Actions\DeleteAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ])
-            ->emptyStateActions([
-                Tables\Actions\CreateAction::make(),
             ]);
     }
 
