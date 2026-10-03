@@ -23,14 +23,14 @@ class S3pGateway
     {
         $realAmount = (int) round((float) $sub->montant_total);
 
-        // RÈGLE DE SÉCURITÉ ABSOLUE : Toujours le montant réel en production
-        if (app()->environment('production')) {
+        // En environnement reel Maviance (hors staging), TOUJOURS le montant reel
+        if (! $this->isStaging()) {
             return $realAmount;
         }
 
-        // En staging ou environnement hors-production, uniquement si connecté au staging Maviance
+        // Si connecte a la sandbox de test Maviance, montant force de test (ex: 100 FCFA)
         $forced = config('payments.s3p.force_test_amount');
-        if ($this->isStaging() && is_numeric($forced) && (int) $forced > 0) {
+        if (is_numeric($forced) && (int) $forced > 0) {
             return (int) $forced;
         }
 
