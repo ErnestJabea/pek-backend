@@ -63,8 +63,33 @@ class PortfolioService
                 : ($product ? (float) $product->vl : (float) $sub->prix_unitaire);
 
             $nb_parts = (float) $sub->nb_parts;
+
+            // RATTRAPAGE AUTOMATIQUE : Si une souscription est validée mais que ses parts sont à 0 ou non attribuées
+            if ($nb_parts <= 0) {
+                $netAmount = (float) ($sub->investment_amount ?: $sub->montant_net ?: ($sub->montant_total - (float) ($sub->subscription_fee ?: $sub->frais_gestion ?: 0)));
+                if ($netAmount <= 0) {
+                    $netAmount = (float) $sub->montant_total;
+                }
+                $vlSouscription = (float) ($sub->prix_unitaire ?: ($latestVlRecord ? $latestVlRecord->vl : ($product ? $product->vl : 10000)));
+                if ($vlSouscription <= 0) {
+                    $vlSouscription = 10000.0;
+                }
+                if ($netAmount > 0) {
+                    $nb_parts = round($netAmount / $vlSouscription, 4);
+                    $sub->forceFill([
+                        'nb_parts' => (string) $nb_parts,
+                        'prix_unitaire' => (string) $vlSouscription,
+                        'investment_amount' => (int) $netAmount,
+                        'valuation_status' => 'valued',
+                    ])->saveQuietly();
+                }
+            }
+
             // Performance excludes entry fees; legacy records use the model net-amount fallback.
             $cout_revient = (float) $sub->montant_net;
+            if ($cout_revient <= 0) {
+                $cout_revient = round($nb_parts * $vl_actuelle, 2);
+            }
             $valorisation_ligne = $nb_parts * $vl_actuelle;
             $plus_value_ligne = round($valorisation_ligne - $cout_revient, 2) + 0.0;
             $rendement_ligne = $cout_revient > 0

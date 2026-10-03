@@ -290,6 +290,63 @@ class SubscriptionResource extends Resource
                             ->success()
                             ->send();
                     }),
+                                Tables\Actions\Action::make('validateAndAttributeParts')
+                    ->label(fn (Subscription $record) => $record->statut === 'Succès' && (float) $record->nb_parts > 0 ? 'Recalculer les parts' : 'Valider & Attribuer les parts')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Valider la souscription et attribuer les parts')
+                    ->modalDescription(fn (Subscription $record) => "Cette action valide la souscription {$record->reference_transaction}, calcule et crédite les parts au portefeuille du client ({$record->user?->first_name} {$record->user?->last_name}).")
+                    ->form([
+                        Forms\Components\DatePicker::make('value_date')
+                            ->label('Date de valeur (date de réception)')
+                            ->default(fn (Subscription $record) => $record->value_date ? $record->value_date->toDateString() : now()->toDateString())
+                            ->required(),
+                        Forms\Components\TextInput::make('net_amount')
+                            ->label('Montant net investi (FCFA)')
+                            ->numeric()
+                            ->default(fn (Subscription $record) => (int) ($record->investment_amount ?: $record->montant_net ?: $record->montant_total))
+                            ->required(),
+                        Forms\Components\TextInput::make('unit_price')
+                            ->label('Valeur Liquidative (VL)')
+                            ->numeric()
+                            ->default(fn (Subscription $record) => (float) ($record->prix_unitaire ?: $record->product?->vl ?: 10000))
+                            ->helperText('VL appliquée pour le calcul des parts')
+                            ->required(),
+                    ])
+                    ->action(function (Subscription $record, array $data) {
+                        $netAmount = (float) $data['net_amount'];
+                        $vl = (float) $data['unit_price'];
+                        if ($vl <= 0) $vl = 10000.0;
+                        $parts = round($netAmount / $vl, 4);
+
+                        $record->forceFill([
+                            'statut' => 'Succès',
+                            'valuation_status' => 'valued',
+                            'nb_parts' => (string) $parts,
+                            'prix_unitaire' => (string) $vl,
+                            'investment_amount' => (int) $netAmount,
+                            'value_date' => $data['value_date'],
+                            'funds_received_at' => $record->funds_received_at ?: now(),
+                            'payment_confirmed_at' => $record->payment_confirmed_at ?: now(),
+                        ])->save();
+
+                        \App\Services\Payments\PaymentAudit::record($record->id, 'manual_admin_valuation', [
+                            'vl_applied' => $vl,
+                            'parts' => (string) $parts,
+                            'admin_id' => auth()->id(),
+                        ], auth()->id());
+
+                        try {
+                            \App\Jobs\ProcessSubscriptionReceipt::dispatch($record->fresh(['user', 'product']));
+                        } catch (\Throwable $e) {}
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Parts attribuées avec succès !')
+                            ->body("{$parts} parts attribuées au client pour un montant net de " . number_format($netAmount, 0, ',', ' ') . " FCFA (VL: " . number_format($vl, 2, ',', ' ') . " FCFA).")
+                            ->success()
+                            ->send();
+                    }),
                 BankSubscriptionActions::confirm(Tables\Actions\Action::class),
                 BankSubscriptionActions::value(Tables\Actions\Action::class),
                 Tables\Actions\Action::make('resendReceipt')

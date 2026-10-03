@@ -68,7 +68,7 @@ class SubscriptionController extends Controller
         $validatedSubscriptionsCount = Subscription::query()
             ->where('user_id', $user->id)
             ->where(function ($query) {
-                $query->where('statut', 'SuccÃ¨s')
+                $query->where('statut', 'Succès')
                     ->orWhereNotNull('payment_confirmed_at')
                     ->orWhereNotNull('funds_received_at');
             })

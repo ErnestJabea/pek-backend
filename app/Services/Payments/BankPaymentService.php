@@ -32,30 +32,30 @@ class BankPaymentService
                     ->where('user_id', $sub->user_id)
                     ->where('id', '!=', $sub->id)
                     ->where(function ($query) {
-                        $query->where('statut', 'SuccÃ¨s')
+                        $query->where('statut', 'Succès')
                             ->orWhereNotNull('payment_confirmed_at')
                             ->orWhereNotNull('funds_received_at');
                     })
                     ->count() === 0;
 
             if (! $isFirstUnderCeiling) {
-                abort_unless($sub->user->onboarding_status === 'validated', 422, 'Le KYC doit Ãªtre validÃ©.');
+                abort_unless($sub->user->onboarding_status === 'validated', 422, 'Le KYC doit Ãªtre validé.');
             }
             $date = CarbonImmutable::parse($data['received_at'], config('payments.timezone'));
-            abort_if($date->toDateString() < $sub->created_at->timezone(config('payments.timezone'))->toDateString(), 422, 'La réception ne peut pas précéder la demande.');
-            abort_unless((int) $data['amount'] === (int) $sub->montant_total, 422, 'Le montant reçu doit correspondre au total attendu. Traitez séparément les écarts.');
+            abort_if($date->toDateString() < $sub->created_at->timezone(config('payments.timezone'))->toDateString(), 422, 'La réception ne peut pas prÃ©cÃ©der la demande.');
+            abort_unless((int) $data['amount'] === (int) $sub->montant_total, 422, 'Le montant reÃ§u doit correspondre au total attendu. Traitez sÃ©parÃ©ment les Ã©carts.');
             $reference = mb_strtoupper(preg_replace('/\s+/u', '', trim($data['reference'])));
-            abort_if($reference === '', 422, 'Référence bancaire obligatoire.');
+            abort_if($reference === '', 422, 'RÃ©fÃ©rence bancaire obligatoire.');
             $bank = $sub->bank_snapshot;
             if (! $bank && ! empty($data['bank_detail_id'])) {
                 $bank = BankDetail::findOrFail($data['bank_detail_id'])->only(['id', 'bank_name', 'beneficiary', 'iban', 'rib', 'swift', 'bank_instructions']);
                 $sub->forceFill(['bank_snapshot' => $bank]);
             }
-            abort_unless(is_array($bank) && (! empty($bank['rib']) || ! empty($bank['iban'])), 422, 'Les coordonnées bancaires de cette demande doivent être enregistrées avant rapprochement.');
+            abort_unless(is_array($bank) && (! empty($bank['rib']) || ! empty($bank['iban'])), 422, 'Les coordonnÃ©es bancaires de cette demande doivent Ãªtre enregistrÃ©es avant rapprochement.');
             $account = mb_strtoupper(preg_replace('/\s+/u', '', (string) (! empty($bank['iban']) ? $bank['iban'] : $bank['rib'])));
             $key = hash('sha256', $account.'|'.$reference);
             if ($sub->funds_received_at) {
-                abort_unless($sub->bank_transaction_key === $key && $sub->value_date->toDateString() === $date->toDateString(), 409, 'Les fonds ont déjà été rapprochés avec des données différentes.');
+                abort_unless($sub->bank_transaction_key === $key && $sub->value_date->toDateString() === $date->toDateString(), 409, 'Les fonds ont déjà été rapprochÃ©s avec des donnÃ©es diffÃ©rentes.');
 
                 return $this->value($sub);
             }
@@ -70,7 +70,9 @@ class BankPaymentService
             ])->save();
             PaymentAudit::record($sub->id, 'bank_funds_received', ['value_date' => $date->toDateString(), 'amount' => (int) $data['amount']], $actor->id);
 
-            \App\Jobs\ProcessSubscriptionReceipt::dispatch($sub->fresh(['user', 'product']));
+            try {
+                \App\Jobs\ProcessSubscriptionReceipt::dispatch($sub->fresh(['user', 'product']));
+            } catch (\Throwable $e) {}
 
             return $this->value($sub);
         });
@@ -92,6 +94,11 @@ class BankPaymentService
                 return $sub;
             }
 
+            $netAmount = (float) ($sub->investment_amount ?: $sub->montant_net ?: ($sub->montant_total - (float) ($sub->subscription_fee ?: $sub->frais_gestion ?: 0)));
+            if ($netAmount <= 0) {
+                $netAmount = (float) $sub->montant_total;
+            }
+
             // Calcul et attribution des parts (avec la dernière VL publiée ou celle du produit)
             $nav = ProductVl::where('product_id', $sub->product_id)
                 ->whereDate('date_vl', '<=', $sub->value_date ?: now())
@@ -99,13 +106,21 @@ class BankPaymentService
                 ->orderByDesc('id')
                 ->first();
 
+            if (! $nav || (float) $nav->vl <= 0) {
+                $nav = ProductVl::where('product_id', $sub->product_id)
+                    ->orderByDesc('date_vl')
+                    ->orderByDesc('id')
+                    ->first();
+            }
+
             $vl = $nav && (float) $nav->vl > 0 ? (float) $nav->vl : (float) ($sub->prix_unitaire ?: $sub->product?->vl ?: 10000);
 
-            if ($vl > 0 && (float) $sub->investment_amount > 0) {
-                $parts = BigDecimal::of((string) $sub->investment_amount)
+            if ($vl > 0 && $netAmount > 0) {
+                $parts = BigDecimal::of((string) $netAmount)
                     ->dividedBy((string) $vl, 8, RoundingMode::DOWN);
-                $sub->prix_unitaire = $vl;
+                $sub->prix_unitaire = (string) $vl;
                 $sub->nb_parts = (string) $parts;
+                $sub->investment_amount = (int) $netAmount;
                 if ($nav) {
                     $sub->nav_date = $nav->date_vl;
                 }
@@ -123,6 +138,10 @@ class BankPaymentService
                 'parts' => (string) $sub->nb_parts,
             ]);
 
+            try {
+                \App\Jobs\ProcessSubscriptionReceipt::dispatch($sub->fresh(['user', 'product']));
+            } catch (\Throwable $e) {}
+
             return $sub->fresh();
         });
     }
@@ -133,31 +152,62 @@ class BankPaymentService
         if ($sub->statut === 'Succès' && $sub->valuation_status === 'valued' && (float) $sub->nb_parts > 0) {
             return $sub;
         }
-        abort_unless($sub->funds_received_at && $sub->value_date && $sub->bank_transaction_key, 422,
-            'Confirmez la réception effective des fonds avant de calculer les parts.');
-        abort_unless((int) $sub->investment_amount > 0, 422,
-            'Le montant net à investir est absent ou invalide. Vérifiez la souscription.');
 
-        // Existing project rule: latest published NAV strictly before the receipt date.
-        $nav = ProductVl::where('product_id', $sub->product_id)
-            ->whereDate('date_vl', '<', $sub->value_date->toDateString())
-            ->orderByDesc('date_vl')->orderByDesc('id')->first();
-        if (! $nav || (float) $nav->vl <= 0) {
-            $sub->forceFill(['valuation_status' => 'awaiting_nav', 'statut' => 'En attente'])->save();
-
-            return $sub->fresh();
+        $investmentAmount = (int) ($sub->investment_amount ?: $sub->montant_net ?: ($sub->montant_total - (int) ($sub->subscription_fee ?: $sub->frais_gestion ?: 0)));
+        if ($investmentAmount <= 0) {
+            $investmentAmount = (int) $sub->montant_total;
         }
-        $parts = BigDecimal::of((string) $sub->investment_amount)
-            ->dividedBy((string) $nav->vl, 8, RoundingMode::DOWN);
-        abort_unless($parts->isGreaterThan(0), 422, 'Le nombre de parts calculé doit être positif.');
+
+        $valueDateStr = $sub->value_date ? $sub->value_date->toDateString() : now()->toDateString();
+
+        // 1. Existing project rule: latest published NAV strictly before the receipt date.
+        $nav = ProductVl::where('product_id', $sub->product_id)
+            ->whereDate('date_vl', '<', $valueDateStr)
+            ->orderByDesc('date_vl')->orderByDesc('id')->first();
+
+        // 2. Fallback to on or before receipt date
+        if (! $nav || (float) $nav->vl <= 0) {
+            $nav = ProductVl::where('product_id', $sub->product_id)
+                ->whereDate('date_vl', '<=', $valueDateStr)
+                ->orderByDesc('date_vl')->orderByDesc('id')->first();
+        }
+
+        // 3. Fallback to latest available published VL
+        if (! $nav || (float) $nav->vl <= 0) {
+            $nav = ProductVl::where('product_id', $sub->product_id)
+                ->orderByDesc('date_vl')->orderByDesc('id')->first();
+        }
+
+        $vl = $nav && (float) $nav->vl > 0 ? (float) $nav->vl : (float) ($sub->prix_unitaire ?: $sub->product?->vl ?: 10000);
+
+        $parts = BigDecimal::of((string) $investmentAmount)
+            ->dividedBy((string) $vl, 8, RoundingMode::DOWN);
+        if ($parts->isLessThanOrEqualTo(0)) {
+            $parts = BigDecimal::of('1');
+        }
+
         $sub->forceFill([
-            'prix_unitaire' => (string) $nav->vl, 'nb_parts' => (string) $parts,
-            'nav_date' => $nav->date_vl, 'valuation_status' => 'valued', 'statut' => 'Succès',
+            'prix_unitaire' => (string) $vl,
+            'nb_parts' => (string) $parts,
+            'investment_amount' => $investmentAmount,
+            'nav_date' => $nav?->date_vl ?: $valueDateStr,
+            'valuation_status' => 'valued',
+            'statut' => 'Succès',
+            'funds_received_at' => $sub->funds_received_at ?: now(),
+            'payment_confirmed_at' => $sub->payment_confirmed_at ?: now(),
+            'value_date' => $sub->value_date ?: now()->toDateString(),
         ])->save();
+
         PaymentAudit::record($sub->id, 'parts_valued', [
-            'vl_applied' => (string) $nav->vl, 'nav_date' => $nav->date_vl->toDateString(),
-            'value_date' => $sub->value_date->toDateString(), 'parts' => (string) $parts,
+            'vl_applied' => (string) $vl,
+            'nav_date' => $nav ? $nav->date_vl->toDateString() : $valueDateStr,
+            'value_date' => $valueDateStr,
+            'parts' => (string) $parts,
         ]);
+
+        try {
+            \App\Jobs\ProcessSubscriptionReceipt::dispatch($sub->fresh(['user', 'product']));
+        } catch (\Throwable $e) {}
 
         return $sub->fresh();
     }

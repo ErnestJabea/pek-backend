@@ -19,7 +19,7 @@ class WebhookController extends Controller
         $secret = (string) config('services.stripe.webhook_secret');
         $signature = $request->header('Stripe-Signature');
         if ($secret === '' || ! is_string($signature)) {
-            return response()->json(['message' => 'Webhook non configuré.'], 503);
+            return response()->json(['message' => 'Webhook non configurÃ©.'], 503);
         }
 
         try {
@@ -84,14 +84,17 @@ class WebhookController extends Controller
                 return false;
             }
 
-            if ($subscription->statut !== 'Succès') {
+            if ($subscription->statut !== 'SuccÃ¨s') {
                 $subscription->update([
-                    'statut' => 'Succès',
+                    'statut' => 'SuccÃ¨s',
                     'stripe_payment_intent_id' => $paymentIntentId,
                     'payment_currency' => 'XAF',
                     'payment_confirmed_at' => now(),
                     'provider_payload_hash' => hash('sha256', $request->getContent()),
                 ]);
+                try {
+                    app(\App\Services\Payments\BankPaymentService::class)->value($subscription);
+                } catch (\Throwable $e) {}
             }
 
             return true;
@@ -116,11 +119,14 @@ class WebhookController extends Controller
                 return false;
             }
 
-            if ($subscription->statut !== 'Succès') {
+            if ($subscription->statut !== 'SuccÃ¨s') {
                 $subscription->update([
-                    'statut' => 'Échec',
+                    'statut' => 'Ã‰chec',
                     'provider_payload_hash' => hash('sha256', $request->getContent()),
                 ]);
+                try {
+                    app(\App\Services\Payments\BankPaymentService::class)->value($subscription);
+                } catch (\Throwable $e) {}
             }
 
             return true;
@@ -152,14 +158,17 @@ class WebhookController extends Controller
                 return false;
             }
 
-            if ($subscription->statut !== 'Succès') {
+            if ($subscription->statut !== 'SuccÃ¨s') {
                 $subscription->update([
-                    'statut' => 'Succès',
+                    'statut' => 'SuccÃ¨s',
                     'stripe_payment_intent_id' => (string) $intent->id,
                     'payment_currency' => 'XAF',
                     'payment_confirmed_at' => now(),
                     'provider_payload_hash' => hash('sha256', $request->getContent()),
                 ]);
+                try {
+                    app(\App\Services\Payments\BankPaymentService::class)->value($subscription);
+                } catch (\Throwable $e) {}
             }
 
             return true;
@@ -171,7 +180,7 @@ class WebhookController extends Controller
         $privateKey = (string) config('services.maviance.private_key');
         $publicKey = (string) config('services.maviance.public_key');
         if (! config('services.maviance.enabled') || $privateKey === '' || $publicKey === '') {
-            return response()->json(['message' => 'Webhook non configuré.'], 503);
+            return response()->json(['message' => 'Webhook non configurÃ©.'], 503);
         }
 
         $validated = $request->validate([
@@ -225,18 +234,21 @@ class WebhookController extends Controller
                 }
 
                 $newStatus = match ($validated['transaction_status']) {
-                    'SUCCESS' => 'Succès',
-                    'FAILED', 'CANCELED' => 'Échec',
+                    'SUCCESS' => 'SuccÃ¨s',
+                    'FAILED', 'CANCELED' => 'Ã‰chec',
                 };
 
-                if ($subscription->statut !== 'Succès') {
+                if ($subscription->statut !== 'SuccÃ¨s') {
                     $subscription->update([
                         'statut' => $newStatus,
                         'maviance_transaction_ref' => $validated['transaction_ref'],
                         'payment_currency' => 'XAF',
-                        'payment_confirmed_at' => $newStatus === 'Succès' ? now() : null,
+                        'payment_confirmed_at' => $newStatus === 'SuccÃ¨s' ? now() : null,
                         'provider_payload_hash' => hash('sha256', $request->getContent()),
                     ]);
+                try {
+                    app(\App\Services\Payments\BankPaymentService::class)->value($subscription);
+                } catch (\Throwable $e) {}
                 }
 
                 return true;

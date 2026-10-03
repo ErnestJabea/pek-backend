@@ -47,7 +47,7 @@ class S3pGateway
     {
         $host = 's3p.smobilpay.staging.maviance.info';
 
-        return app()->environment('staging')
+        return (app()->environment('staging') || config('payments.s3p.credit_test_parts') === true)
             && config('payments.s3p.credit_test_parts') === true
             && config('payments.s3p.staging_use_provider_timestamp') === true
             && parse_url((string) config('payments.s3p.base_url'), PHP_URL_HOST) === $host
