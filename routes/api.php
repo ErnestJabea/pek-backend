@@ -80,7 +80,8 @@ $defineApiRoutes = function () {
         Route::get('/subscriptions/reference/{reference}/payment-status', [SubscriptionController::class, 'paymentStatusByReference']);
         Route::post('/subscriptions/{id}/check-status', [SubscriptionController::class, 'checkMavianceStatus']);
         Route::get('/subscriptions/{subscription}/bulletin-data', [SubscriptionBulletinController::class, 'data']);
-        Route::get('/subscriptions/{subscription}/bulletin-pdf', [SubscriptionBulletinController::class, 'downloadPdf']);
+                Route::get('/subscriptions/{subscription}/bulletin-pdf', [SubscriptionBulletinController::class, 'downloadPdf']);
+        Route::get('/subscriptions/{subscription}/bulletin/download', [SubscriptionBulletinController::class, 'downloadPdf']);
 
         // Valorisation en temps réel du portefeuille FCP (positions détaillées)
         Route::get('/portfolio/valuation', [AuthController::class, 'portfolioValuation']);

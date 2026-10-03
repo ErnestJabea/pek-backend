@@ -89,7 +89,10 @@ class SubscriptionBulletinService
 
         // 4. Logo KORI en base64 (pour rendu PDF sans problème réseau)
         $logoBase64 = null;
-        $logoPath = public_path('logo-kori.png');
+        $logoPath = public_path('logo-kam.png');
+        if (! is_file($logoPath)) {
+            $logoPath = public_path('logo-kori.png');
+        }
         if (! is_file($logoPath)) {
             $logoPath = public_path('logo.png');
         }

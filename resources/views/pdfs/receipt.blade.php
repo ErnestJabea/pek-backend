@@ -180,7 +180,13 @@
     @php
         $logoSrc = $logo ?? '';
         if (empty($logoSrc)) {
-            $logoPath = public_path('logo-kori.png');
+            $logoPath = public_path('logo-kam.png');
+            if (!file_exists($logoPath)) {
+                $logoPath = public_path('logo-kori.png');
+            }
+            if (!file_exists($logoPath)) {
+                $logoPath = public_path('logo.png');
+            }
             if (file_exists($logoPath)) {
                 $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
             }

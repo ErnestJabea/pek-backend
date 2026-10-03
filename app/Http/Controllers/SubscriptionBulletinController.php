@@ -72,7 +72,7 @@ class SubscriptionBulletinController extends Controller
 
         $data = $this->bulletinService->getBulletinData($subscription);
 
-        $pdf = Pdf::loadView('pdfs.bulletin', ['data' => $data])
+        $pdf = Pdf::loadView('pdfs.bulletin', ['data' => $data, 'is_pdf' => true])
             ->setPaper('a4', 'portrait')
             ->setOption('isRemoteEnabled', true)
             ->setOption('isHtml5ParserEnabled', true);

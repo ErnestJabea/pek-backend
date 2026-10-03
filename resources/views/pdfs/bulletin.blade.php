@@ -10,7 +10,7 @@
        ========================================================================== */
     @page {
       size: A4 portrait;
-      margin: 10mm 14mm 10mm 14mm;
+      margin: 10mm 12mm 10mm 12mm;
     }
     * {
       box-sizing: border-box;
@@ -22,19 +22,41 @@
       font-size: 8.5pt;
       line-height: 1.35;
       color: #2A1406;
-      background: #FFFFFF;
+      background: #F4EFEB;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    /* Barre d'outils écran (invisible à l'impression / PDF) */
-    .barre-outils {
-      background: #ECE6DC;
-      padding: 10px 16px;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      display: table;
-      width: 100%;
+
+    /* Rendu Ecran avec conteneur A4 et marges soignees */
+    @media screen {
+      body {
+        background: #F4EFEB;
+        padding: 24px 16px 50px 16px;
+      }
+      .barre-outils-container {
+        max-width: 820px;
+        margin: 0 auto 16px auto;
+      }
+      .barre-outils {
+        background: #FFFFFF;
+        padding: 12px 20px;
+        border-radius: 12px;
+        display: table;
+        width: 100%;
+        box-shadow: 0 2px 12px rgba(59, 19, 0, 0.08);
+        border: 1px solid #E5DCD3;
+      }
+      .feuille-a4 {
+        max-width: 820px;
+        margin: 0 auto;
+        background: #FFFFFF;
+        padding: 38px 46px;
+        box-shadow: 0 4px 25px rgba(59, 19, 0, 0.09);
+        border-radius: 8px;
+        border: 1px solid #E5DCD3;
+      }
     }
+
     .barre-gauche {
       display: table-cell;
       vertical-align: middle;
@@ -47,45 +69,82 @@
     }
     .btn-action {
       display: inline-block;
-      padding: 8px 16px;
+      padding: 9px 18px;
       font-size: 9pt;
       font-weight: bold;
       text-decoration: none;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
+      vertical-align: middle;
+      line-height: 1.2;
     }
     .btn-retour {
-      background: #FFFFFF;
+      background: #F8F5F0;
       color: #3B1300;
-      border: 1px solid #3B1300;
-      margin-right: 8px;
+      border: 1.5px solid #D9CBB8;
+    }
+    .btn-retour:hover {
+      background: #EFE9DF;
+    }
+    .btn-telecharger {
+      background: #E8B008;
+      color: #3B1300;
+      border: none;
+      margin-right: 10px;
+    }
+    .btn-telecharger:hover {
+      background: #D9A000;
     }
     .btn-imprimer {
       background: #3B1300;
-      color: #FBF6EC;
+      color: #FFFFFF;
       border: none;
     }
-    @media print {
-      .barre-outils { display: none !important; }
-      body { margin: 0; padding: 0; }
+    .btn-imprimer:hover {
+      background: #521C02;
     }
-    /* En-tête */
+
+    /* Rendu Impression & PDF : exclure totalement les barres d'outils */
+    @media print {
+      body {
+        background: #FFFFFF !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .barre-outils-container, .barre-outils, .no-print {
+        display: none !important;
+      }
+      .feuille-a4 {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+    }
+
+    /* En-tete officiel */
     .table-header {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 8px;
+      margin-top: 4px;
+      margin-bottom: 12px;
     }
     .header-logo {
-      width: 32%;
+      width: 36%;
       vertical-align: middle;
       text-align: left;
+      padding-right: 14px;
     }
-    .header-logo img {
-      max-height: 52px;
-      max-width: 160px;
+    .header-logo img, .header-logo img.logo-kam {
+      max-height: 58px;
+      max-width: 180px;
+      height: auto;
+      width: auto;
+      display: block;
     }
     .header-title-box {
-      width: 68%;
+      width: 64%;
       vertical-align: middle;
       text-align: center;
     }
@@ -94,23 +153,26 @@
       color: #FFFFFF;
       font-size: 13pt;
       font-weight: bold;
-      letter-spacing: 0.5px;
-      padding: 5px 18px;
+      letter-spacing: 0.6px;
+      padding: 6px 18px;
       display: inline-block;
-      border-radius: 2px;
+      border-radius: 3px;
       white-space: nowrap;
     }
     .fcp-nom {
       font-size: 11pt;
       font-weight: bold;
       color: #3B1300;
-      margin-top: 3px;
+      margin-top: 4px;
+      letter-spacing: 0.3px;
     }
     .fcp-agrement {
       font-size: 8pt;
       color: #5E3208;
-      margin-top: 1px;
+      margin-top: 2px;
+      font-weight: 500;
     }
+
     /* Titres de section */
     .section-titre {
       background: #FBF6EC;
@@ -146,7 +208,7 @@
       color: #3B1300;
       padding: 2px 4px;
     }
-    /* Cases à cocher compatibles DomPDF (X sécurisé contre les polices manquantes) */
+    /* Cases a cocher compatibles DomPDF */
     .box-check {
       display: inline-block;
       width: 12px;
@@ -166,7 +228,7 @@
       background: #FBF6EC;
       color: #3B1300;
     }
-    /* Tableau d'opération financière */
+    /* Tableau d'operation financiere */
     .table-financiere {
       width: 100%;
       border-collapse: collapse;
@@ -271,33 +333,52 @@
   </style>
 </head>
 <body>
-  <!-- Barre d'outils écran -->
-  <div class="barre-outils">
-    <div class="barre-gauche">
-      <a href="javascript:history.back()" class="btn-action btn-retour">← Retour</a>
-    </div>
-    <div class="barre-droite">
-      <button class="btn-action btn-imprimer" type="button" onclick="window.print()">Imprimer / Enregistrer en PDF</button>
+  @if(empty($is_pdf))
+  <!-- Barre d'outils ecran (strictement exclue de l'impression et du PDF) -->
+  <div class="barre-outils-container no-print">
+    <div class="barre-outils">
+      <div class="barre-gauche">
+        <a href="javascript:history.back()" class="btn-action btn-retour">← Retour</a>
+      </div>
+      <div class="barre-droite">
+        @php
+          $subId = $data['subscription']->id ?? (is_object($data['subscription']) ? $data['subscription']->id : null) ?? request()->route('subscription');
+        @endphp
+        @if(!empty($subId))
+          <a href="{{ route('subscriptions.bulletin.download', $subId) }}" class="btn-action btn-telecharger" download>
+            Télécharger le PDF
+          </a>
+        @endif
+        <button class="btn-action btn-imprimer" type="button" onclick="window.print()">
+          Imprimer / Enregistrer en PDF
+        </button>
+      </div>
     </div>
   </div>
-  <!-- En-tête officiel -->
-  <table class="table-header">
-    <tr>
-      <td class="header-logo">
-        @if (!empty($data['logo_base64']))
-          <img src="{{ $data['logo_base64'] }}" alt="KORI Asset Management">
-        @else
-          <div style="font-weight: bold; font-size: 16pt; color: #3B1300; line-height: 1;">KORI</div>
-          <div style="font-size: 7.5pt; color: #8E5E0A; letter-spacing: 0.5px;">Asset Management</div>
-        @endif
-      </td>
-      <td class="header-title-box">
-        <div class="titre-bulletin">BULLETIN DE SOUSCRIPTION</div>
-        <div class="fcp-nom">{{ $data['fcp_nom'] }}</div>
-        <div class="fcp-agrement">{{ $data['fcp_agrement'] }}</div>
-      </td>
-    </tr>
-  </table>
+  @endif
+
+  <!-- Feuille A4 officielle du Bulletin (avec marges definies) -->
+  <div class="feuille-a4">
+    <!-- En-tête officiel KORI ASSET MANAGEMENT -->
+    <table class="table-header">
+      <tr>
+        <td class="header-logo">
+          @if (!empty($data['logo_base64']))
+            <img src="{{ $data['logo_base64'] }}" alt="KORI Asset Management" class="logo-kam">
+          @elseif (file_exists(public_path('logo-kam.png')))
+            <img src="{{ asset('logo-kam.png') }}" alt="KORI Asset Management" class="logo-kam">
+          @else
+            <div style="font-weight: bold; font-size: 16pt; color: #3B1300; line-height: 1;">KORI</div>
+            <div style="font-size: 7.5pt; color: #8E5E0A; letter-spacing: 0.5px;">Asset Management</div>
+          @endif
+        </td>
+        <td class="header-title-box">
+          <div class="titre-bulletin">BULLETIN DE SOUSCRIPTION</div>
+          <div class="fcp-nom">{{ $data['fcp_nom'] }}</div>
+          <div class="fcp-agrement">{{ $data['fcp_agrement'] }}</div>
+        </td>
+      </tr>
+    </table>
   <!-- ==================== I - IDENTIFICATION DU CLIENT ==================== -->
   <div class="section-titre">I- IDENTIFICATION DU CLIENT</div>
   <table class="table-champs">
@@ -466,5 +547,6 @@
     Agrément COSUMAF N° COSUMAF-SGP-02/2021 · Siège social : Douala, Cameroun<br>
     Tél : +237 233 42 00 00 · E-mail : contact@koriassetmanagement.com · Site web : www.koriassetmanagement.com
   </div>
+  </div> <!-- fin .feuille-a4 -->
 </body>
 </html>
