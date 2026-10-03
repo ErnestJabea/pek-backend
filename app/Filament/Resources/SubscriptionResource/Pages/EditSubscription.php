@@ -26,7 +26,15 @@ class EditSubscription extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        // Only notes are editable. Financial transitions must use a checked payment service.
+        if ($this->record->is_historical) {
+            return array_intersect_key($data, [
+                'internal_notes' => true,
+                'statut' => true,
+                'bank_reference' => true,
+            ]);
+        }
+
+        // Only notes are editable for mobile/card transactions to preserve bank audit trail.
         return array_intersect_key($data, ['internal_notes' => true]);
     }
 }

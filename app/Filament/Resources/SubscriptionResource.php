@@ -157,7 +157,7 @@ class SubscriptionResource extends Resource
                             ->label('Valeur Liquidative retenue (FCFA)')
                             ->disabled()
                             ->dehydrated()
-                            ->required()
+                            ->default(fn () => (float) (ProductVl::where('product_id', 1)->where('date_vl', '<=', now()->toDateString())->orderByDesc('date_vl')->value('vl') ?? 10000.0))
                             ->helperText('Calculée automatiquement : dernière VL officielle <= Date de valeur (Strictement non modifiable)'),
 
                         Forms\Components\TextInput::make('nav_date')
@@ -196,7 +196,7 @@ class SubscriptionResource extends Resource
                             ->label('Montant de placement net (FCFA)')
                             ->disabled()
                             ->dehydrated()
-                            ->required()
+                            ->default('0')
                             ->helperText('Calculé automatiquement : Montant total ÷ (1 + Taux). Ex: 100 000 FCFA'),
 
                         Forms\Components\TextInput::make('subscription_fee')
@@ -210,7 +210,7 @@ class SubscriptionResource extends Resource
                             ->label('Nombre de parts calculées')
                             ->disabled()
                             ->dehydrated()
-                            ->required()
+                            ->default('0')
                             ->helperText('Calculé automatiquement : Montant de placement net ÷ VL'),
 
                         Forms\Components\Select::make('moyen_paiement')
