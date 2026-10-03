@@ -56,13 +56,33 @@ class SubscriptionResource extends Resource
 
     /**
      * Recherche et applique strictement la VL officielle la plus proche (<= date de valeur)
-     * Règle d'or OPCVM : aucune modification manuelle de la VL autorisée.
+     * et calcule automatiquement :
+     * 1. Le Montant de placement net = Montant total / (1 + Taux frais)
+     * 2. Les Frais d'entrée = Montant total - Montant placement
+     * 3. Le Nombre de parts = Montant placement net / VL
      */
     public static function calculateVlAndParts(Forms\Get $get, Forms\Set $set): void
     {
         $productId = $get('product_id');
         $valueDate = $get('value_date');
-        $montant = (float) $get('montant_total');
+        $montantTotal = (float) $get('montant_total');
+        $tauxFrais = (float) ($get('taux_frais') ?? 1.0); // 1.00% par défaut
+
+        $montantPlacement = 0.0;
+        $fraisEntree = 0.0;
+
+        if ($montantTotal > 0) {
+            $taux = max(0.0, $tauxFrais) / 100.0;
+            // Placement net = Montant total / (1 + taux)
+            $montantPlacement = round($montantTotal / (1.0 + $taux));
+            $fraisEntree = round($montantTotal - $montantPlacement);
+
+            $set('investment_amount', (string) ((int) $montantPlacement));
+            $set('subscription_fee', (string) ((int) $fraisEntree));
+        } else {
+            $set('investment_amount', '0');
+            $set('subscription_fee', '0');
+        }
 
         if ($productId && $valueDate) {
             $nearestVl = ProductVl::where('product_id', $productId)
@@ -85,9 +105,9 @@ class SubscriptionResource extends Resource
                 $set('nav_date', $earliestVl?->date_vl?->toDateString() ?? $valueDate);
             }
 
-            if ($montant > 0 && $vl > 0) {
-                $set('nb_parts', (string) round($montant / $vl, 4));
-                $set('investment_amount', (int) $montant);
+            $baseCalcul = $montantPlacement > 0 ? $montantPlacement : $montantTotal;
+            if ($baseCalcul > 0 && $vl > 0) {
+                $set('nb_parts', (string) round($baseCalcul / $vl, 4));
             }
         }
     }
@@ -147,21 +167,51 @@ class SubscriptionResource extends Resource
                             ->placeholder('Auto-détectée'),
                     ])->columns(3),
 
-                Forms\Components\Section::make('3. Montant & Attribution des Parts')
+                Forms\Components\Section::make('3. Montant, Frais & Attribution des Parts')
                     ->schema([
                         Forms\Components\TextInput::make('montant_total')
-                            ->label('Montant souscrit (FCFA)')
+                            ->label('Montant total versé (FCFA)')
                             ->numeric()
                             ->required()
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                            ->helperText('Exemple : 101 000 FCFA'),
+
+                        Forms\Components\Select::make('taux_frais')
+                            ->label('Barème des frais d\'entrée')
+                            ->options([
+                                '1' => '1,00 % (Standard KORI)',
+                                '0' => '0,00 % (Exonéré / Sans frais)',
+                                '0.5' => '0,50 % (Tarif réduit)',
+                                '1.5' => '1,50 %',
+                                '2' => '2,00 %',
+                            ])
+                            ->default('1')
+                            ->live()
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                            ->dehydrated(false)
+                            ->helperText('Clé de répartition entre placement net et commission'),
+
+                        Forms\Components\TextInput::make('investment_amount')
+                            ->label('Montant de placement net (FCFA)')
+                            ->disabled()
+                            ->dehydrated()
+                            ->required()
+                            ->helperText('Calculé automatiquement : Montant total ÷ (1 + Taux). Ex: 100 000 FCFA'),
+
+                        Forms\Components\TextInput::make('subscription_fee')
+                            ->label('Frais d\'entrée prélevés (FCFA)')
+                            ->disabled()
+                            ->dehydrated()
+                            ->required()
+                            ->helperText('Calculé automatiquement : Montant total - Placement net. Ex: 1 000 FCFA'),
 
                         Forms\Components\TextInput::make('nb_parts')
                             ->label('Nombre de parts calculées')
                             ->disabled()
                             ->dehydrated()
                             ->required()
-                            ->helperText('Calculé automatiquement : Montant ÷ VL'),
+                            ->helperText('Calculé automatiquement : Montant de placement net ÷ VL'),
 
                         Forms\Components\Select::make('moyen_paiement')
                             ->label('Moyen de paiement')
@@ -227,19 +277,27 @@ class SubscriptionResource extends Resource
                             ->label(__('messages.product'))
                             ->relationship('product', 'libelle')
                             ->required(),
-                        Forms\Components\TextInput::make('nb_parts')
+                        Forms\Components\TextInput::make('montant_total')
                             ->disabled()->dehydrated(false)
-                            ->label('Parts')
+                            ->label('Montant total versé')
                             ->required()
+                            ->numeric(),
+                        Forms\Components\TextInput::make('investment_amount')
+                            ->disabled()->dehydrated(false)
+                            ->label('Montant de placement net')
+                            ->numeric(),
+                        Forms\Components\TextInput::make('subscription_fee')
+                            ->disabled()->dehydrated(false)
+                            ->label('Frais d\'entrée')
                             ->numeric(),
                         Forms\Components\TextInput::make('prix_unitaire')
                             ->disabled()->dehydrated(false)
                             ->label('VL souscription')
                             ->required()
                             ->numeric(),
-                        Forms\Components\TextInput::make('montant_total')
+                        Forms\Components\TextInput::make('nb_parts')
                             ->disabled()->dehydrated(false)
-                            ->label(__('messages.amount'))
+                            ->label('Nombre de parts')
                             ->required()
                             ->numeric(),
                         Forms\Components\Select::make('moyen_paiement')
@@ -256,6 +314,7 @@ class SubscriptionResource extends Resource
                                 'virement' => 'Virement Bancaire',
                                 'cheque' => 'Chèque',
                                 'cash_deposit' => 'Dépôt bancaire',
+                                'apport_titres' => 'Apport de titres',
                                 'manuel' => 'Demande de souscription',
                             ])
                             ->required(),
@@ -272,6 +331,7 @@ class SubscriptionResource extends Resource
                             ->disabled()->dehydrated(false)
                             ->label('Réf. Transaction'),
                         Forms\Components\TextInput::make('value_date')->label('Date de valeur')->disabled()->dehydrated(false),
+                        Forms\Components\TextInput::make('nav_date')->label('Date de VL')->disabled()->dehydrated(false),
                         Forms\Components\TextInput::make('valuation_status')->label('Valorisation')->disabled()->dehydrated(false),
                         Forms\Components\TextInput::make('mobile_state')->label('État S3P')->disabled()->dehydrated(false),
                         Forms\Components\Toggle::make('is_historical')
@@ -294,17 +354,32 @@ class SubscriptionResource extends Resource
                 Tables\Columns\TextColumn::make('product.libelle')
                     ->label(__('messages.product'))
                     ->sortable(),
+                Tables\Columns\TextColumn::make('montant_total')
+                    ->label('Montant total')
+                    ->numeric(decimalPlaces: 0)
+                    ->suffix(' FCFA')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('investment_amount')
+                    ->label('Placement net')
+                    ->numeric(decimalPlaces: 0)
+                    ->suffix(' FCFA')
+                    ->placeholder(fn ($record) => number_format((float) ($record->montant_net ?? $record->montant_total), 0, ',', ' ') . ' FCFA')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('subscription_fee')
+                    ->label('Frais')
+                    ->numeric(decimalPlaces: 0)
+                    ->suffix(' FCFA')
+                    ->placeholder(fn ($record) => number_format((float) ($record->frais_gestion ?? 0), 0, ',', ' ') . ' FCFA')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('prix_unitaire')
+                    ->label('VL retenue')
+                    ->numeric(decimalPlaces: 2)
+                    ->suffix(' FCFA')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('nb_parts')
                     ->label('Parts')
                     ->numeric(decimalPlaces: 4)
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('prix_unitaire')
-                    ->label('VL souscription')
-                    ->numeric(decimalPlaces: 2)
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('montant_total')
-                    ->label(__('messages.amount'))
-                    ->numeric(decimalPlaces: 0)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('moyen_paiement')
                     ->label('Moyen')
@@ -317,6 +392,7 @@ class SubscriptionResource extends Resource
                         'bank_transfer', 'virement' => 'Virement Bancaire',
                         'cheque' => 'Chèque',
                         'cash_deposit' => 'Dépôt d\'espèces',
+                        'apport_titres' => 'Apport de titres',
                         default => $state ?? '-',
                     })
                     ->searchable()
@@ -483,20 +559,35 @@ class SubscriptionResource extends Resource
                         ])->save();
 
                         Notification::make()
-                            ->title('Régularisation historique certifiée ✅')
-                            ->body('Les 3 visas ont été validés et les parts ont été créditées au client en toute conformité.')
+                            ->title('Opération historique certifiée et validée ! ✅')
+                            ->body("Les visas Conformité, Comptabilité et Gérant ont été apposés. Parts créditées au client.")
                             ->success()
                             ->send();
                     }),
 
-                // Consultation directe du Bulletin certifié
-                Tables\Actions\Action::make('viewBulletin')
-                    ->label('Bulletin officiel')
-                    ->icon('heroicon-o-document-text')
-                    ->color('warning')
-                    ->visible(fn (Subscription $record) => $record->statut === 'Succès')
+                BankSubscriptionActions::reconcileAction(),
+                Tables\Actions\Action::make('printBulletin')
+                    ->label('Bulletin de souscription')
+                    ->icon('heroicon-o-printer')
+                    ->color('secondary')
                     ->url(fn (Subscription $record) => route('subscriptions.bulletin.show', $record))
                     ->openUrlInNewTab(),
+                Tables\Actions\Action::make('downloadPaymentProof')
+                    ->label('Preuve de paiement')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('info')
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists())
+                    ->url(fn (Subscription $record) => route('admin.payment-proofs.download', $record->paymentProofs()->latest()->first()))
+                    ->openUrlInNewTab(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->emptyStateActions([
+                Tables\Actions\CreateAction::make(),
             ]);
     }
 
