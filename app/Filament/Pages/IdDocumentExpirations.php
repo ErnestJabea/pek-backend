@@ -26,11 +26,11 @@ class IdDocumentExpirations extends Page implements HasTable
 
     protected static ?string $navigationIcon = 'heroicon-o-identification';
 
-    protected static ?string $navigationGroup = 'ConformitÃ© & CRM';
+    protected static ?string $navigationGroup = 'Conformité & CRM';
 
-    protected static ?string $navigationLabel = 'Ã‰chÃ©ances PiÃ¨ces d\'IdentitÃ©';
+    protected static ?string $navigationLabel = 'Échéances Pièces d\'Identité';
 
-    protected static ?string $title = 'Suivi des Ã‰chÃ©ances des PiÃ¨ces d\'IdentitÃ©';
+    protected static ?string $title = 'Suivi des Échéances des Pièces d\'Identité';
 
     protected static ?int $navigationSort = 1;
 
@@ -59,34 +59,34 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->copyable(),
 
                 TextColumn::make('phone')
-                    ->label('TÃ©lÃ©phone')
+                    ->label('Téléphone')
                     ->searchable()
-                    ->default('â€”'),
+                    ->default('—'),
 
                 TextColumn::make('type_piece')
-                    ->label('Type de piÃ¨ce')
+                    ->label('Type de pièce')
                     ->badge()
                     ->color('info')
                     ->state(fn (User $record) => $record->type_piece ?: ($record->onboardingSession?->payload['type_piece'] ?? 'CNI')),
 
                 TextColumn::make('num_piece')
-                    ->label('NÂ° Document')
+                    ->label('N° Document')
                     ->searchable()
-                    ->state(fn (User $record) => $record->num_piece ?: ($record->onboardingSession?->payload['num_piece'] ?? 'â€”')),
+                    ->state(fn (User $record) => $record->num_piece ?: ($record->onboardingSession?->payload['num_piece'] ?? '—')),
 
                 TextColumn::make('effective_expiration_piece')
                     ->label('Date d\'expiration')
-                    ->state(fn (User $record) => $record->effective_expiration_piece ? Carbon::parse($record->effective_expiration_piece)->format('d/m/Y') : 'â€”')
+                    ->state(fn (User $record) => $record->effective_expiration_piece ? Carbon::parse($record->effective_expiration_piece)->format('d/m/Y') : '—')
                     ->sortable(['expiration_piece']),
 
                 TextColumn::make('id_status')
                     ->label('Statut')
                     ->badge()
                     ->state(function (User $record) {
-                        if ($record->is_id_expired) return 'ExpirÃ©e';
-                        if ($record->is_id_expiring_soon) return 'Expire bientÃ´t';
+                        if ($record->is_id_expired) return 'Expirée';
+                        if ($record->is_id_expiring_soon) return 'Expire bientôt';
                         if ($record->effective_expiration_piece) return 'Valide';
-                        return 'Non renseignÃ©e';
+                        return 'Non renseignée';
                     })
                     ->color(function (User $record) {
                         if ($record->is_id_expired) return 'danger';
@@ -99,8 +99,8 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->label('Jours restants')
                     ->state(function (User $record) {
                         $days = $record->id_days_until_expiration;
-                        if ($days === null) return 'â€”';
-                        if ($days < 0) return abs($days) . ' j passÃ©s';
+                        if ($days === null) return '—';
+                        if ($days < 0) return abs($days) . ' j passés';
                         if ($days === 0) return 'Aujourd\'hui !';
                         return $days . ' j';
                     })
@@ -115,13 +115,13 @@ class IdDocumentExpirations extends Page implements HasTable
             ->defaultSort('expiration_piece', 'asc')
             ->filters([
                 SelectFilter::make('statut_piece')
-                    ->label('Statut d\'Ã©chÃ©ance')
+                    ->label('Statut d\'échéance')
                     ->options([
-                        'expired' => 'PiÃ¨ces ExpirÃ©es',
+                        'expired' => 'Pièces Expirées',
                         'expiring_30' => 'Expire dans 30 jours',
                         'expiring_60' => 'Expire dans 60 jours',
                         'valid' => 'Valides (> 30 jours)',
-                        'missing' => 'Date non renseignÃ©e',
+                        'missing' => 'Date non renseignée',
                     ])
                     ->query(function (Builder $query, array $data) {
                         $value = $data['value'] ?? null;
@@ -147,7 +147,7 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('Envoyer un rappel d\'expiration de piÃ¨ce')
+                    ->modalHeading('Envoyer un rappel d\'expiration de pièce')
                     ->modalDescription(fn (User $record) => "Un email transactionnel de mise Ã  jour ainsi qu'une alerte in-app seront transmis Ã  {$record->first_name} {$record->last_name} ({$record->email}).")
                     ->action(function (User $record) {
                         try {
@@ -156,8 +156,8 @@ class IdDocumentExpirations extends Page implements HasTable
 
                             InAppNotification::create([
                                 'user_id' => $record->id,
-                                'title' => $days <= 0 ? 'Action requise : Votre piÃ¨ce d\'identitÃ© a expirÃ©' : "Rappel : Votre piÃ¨ce d'identitÃ© expire dans {$days} jours",
-                                'body' => 'Veuillez renouveler votre document d\'identification dans votre profil pour maintenir la conformitÃ© de votre compte.',
+                                'title' => $days <= 0 ? 'Action requise : Votre pièce d\'identité a expiré' : "Rappel : Votre pièce d'identité expire dans {$days} jours",
+                                'body' => 'Veuillez renouveler votre document d\'identification dans votre profil pour maintenir la conformité de votre compte.',
                                 'type' => 'warning',
                             ]);
 
@@ -165,8 +165,8 @@ class IdDocumentExpirations extends Page implements HasTable
                             $record->save();
 
                             Notification::make()
-                                ->title('Rappel envoyÃ© avec succÃ¨s')
-                                ->body("Le rappel a Ã©tÃ© adressÃ© Ã  {$record->email}.")
+                                ->title('Rappel envoyé avec succès')
+                                ->body("Le rappel a été adressé Ã  {$record->email}.")
                                 ->success()
                                 ->send();
                         } catch (\Throwable $e) {
@@ -180,7 +180,7 @@ class IdDocumentExpirations extends Page implements HasTable
             ])
             ->bulkActions([
                 BulkAction::make('bulk_send_reminders')
-                    ->label('Envoyer un rappel aux clients sÃ©lectionnÃ©s')
+                    ->label('Envoyer un rappel aux clients sélectionnés')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
                     ->requiresConfirmation()
@@ -192,8 +192,8 @@ class IdDocumentExpirations extends Page implements HasTable
                                 Mail::to($record->email)->send(new IdDocumentExpiryReminderMail($record, $days));
                                 InAppNotification::create([
                                     'user_id' => $record->id,
-                                    'title' => $days <= 0 ? 'Action requise : Votre piÃ¨ce d\'identitÃ© a expirÃ©' : "Rappel : Votre piÃ¨ce d'identitÃ© expire dans {$days} jours",
-                                    'body' => 'Veuillez renouveler votre document d\'identification dans votre profil pour maintenir la conformitÃ© de votre compte.',
+                                    'title' => $days <= 0 ? 'Action requise : Votre pièce d\'identité a expiré' : "Rappel : Votre pièce d'identité expire dans {$days} jours",
+                                    'body' => 'Veuillez renouveler votre document d\'identification dans votre profil pour maintenir la conformité de votre compte.',
                                     'type' => 'warning',
                                 ]);
                                 $record->last_id_expiry_reminder_at = now();
@@ -205,8 +205,8 @@ class IdDocumentExpirations extends Page implements HasTable
                         }
 
                         Notification::make()
-                            ->title("Rappels envoyÃ©s ({$count})")
-                            ->body("Les rappels ont Ã©tÃ© envoyÃ©s Ã  {$count} client(s).")
+                            ->title("Rappels envoyés ({$count})")
+                            ->body("Les rappels ont été envoyés Ã  {$count} client(s).")
                             ->success()
                             ->send();
                     }),

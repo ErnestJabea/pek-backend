@@ -93,7 +93,7 @@ class UserRegistrationsChartWidget extends ChartWidget
             for ($i = 11; $i >= 0; $i--) {
                 $month = Carbon::now()->subMonths($i);
                 $monthKey = $month->format('Y-m');
-                $frMonths = [1 => 'Janv', 2 => 'FÃ©vr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'AoÃ»t', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'DÃ©c'];
+                $frMonths = [1 => 'Janv', 2 => 'Févr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'Août', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc'];
                 $labels[] = ($frMonths[(int) $month->format('n')] ?? $month->format('M')) . ' ' . $month->format('Y');
                 $values[] = (int) ($rawCounts[$monthKey] ?? 0);
             }

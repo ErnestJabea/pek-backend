@@ -19,14 +19,14 @@ class MobilePaymentService
                 ->where('user_id', $user->id)
                 ->where('id', '!=', $subscription->id)
                 ->where(function ($query) {
-                    $query->where('statut', 'SuccÃ¨s')
+                    $query->where('statut', 'Succès')
                         ->orWhereNotNull('payment_confirmed_at')
                         ->orWhereNotNull('funds_received_at');
                 })
                 ->count() === 0;
 
         if (! $isFirstUnderCeiling) {
-            abort_unless($user->onboarding_status === 'validated', 403, 'Le KYC doit Ãªtre validÃ©.');
+            abort_unless($user->onboarding_status === 'validated', 403, 'Le KYC doit être validé.');
         }
         abort_unless($this->gateway->available((string) $subscription->mobile_provider), 503, 'Cet opérateur n’est pas encore activé.');
         $claimed = DB::transaction(function () use ($subscription) {

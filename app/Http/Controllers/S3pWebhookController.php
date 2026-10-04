@@ -34,7 +34,7 @@ class S3pWebhookController extends Controller
             (in_array($data['status'], ['SUCCESS', 'PENDING'], true) && $error !== 0)
             || ($data['status'] === 'ERRORED' && $error === 0)
             || ($data['status'] === 'REVERSED' && $error !== 3)
-        ), 422, 'Statut et code fournisseur incohÃ©rents.');
+        ), 422, 'Statut et code fournisseur incohérents.');
         $ptn = $request->header('X-Ptn');
         $delivery = $request->header('X-Delivery');
         validator(['ptn' => $ptn, 'delivery' => $delivery], [
@@ -45,7 +45,7 @@ class S3pWebhookController extends Controller
         if (! $sub) {
             return response()->json(['received' => true]);
         }
-        abort_if($sub->s3p_ptn && $sub->s3p_ptn !== $ptn, 409, 'PTN incohÃ©rent.');
+        abort_if($sub->s3p_ptn && $sub->s3p_ptn !== $ptn, 409, 'PTN incohérent.');
         // Persist before acknowledging. No external API call in the webhook request.
         // Deduplication is based on signed bytes, not on unsigned delivery headers.
         DB::transaction(function () use ($request, $sub, $ptn, $delivery, $data) {

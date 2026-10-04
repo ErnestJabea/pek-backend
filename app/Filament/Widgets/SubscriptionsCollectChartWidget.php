@@ -50,7 +50,7 @@ class SubscriptionsCollectChartWidget extends ChartWidget
             $days = $activeFilter === '7d' ? 7 : 30;
             $startDate = Carbon::now()->subDays($days - 1)->startOfDay();
 
-            $rawTotals = Subscription::where('statut', 'SuccÃ¨s')
+            $rawTotals = Subscription::where('statut', 'Succès')
                 ->where('created_at', '>=', $startDate)
                 ->select(\Illuminate\Support\Facades\DB::raw('DATE(created_at) as date_str'), \Illuminate\Support\Facades\DB::raw('SUM(montant_total) as total'))
                 ->groupBy('date_str')
@@ -65,7 +65,7 @@ class SubscriptionsCollectChartWidget extends ChartWidget
             }
         } elseif ($activeFilter === '90d') {
             $startDate = Carbon::now()->subWeeks(11)->startOfWeek();
-            $rawRecords = Subscription::where('statut', 'SuccÃ¨s')
+            $rawRecords = Subscription::where('statut', 'Succès')
                 ->where('created_at', '>=', $startDate)
                 ->select('created_at', 'montant_total')
                 ->get();
@@ -79,7 +79,7 @@ class SubscriptionsCollectChartWidget extends ChartWidget
             }
         } else { // 12 derniers mois
             $startDate = Carbon::now()->subMonths(11)->startOfMonth();
-            $rawTotals = Subscription::where('statut', 'SuccÃ¨s')
+            $rawTotals = Subscription::where('statut', 'Succès')
                 ->where('created_at', '>=', $startDate)
                 ->select(\Illuminate\Support\Facades\DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month_str'), \Illuminate\Support\Facades\DB::raw('SUM(montant_total) as total'))
                 ->groupBy('month_str')
@@ -89,7 +89,7 @@ class SubscriptionsCollectChartWidget extends ChartWidget
             for ($i = 11; $i >= 0; $i--) {
                 $month = Carbon::now()->subMonths($i);
                 $monthKey = $month->format('Y-m');
-                $frMonths = [1 => 'Janv', 2 => 'FÃ©vr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'AoÃ»t', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'DÃ©c'];
+                $frMonths = [1 => 'Janv', 2 => 'Févr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'Août', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc'];
                 $labels[] = ($frMonths[(int) $month->format('n')] ?? $month->format('M')) . ' ' . $month->format('Y');
                 $values[] = (float) ($rawTotals[$monthKey] ?? 0);
             }

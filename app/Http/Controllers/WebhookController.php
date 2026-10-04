@@ -19,7 +19,7 @@ class WebhookController extends Controller
         $secret = (string) config('services.stripe.webhook_secret');
         $signature = $request->header('Stripe-Signature');
         if ($secret === '' || ! is_string($signature)) {
-            return response()->json(['message' => 'Webhook non configurÃ©.'], 503);
+            return response()->json(['message' => 'Webhook non configuré.'], 503);
         }
 
         try {
@@ -84,9 +84,9 @@ class WebhookController extends Controller
                 return false;
             }
 
-            if ($subscription->statut !== 'SuccÃ¨s') {
+            if ($subscription->statut !== 'Succès') {
                 $subscription->update([
-                    'statut' => 'SuccÃ¨s',
+                    'statut' => 'Succès',
                     'stripe_payment_intent_id' => $paymentIntentId,
                     'payment_currency' => 'XAF',
                     'payment_confirmed_at' => now(),
@@ -119,9 +119,9 @@ class WebhookController extends Controller
                 return false;
             }
 
-            if ($subscription->statut !== 'SuccÃ¨s') {
+            if ($subscription->statut !== 'Succès') {
                 $subscription->update([
-                    'statut' => 'Ã‰chec',
+                    'statut' => 'Échec',
                     'provider_payload_hash' => hash('sha256', $request->getContent()),
                 ]);
                 try {
@@ -158,9 +158,9 @@ class WebhookController extends Controller
                 return false;
             }
 
-            if ($subscription->statut !== 'SuccÃ¨s') {
+            if ($subscription->statut !== 'Succès') {
                 $subscription->update([
-                    'statut' => 'SuccÃ¨s',
+                    'statut' => 'Succès',
                     'stripe_payment_intent_id' => (string) $intent->id,
                     'payment_currency' => 'XAF',
                     'payment_confirmed_at' => now(),
@@ -180,7 +180,7 @@ class WebhookController extends Controller
         $privateKey = (string) config('services.maviance.private_key');
         $publicKey = (string) config('services.maviance.public_key');
         if (! config('services.maviance.enabled') || $privateKey === '' || $publicKey === '') {
-            return response()->json(['message' => 'Webhook non configurÃ©.'], 503);
+            return response()->json(['message' => 'Webhook non configuré.'], 503);
         }
 
         $validated = $request->validate([
@@ -234,16 +234,16 @@ class WebhookController extends Controller
                 }
 
                 $newStatus = match ($validated['transaction_status']) {
-                    'SUCCESS' => 'SuccÃ¨s',
-                    'FAILED', 'CANCELED' => 'Ã‰chec',
+                    'SUCCESS' => 'Succès',
+                    'FAILED', 'CANCELED' => 'Échec',
                 };
 
-                if ($subscription->statut !== 'SuccÃ¨s') {
+                if ($subscription->statut !== 'Succès') {
                     $subscription->update([
                         'statut' => $newStatus,
                         'maviance_transaction_ref' => $validated['transaction_ref'],
                         'payment_currency' => 'XAF',
-                        'payment_confirmed_at' => $newStatus === 'SuccÃ¨s' ? now() : null,
+                        'payment_confirmed_at' => $newStatus === 'Succès' ? now() : null,
                         'provider_payload_hash' => hash('sha256', $request->getContent()),
                     ]);
                 try {

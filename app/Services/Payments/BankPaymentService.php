@@ -39,23 +39,23 @@ class BankPaymentService
                     ->count() === 0;
 
             if (! $isFirstUnderCeiling) {
-                abort_unless($sub->user->onboarding_status === 'validated', 422, 'Le KYC doit Ãªtre validé.');
+                abort_unless($sub->user->onboarding_status === 'validated', 422, 'Le KYC doit être validé.');
             }
             $date = CarbonImmutable::parse($data['received_at'], config('payments.timezone'));
-            abort_if($date->toDateString() < $sub->created_at->timezone(config('payments.timezone'))->toDateString(), 422, 'La réception ne peut pas prÃ©cÃ©der la demande.');
-            abort_unless((int) $data['amount'] === (int) $sub->montant_total, 422, 'Le montant reÃ§u doit correspondre au total attendu. Traitez sÃ©parÃ©ment les Ã©carts.');
+            abort_if($date->toDateString() < $sub->created_at->timezone(config('payments.timezone'))->toDateString(), 422, 'La réception ne peut pas précéder la demande.');
+            abort_unless((int) $data['amount'] === (int) $sub->montant_total, 422, 'Le montant reçu doit correspondre au total attendu. Traitez séparément les écarts.');
             $reference = mb_strtoupper(preg_replace('/\s+/u', '', trim($data['reference'])));
-            abort_if($reference === '', 422, 'RÃ©fÃ©rence bancaire obligatoire.');
+            abort_if($reference === '', 422, 'Référence bancaire obligatoire.');
             $bank = $sub->bank_snapshot;
             if (! $bank && ! empty($data['bank_detail_id'])) {
                 $bank = BankDetail::findOrFail($data['bank_detail_id'])->only(['id', 'bank_name', 'beneficiary', 'iban', 'rib', 'swift', 'bank_instructions']);
                 $sub->forceFill(['bank_snapshot' => $bank]);
             }
-            abort_unless(is_array($bank) && (! empty($bank['rib']) || ! empty($bank['iban'])), 422, 'Les coordonnÃ©es bancaires de cette demande doivent Ãªtre enregistrÃ©es avant rapprochement.');
+            abort_unless(is_array($bank) && (! empty($bank['rib']) || ! empty($bank['iban'])), 422, 'Les coordonnées bancaires de cette demande doivent être enregistrées avant rapprochement.');
             $account = mb_strtoupper(preg_replace('/\s+/u', '', (string) (! empty($bank['iban']) ? $bank['iban'] : $bank['rib'])));
             $key = hash('sha256', $account.'|'.$reference);
             if ($sub->funds_received_at) {
-                abort_unless($sub->bank_transaction_key === $key && $sub->value_date->toDateString() === $date->toDateString(), 409, 'Les fonds ont déjà été rapprochÃ©s avec des donnÃ©es diffÃ©rentes.');
+                abort_unless($sub->bank_transaction_key === $key && $sub->value_date->toDateString() === $date->toDateString(), 409, 'Les fonds ont déjà été rapprochés avec des données différentes.');
 
                 return $this->value($sub);
             }

@@ -128,41 +128,41 @@ class ClientResource extends Resource
             ])
             ->actions([
                 Tables\Actions\Action::make('remind_id')
-                    ->label('Rappel PiÃ¨ce')
+                    ->label('Rappel Pièce')
                     ->icon('heroicon-o-identification')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('Envoyer un rappel de renouvellement de piÃ¨ce')
+                    ->modalHeading('Envoyer un rappel de renouvellement de pièce')
                     ->action(function (Client $record) {
                         $days = $record->id_days_until_expiration ?? 0;
                         \Illuminate\Support\Facades\Mail::to($record->email)->send(new \App\Mail\IdDocumentExpiryReminderMail($record, $days));
                         \App\Models\Notification::create([
                             'user_id' => $record->id,
-                            'title' => $days <= 0 ? 'Action requise : Votre piÃ¨ce d\'identitÃ© a expirÃ©' : "Rappel : Votre piÃ¨ce d'identitÃ© expire dans {} jours",
-                            'body' => 'Veuillez renouveler votre piÃ¨ce d\'identitÃ© dans votre profil.',
+                            'title' => $days <= 0 ? 'Action requise : Votre pièce d\'identité a expiré' : "Rappel : Votre pièce d'identité expire dans {} jours",
+                            'body' => 'Veuillez renouveler votre pièce d\'identité dans votre profil.',
                             'type' => 'warning',
                         ]);
                         $record->last_id_expiry_reminder_at = now();
                         $record->save();
-                        Notification::make()->title('Rappel envoyÃ© au client')->success()->send();
+                        Notification::make()->title('Rappel envoyé au client')->success()->send();
                     }),
                 Tables\Actions\Action::make('wish_birthday')
                     ->label('Anniversaire')
                     ->icon('heroicon-o-cake')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Envoyer les vÅ“ux d\'anniversaire')
+                    ->modalHeading('Envoyer les vœux d\'anniversaire')
                     ->action(function (Client $record) {
                         \Illuminate\Support\Facades\Mail::to($record->email)->send(new \App\Mail\ClientBirthdayMail($record));
                         \App\Models\Notification::create([
                             'user_id' => $record->id,
                             'title' => 'Joyeux Anniversaire ! ðŸŽ‰',
-                            'body' => "Toute l'Ã©quipe de KORI Asset Management vous souhaite un trÃ¨s heureux anniversaire !",
+                            'body' => "Toute l'équipe de KORI Asset Management vous souhaite un très heureux anniversaire !",
                             'type' => 'info',
                         ]);
                         $record->last_birthday_wish_sent_at = now();
                         $record->save();
-                        Notification::make()->title('VÅ“ux d\'anniversaire envoyÃ©s')->success()->send();
+                        Notification::make()->title('Vœux d\'anniversaire envoyés')->success()->send();
                     }),
                 Tables\Actions\Action::make('update_categorie')
                     ->label('Catégorie')

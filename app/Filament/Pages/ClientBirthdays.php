@@ -26,7 +26,7 @@ class ClientBirthdays extends Page implements HasTable
 
     protected static ?string $navigationIcon = 'heroicon-o-cake';
 
-    protected static ?string $navigationGroup = 'ConformitÃ© & CRM';
+    protected static ?string $navigationGroup = 'Conformité & CRM';
 
     protected static ?string $navigationLabel = 'Anniversaires Clients';
 
@@ -59,32 +59,32 @@ class ClientBirthdays extends Page implements HasTable
                     ->copyable(),
 
                 TextColumn::make('phone')
-                    ->label('TÃ©lÃ©phone')
+                    ->label('Téléphone')
                     ->searchable()
-                    ->default('â€”'),
+                    ->default('—'),
 
                 TextColumn::make('effective_dob')
                     ->label('Date de naissance')
-                    ->state(fn (User $record) => $record->effective_dob ? Carbon::parse($record->effective_dob)->format('d/m/Y') : 'â€”')
+                    ->state(fn (User $record) => $record->effective_dob ? Carbon::parse($record->effective_dob)->format('d/m/Y') : '—')
                     ->sortable(['dob']),
 
                 TextColumn::make('age')
-                    ->label('Ã‚ge actuel')
-                    ->state(fn (User $record) => $record->age !== null ? "{$record->age} ans" : 'â€”'),
+                    ->label('ge actuel')
+                    ->state(fn (User $record) => $record->age !== null ? "{$record->age} ans" : '—'),
 
                 TextColumn::make('birthday_status')
                     ->label('Statut')
                     ->badge()
                     ->state(function (User $record) {
-                        if ($record->is_birthday_today) return 'Aujourd\'hui ðŸŽ‰';
+                        if ($record->is_birthday_today) return 'Aujourd\'hui 🎉';
                         $days = $record->days_until_next_birthday;
                         if ($days !== null && $days <= 7) return 'Cette semaine';
                         if ($record->effective_dob) {
                             $m = Carbon::parse($record->effective_dob)->month;
                             if ($m === now()->month) return 'Ce mois-ci';
-                            return 'Ã€ venir';
+                            return 'À venir';
                         }
-                        return 'Non renseignÃ©e';
+                        return 'Non renseignée';
                     })
                     ->color(function (User $record) {
                         if ($record->is_birthday_today) return 'warning';
@@ -99,7 +99,7 @@ class ClientBirthdays extends Page implements HasTable
                     ->label('Prochain anniversaire')
                     ->state(function (User $record) {
                         $days = $record->days_until_next_birthday;
-                        if ($days === null) return 'â€”';
+                        if ($days === null) return '—';
                         if ($days === 0) return 'Aujourd\'hui !';
                         return "dans {$days} jour(s)";
                     })
@@ -113,12 +113,12 @@ class ClientBirthdays extends Page implements HasTable
             ])
             ->filters([
                 SelectFilter::make('periode')
-                    ->label('PÃ©riode d\'anniversaire')
+                    ->label('Période d\'anniversaire')
                     ->options([
-                        'today' => 'Aujourd\'hui ðŸŽ‰',
+                        'today' => 'Aujourd\'hui 🎉',
                         'this_week' => 'Dans les 7 prochains jours',
                         'this_month' => 'Ce mois-ci',
-                        'missing' => 'Date non renseignÃ©e',
+                        'missing' => 'Date non renseignée',
                     ])
                     ->query(function (Builder $query, array $data) {
                         $value = $data['value'] ?? null;
@@ -140,16 +140,16 @@ class ClientBirthdays extends Page implements HasTable
                     ->icon('heroicon-o-gift')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Envoyer les vÅ“ux d\'anniversaire')
-                    ->modalDescription(fn (User $record) => "Un email festif KAM ainsi qu'une notification in-app seront transmis Ã  {$record->first_name} {$record->last_name} ({$record->email}).")
+                    ->modalHeading('Envoyer les vœux d\'anniversaire')
+                    ->modalDescription(fn (User $record) => "Un email festif KAM ainsi qu'une notification in-app seront transmis à {$record->first_name} {$record->last_name} ({$record->email}).")
                     ->action(function (User $record) {
                         try {
                             Mail::to($record->email)->send(new ClientBirthdayMail($record));
 
                             InAppNotification::create([
                                 'user_id' => $record->id,
-                                'title' => 'Joyeux Anniversaire ! ðŸŽ‰',
-                                'body' => "Toute l'Ã©quipe de KORI Asset Management vous souhaite un trÃ¨s heureux anniversaire !",
+                                'title' => 'Joyeux Anniversaire ! 🎉',
+                                'body' => "Toute l'équipe de KORI Asset Management vous souhaite un très heureux anniversaire !",
                                 'type' => 'info',
                             ]);
 
@@ -157,8 +157,8 @@ class ClientBirthdays extends Page implements HasTable
                             $record->save();
 
                             Notification::make()
-                                ->title('Souhait d\'anniversaire envoyÃ©')
-                                ->body("Les vÅ“ux ont Ã©tÃ© adressÃ©s Ã  {$record->email}.")
+                                ->title('Souhait d\'anniversaire envoyé')
+                                ->body("Les vœux ont été adressés à {$record->email}.")
                                 ->success()
                                 ->send();
                         } catch (\Throwable $e) {
@@ -172,7 +172,7 @@ class ClientBirthdays extends Page implements HasTable
             ])
             ->bulkActions([
                 BulkAction::make('bulk_send_wishes')
-                    ->label('Envoyer les vÅ“ux aux clients sÃ©lectionnÃ©s')
+                    ->label('Envoyer les vœux aux clients sélectionnés')
                     ->icon('heroicon-o-gift')
                     ->color('success')
                     ->requiresConfirmation()
@@ -183,8 +183,8 @@ class ClientBirthdays extends Page implements HasTable
                                 Mail::to($record->email)->send(new ClientBirthdayMail($record));
                                 InAppNotification::create([
                                     'user_id' => $record->id,
-                                    'title' => 'Joyeux Anniversaire ! ðŸŽ‰',
-                                    'body' => "Toute l'Ã©quipe de KORI Asset Management vous souhaite un trÃ¨s heureux anniversaire !",
+                                    'title' => 'Joyeux Anniversaire ! 🎉',
+                                    'body' => "Toute l'équipe de KORI Asset Management vous souhaite un très heureux anniversaire !",
                                     'type' => 'info',
                                 ]);
                                 $record->last_birthday_wish_sent_at = now();
@@ -196,8 +196,8 @@ class ClientBirthdays extends Page implements HasTable
                         }
 
                         Notification::make()
-                            ->title("VÅ“ux envoyÃ©s ({$count})")
-                            ->body("Les souhaits ont Ã©tÃ© envoyÃ©s Ã  {$count} client(s).")
+                            ->title("Vœux envoyés ({$count})")
+                            ->body("Les souhaits ont été envoyés à {$count} client(s).")
                             ->success()
                             ->send();
                     }),

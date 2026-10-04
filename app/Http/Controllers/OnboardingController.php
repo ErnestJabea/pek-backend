@@ -139,7 +139,7 @@ class OnboardingController extends Controller
     public function renewIdentityDocument(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'type_piece' => ['required', 'string', 'in:CNI,Passeport,Carte RÃ©sident,Carte de sÃ©jour,carte_sejour,cni,passeport'],
+            'type_piece' => ['required', 'string', 'in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport'],
             'num_piece' => ['required', 'string', 'max:100'],
             'expiration_piece' => ['required', 'date', 'after:today'],
             'piece_recto' => ['nullable', 'string'],
@@ -147,10 +147,10 @@ class OnboardingController extends Controller
             'piece_verso' => ['nullable', 'string'],
             'doc_piece_verso' => ['nullable', 'string'],
         ], [
-            'type_piece.required' => 'Le type de piÃ¨ce dâ€™identification est obligatoire.',
-            'num_piece.required' => 'Le numÃ©ro de la piÃ¨ce dâ€™identification est obligatoire.',
-            'expiration_piece.required' => 'La date dâ€™expiration de la piÃ¨ce est obligatoire.',
-            'expiration_piece.after' => 'La nouvelle date dâ€™expiration doit Ãªtre dans le futur.',
+            'type_piece.required' => 'Le type de pièce d'identification est obligatoire.',
+            'num_piece.required' => 'Le numéro de la pièce d'identification est obligatoire.',
+            'expiration_piece.required' => 'La date d'expiration de la pièce est obligatoire.',
+            'expiration_piece.after' => 'La nouvelle date d'expiration doit être dans le futur.',
         ]);
 
         $user = $request->user();
@@ -213,19 +213,19 @@ class OnboardingController extends Controller
                 'event_type' => 'identity_document_renewed',
                 'from_status' => $session->status,
                 'to_status' => $session->status,
-                'reason' => 'Renouvellement de la piÃ¨ce dâ€™identitÃ© : ' . $validated['type_piece'] . ' nÂ°' . $validated['num_piece'] . ' (exp. ' . $validated['expiration_piece'] . ')',
+                'reason' => 'Renouvellement de la pièce d'identité : ' . $validated['type_piece'] . ' n°' . $validated['num_piece'] . ' (exp. ' . $validated['expiration_piece'] . ')',
             ]);
         }
 
         Notification::create([
             'user_id' => $user->id,
-            'title' => 'PiÃ¨ce dâ€™identitÃ© mise Ã  jour',
-            'body' => 'Votre piÃ¨ce dâ€™identification a Ã©tÃ© mise Ã  jour avec succÃ¨s.',
+            'title' => 'Pièce d'identité mise Ã  jour',
+            'body' => 'Votre pièce d'identification a été mise Ã  jour avec succès.',
             'type' => 'success',
         ]);
 
         return response()->json([
-            'message' => 'PiÃ¨ce dâ€™identification mise Ã  jour avec succÃ¨s.',
+            'message' => 'Pièce d'identification mise Ã  jour avec succès.',
             'user' => $user->fresh(),
             'session' => $session,
         ]);

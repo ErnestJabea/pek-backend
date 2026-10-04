@@ -17,9 +17,9 @@ class ManageNotificationSettings extends Page
 
     protected static ?string $navigationGroup = 'Configuration';
 
-    protected static ?string $navigationLabel = 'RÃ©glages Notifications & SLA';
+    protected static ?string $navigationLabel = 'Réglages Notifications & SLA';
 
-    protected static ?string $title = 'RÃ©glages Notifications, DÃ©lais SLA & Relances CRM';
+    protected static ?string $title = 'Réglages Notifications, Délais SLA & Relances CRM';
 
     protected static string $view = 'filament.pages.manage-notification-settings';
 
@@ -34,7 +34,7 @@ class ManageNotificationSettings extends Page
             'subscription_sla_hours' => SystemSetting::get('subscription_sla_hours', 48),
             'sla_alerts_enabled' => SystemSetting::get('sla_alerts_enabled', true),
 
-            // PiÃ¨ces d'identitÃ©
+            // Pièces d'identité
             'id_expiry_reminders_enabled' => SystemSetting::get('id_expiry_reminders_enabled', true),
             'id_expiry_notice_days' => SystemSetting::get('id_expiry_notice_days', 30),
             'id_expiry_throttle_days' => SystemSetting::get('id_expiry_throttle_days', 7),
@@ -42,7 +42,7 @@ class ManageNotificationSettings extends Page
             // Anniversaires
             'birthday_wishes_enabled' => SystemSetting::get('birthday_wishes_enabled', true),
             'birthday_notice_days' => SystemSetting::get('birthday_notice_days', 0),
-            'birthday_custom_message' => SystemSetting::get('birthday_custom_message', 'Toute l\'Ã©quipe de KORI Asset Management vous adresse ses vÅ“ux les plus chaleureux de santÃ©, de prospÃ©ritÃ© et de succÃ¨s continu dans tous vos projets.'),
+            'birthday_custom_message' => SystemSetting::get('birthday_custom_message', 'Toute l\'équipe de KORI Asset Management vous adresse ses vœux les plus chaleureux de santé, de prospérité et de succès continu dans tous vos projets.'),
         ]);
     }
 
@@ -50,21 +50,21 @@ class ManageNotificationSettings extends Page
     {
         return $form
             ->schema([
-                Section::make('Rappels RÃ©glementaires â€” PiÃ¨ces d\'IdentitÃ© (KYC)')
-                    ->description('ParamÃ©trez les relances automatiques lorsque la piÃ¨ce d\'identification d\'un investisseur arrive Ã  expiration ou est expirÃ©e.')
+                Section::make('Rappels Réglementaires — Pièces d\'Identité (KYC)')
+                    ->description('Paramétrez les relances automatiques lorsque la pièce d\'identification d\'un investisseur arrive à expiration ou est expirée.')
                     ->schema([
                         Toggle::make('id_expiry_reminders_enabled')
-                            ->label('Activer les rappels automatiques d\'expiration de piÃ¨ce d\'identitÃ© (Email + In-App)')
+                            ->label('Activer les rappels automatiques d\'expiration de pièce d\'identité (Email + In-App)')
                             ->default(true),
 
                         TextInput::make('id_expiry_notice_days')
-                            ->label('DÃ©lai de prÃ©avis avant expiration')
+                            ->label('Délai de préavis avant expiration')
                             ->numeric()
                             ->required()
                             ->minValue(1)
                             ->maxValue(90)
                             ->suffix('jours')
-                            ->helperText('Nombre de jours avant l\'Ã©chÃ©ance pour commencer les rappels prÃ©ventifs (ex: 30 jours).'),
+                            ->helperText('Nombre de jours avant l\'échéance pour commencer les rappels préventifs (ex: 30 jours).'),
 
                         TextInput::make('id_expiry_throttle_days')
                             ->label('Intervalle minimum entre deux relances')
@@ -73,11 +73,11 @@ class ManageNotificationSettings extends Page
                             ->minValue(1)
                             ->maxValue(30)
                             ->suffix('jours')
-                            ->helperText('DÃ©lai anti-spam pour ne pas saturer la messagerie du client (ex: 7 jours).'),
+                            ->helperText('Délai anti-spam pour ne pas saturer la messagerie du client (ex: 7 jours).'),
                     ]),
 
-                Section::make('Relation Client (CRM) â€” Dates de Naissance & Anniversaires')
-                    ->description('ParamÃ©trez l\'envoi automatique des souhaits d\'anniversaire aux clients.')
+                Section::make('Relation Client (CRM) — Dates de Naissance & Anniversaires')
+                    ->description('Paramétrez l\'envoi automatique des souhaits d\'anniversaire aux clients.')
                     ->schema([
                         Toggle::make('birthday_wishes_enabled')
                             ->label('Activer l\'envoi automatique des souhaits d\'anniversaire (Email + In-App)')
@@ -90,33 +90,33 @@ class ManageNotificationSettings extends Page
                             ->minValue(0)
                             ->maxValue(7)
                             ->suffix('jour(s) avant')
-                            ->helperText('0 pour envoyer le jour mÃªme de l\'anniversaire Ã  08h00, 1 pour la veille.'),
+                            ->helperText('0 pour envoyer le jour même de l\'anniversaire à 08h00, 1 pour la veille.'),
 
                         Textarea::make('birthday_custom_message')
-                            ->label('Message de vÅ“ux personnalisÃ© de la SociÃ©tÃ© de Gestion')
+                            ->label('Message de vœux personnalisé de la Société de Gestion')
                             ->rows(3)
                             ->required()
-                            ->helperText('Texte insÃ©rÃ© au cÅ“ur du courriel festif KORI Asset Management.'),
+                            ->helperText('Texte inséré au cœur du courriel festif KORI Asset Management.'),
                     ]),
 
                 Section::make('Destinataires des Notifications Internes')
-                    ->description('DÃ©finissez les adresses e-mail des Ã©quipes chargÃ©es des contrÃ´les internes.')
+                    ->description('Définissez les adresses e-mail des équipes chargées des contrôles internes.')
                     ->schema([
                         TextInput::make('compliance_emails')
-                            ->label('E-mails Ã‰quipe ConformitÃ©')
+                            ->label('E-mails Équipe Conformité')
                             ->placeholder('conformite@example.com, responsable@example.com')
-                            ->helperText('SÃ©parer les adresses par des virgules si vous en avez plusieurs.')
+                            ->helperText('Séparer les adresses par des virgules si vous en avez plusieurs.')
                             ->required(),
 
                         TextInput::make('accounting_emails')
-                            ->label('E-mails Ã‰quipe ComptabilitÃ©')
+                            ->label('E-mails Équipe Comptabilité')
                             ->placeholder('comptabilite@example.com')
-                            ->helperText('SÃ©parer les adresses par des virgules si vous en avez plusieurs.')
+                            ->helperText('Séparer les adresses par des virgules si vous en avez plusieurs.')
                             ->required(),
                     ]),
 
-                Section::make('Seuils de DÃ©lais (SLA) & Alertes Automatiques')
-                    ->description('Fixez les durÃ©es maximales d\'attente avant dÃ©clenchement des alertes automatiques.')
+                Section::make('Seuils de Délais (SLA) & Alertes Automatiques')
+                    ->description('Fixez les durées maximales d\'attente avant déclenchement des alertes automatiques.')
                     ->schema([
                         TextInput::make('onboarding_sla_hours')
                             ->label('SLA Validation Onboarding (Heures)')
@@ -126,14 +126,14 @@ class ManageNotificationSettings extends Page
                             ->suffix('heures'),
 
                         TextInput::make('subscription_sla_hours')
-                            ->label('SLA ContrÃ´le Interne Souscription (Heures)')
+                            ->label('SLA Contrôle Interne Souscription (Heures)')
                             ->numeric()
                             ->required()
                             ->minValue(1)
                             ->suffix('heures'),
 
                         Toggle::make('sla_alerts_enabled')
-                            ->label('Activer les alertes automatiques par e-mail lors du dÃ©passement des SLA')
+                            ->label('Activer les alertes automatiques par e-mail lors du dépassement des SLA')
                             ->default(true),
                     ]),
             ])
@@ -150,7 +150,7 @@ class ManageNotificationSettings extends Page
         SystemSetting::set('subscription_sla_hours', (int) $state['subscription_sla_hours']);
         SystemSetting::set('sla_alerts_enabled', (bool) $state['sla_alerts_enabled']);
 
-        // PiÃ¨ces d'identitÃ©
+        // Pièces d'identité
         SystemSetting::set('id_expiry_reminders_enabled', (bool) $state['id_expiry_reminders_enabled'], 'bool');
         SystemSetting::set('id_expiry_notice_days', (int) $state['id_expiry_notice_days'], 'int');
         SystemSetting::set('id_expiry_throttle_days', (int) $state['id_expiry_throttle_days'], 'int');
@@ -161,7 +161,7 @@ class ManageNotificationSettings extends Page
         SystemSetting::set('birthday_custom_message', (string) $state['birthday_custom_message'], 'string');
 
         Notification::make()
-            ->title('ParamÃ¨tres enregistrÃ©s avec succÃ¨s')
+            ->title('Paramètres enregistrés avec succès')
             ->success()
             ->send();
     }

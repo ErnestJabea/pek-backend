@@ -108,7 +108,7 @@ class SendBirthdayWishes extends Command
                 Notification::create([
                     'user_id' => $user->id,
                     'title' => 'Joyeux Anniversaire ! ðŸŽ‰',
-                    'body' => "Toute l'Ã©quipe de KORI Asset Management vous souhaite un trÃ¨s heureux anniversaire !",
+                    'body' => "Toute l'équipe de KORI Asset Management vous souhaite un très heureux anniversaire !",
                     'type' => 'info',
                 ]);
 
