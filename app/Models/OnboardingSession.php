@@ -198,10 +198,15 @@ class OnboardingSession extends Model
     public function setPayloadAttribute($value): void
     {
         $this->attributes['payload'] = null;
-        $this->attributes['encrypted_payload'] = Crypt::encryptString(json_encode(
-            $value ?: [],
-            JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
+        try {
+            $this->attributes['encrypted_payload'] = Crypt::encryptString(json_encode(
+                $value ?: [],
+                JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->attributes['payload'] = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value;
+        }
     }
 
     public function getSubmittedPayload(): array
@@ -224,11 +229,21 @@ class OnboardingSession extends Model
         }
     }
 
+    public function setSubmittedPayloadAttribute($payload): void
+    {
+        $this->setSubmittedPayload(is_array($payload) ? $payload : (json_decode($payload, true) ?: []));
+    }
+
     public function setSubmittedPayload(array $payload): void
     {
-        $this->attributes['submitted_payload'] = Crypt::encryptString(json_encode(
-            $payload,
-            JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
+        try {
+            $this->attributes['submitted_payload'] = Crypt::encryptString(json_encode(
+                $payload,
+                JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->attributes['submitted_payload'] = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        }
     }
 }
