@@ -8,7 +8,7 @@ use Filament\Widgets\ChartWidget;
 
 class SubscriptionsCollectChartWidget extends ChartWidget
 {
-    protected static ?string $heading = '📈 Évolution de la Collecte';
+    protected static ?string $heading = 'Évolution de la Collecte';
 
     protected static ?string $description = 'Montant total des souscriptions confirmées en FCFA';
 

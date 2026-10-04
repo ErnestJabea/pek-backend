@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 class SubscriptionsStatusChartWidget extends ChartWidget
 {
-    protected static ?string $heading = '⚡ Statut des Opérations & Transactions';
+    protected static ?string $heading = 'Statut des Opérations & Transactions';
 
     protected static ?string $description = 'Taux de succès et opérations en cours de traitement';
 

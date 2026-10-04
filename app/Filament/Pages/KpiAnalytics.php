@@ -19,7 +19,7 @@ class KpiAnalytics extends BaseDashboard
 
     protected static ?string $navigationGroup = 'Tableaux de bord';
 
-    protected static ?string $navigationLabel = '📊 Graphiques des KPI';
+    protected static ?string $navigationLabel = 'Graphiques des KPI';
 
     protected static ?string $title = 'Évolution des KPI & Graphiques Analytiques';
 

@@ -8,7 +8,7 @@ use Filament\Widgets\ChartWidget;
 
 class ProductVlEvolutionWidget extends ChartWidget
 {
-    protected static ?string $heading = '📊 Performance & VL (FCP KORI ACTIONS)';
+    protected static ?string $heading = 'Performance & VL (FCP KORI ACTIONS)';
 
     protected static ?string $description = 'Historique des dernières Valeurs Liquidatives officielles publiées';
 

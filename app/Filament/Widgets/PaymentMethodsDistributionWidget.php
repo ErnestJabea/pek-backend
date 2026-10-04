@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 class PaymentMethodsDistributionWidget extends ChartWidget
 {
-    protected static ?string $heading = '💳 Répartition par Moyen de Paiement';
+    protected static ?string $heading = 'Répartition par Moyen de Paiement';
 
     protected static ?string $description = 'Volumes collectés selon le canal d\'encaissement';
 

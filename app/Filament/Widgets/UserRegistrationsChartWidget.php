@@ -8,7 +8,7 @@ use Filament\Widgets\ChartWidget;
 
 class UserRegistrationsChartWidget extends ChartWidget
 {
-    protected static ?string $heading = '👥 Croissance des Inscriptions Clients';
+    protected static ?string $heading = 'Croissance des Inscriptions Clients';
 
     protected static ?string $description = 'Nouveaux comptes clients créés au fil du temps';
 

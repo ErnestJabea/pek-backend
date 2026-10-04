@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 class KycFunnelChartWidget extends ChartWidget
 {
-    protected static ?string $heading = '🛡️ Entonnoir & Dossiers KYC';
+    protected static ?string $heading = 'Entonnoir & Dossiers KYC';
 
     protected static ?string $description = 'Statut de traitement et conformité des dossiers clients';
 

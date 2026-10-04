@@ -13,7 +13,7 @@
                         icon="heroicon-o-chart-bar-square"
                         color="primary"
                     >
-                        📊 Voir les Graphiques des KPI
+                        Voir les Graphiques des KPI
                     </x-filament::button>
                     <x-filament::button wire:click="$refresh" wire:loading.attr="disabled" icon="heroicon-o-arrow-path" color="gray">
                         Actualiser
