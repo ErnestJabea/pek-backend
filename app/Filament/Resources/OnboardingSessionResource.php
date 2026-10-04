@@ -615,26 +615,44 @@ class OnboardingSessionResource extends Resource
                         ->icon('heroicon-o-identification')
                         ->color('warning')
                         ->modalHeading('Mettre à jour la catégorie du client')
-                        ->modalDescription('Modifie la catégorie du client pour ses futurs bulletins officiels.')
+                        ->modalDescription('Modifie le type et la catégorie du client pour ses futurs bulletins officiels.')
+                        ->fillForm(function (OnboardingSession $record): array {
+                            $currentCategory = $record->payload['categorie_client'] ?? ($record->user?->categorie_client ?? null);
+                            $type = \App\Services\ClientCategoryService::getTypeForCategory($currentCategory);
+
+                            $nature = strtolower($record->payload['nature_client'] ?? '');
+                            if (str_contains($nature, 'morale') || ! empty($record->payload['rccm'])) {
+                                $type = \App\Services\ClientCategoryService::TYPE_MORALE;
+                            }
+
+                            return [
+                                'type_client' => $type,
+                                'categorie_client' => $currentCategory,
+                            ];
+                        })
                         ->form([
+                            Forms\Components\Select::make('type_client')
+                                ->label('Type de client')
+                                ->options(\App\Services\ClientCategoryService::getTypes())
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
+
                             Forms\Components\Select::make('categorie_client')
                                 ->label('Catégorie du client')
-                                ->options([
-                                    'Particulier' => 'Particulier',
-                                    'Professionnel' => 'Professionnel',
-                                    'Institutionnel' => 'Institutionnel',
-                                    'Personne Morale' => 'Personne Morale',
-                                ])
-                                ->default(fn (OnboardingSession $record) => $record->payload['categorie_client'] ?? ($record->user?->categorie_client ?? 'Particulier'))
+                                ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
+                                ->searchable()
                                 ->required(),
                         ])
                         ->action(function (OnboardingSession $record, array $data) {
                             $payload = $record->payload ?? [];
                             $payload['categorie_client'] = $data['categorie_client'];
+                            $payload['nature_client'] = $data['type_client'] === \App\Services\ClientCategoryService::TYPE_MORALE ? 'personne_morale' : 'personne_physique';
                             $record->payload = $payload;
 
                             $submitted = $record->submitted_payload ?? [];
                             $submitted['categorie_client'] = $data['categorie_client'];
+                            $submitted['nature_client'] = $payload['nature_client'];
                             $record->submitted_payload = $submitted;
                             $record->save();
 

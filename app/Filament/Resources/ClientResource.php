@@ -68,15 +68,21 @@ class ClientResource extends Resource
                 Forms\Components\TextInput::make('country')
                     ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays')
                     ->required(),
+                Forms\Components\Select::make('type_client')
+                    ->label('Type de client')
+                    ->options(\App\Services\ClientCategoryService::getTypes())
+                    ->dehydrated(false)
+                    ->afterStateHydrated(function (Forms\Components\Select $component, ?Client $record) {
+                        if ($record) {
+                            $component->state(\App\Services\ClientCategoryService::getTypeForCategory($record->categorie_client));
+                        }
+                    })
+                    ->live()
+                    ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
                 Forms\Components\Select::make('categorie_client')
                     ->label('Catégorie du client')
-                    ->options([
-                        'Particulier' => 'Particulier',
-                        'Professionnel' => 'Professionnel',
-                        'Institutionnel' => 'Institutionnel',
-                        'Personne Morale' => 'Personne Morale',
-                    ])
-                    ->default('Particulier')
+                    ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
+                    ->searchable()
                     ->required(),
                 Forms\Components\TextInput::make('password')
                     ->label(__('messages.password'))
@@ -125,6 +131,9 @@ class ClientResource extends Resource
             ])
             ->filters([
                 Tables\Filters\TrashedFilter::make(),
+                Tables\Filters\SelectFilter::make('categorie_client')
+                    ->label('Catégorie client')
+                    ->options(\App\Services\ClientCategoryService::getCategoriesByType()),
             ])
             ->actions([
                 Tables\Actions\Action::make('remind_id')
@@ -169,17 +178,32 @@ class ClientResource extends Resource
                     ->icon('heroicon-o-identification')
                     ->color('warning')
                     ->modalHeading('Modifier la catégorie du client')
-                    ->modalDescription('Définissez la catégorie d\'investisseur du client pour ses bulletins de souscription.')
+                    ->modalDescription('Définissez le type et la catégorie d\'investisseur du client pour ses bulletins de souscription.')
+                    ->fillForm(function (Client $record): array {
+                        $currentCategory = $record->categorie_client ?? ($record->onboardingSession?->payload['categorie_client'] ?? null);
+                        $type = \App\Services\ClientCategoryService::getTypeForCategory($currentCategory);
+
+                        if ($record->onboardingSession && (! empty($record->onboardingSession->payload['rccm']) || ! empty($record->onboardingSession->payload['denomination']))) {
+                            $type = \App\Services\ClientCategoryService::TYPE_MORALE;
+                        }
+
+                        return [
+                            'type_client' => $type,
+                            'categorie_client' => $currentCategory,
+                        ];
+                    })
                     ->form([
+                        Forms\Components\Select::make('type_client')
+                            ->label('Type de client')
+                            ->options(\App\Services\ClientCategoryService::getTypes())
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
+
                         Forms\Components\Select::make('categorie_client')
                             ->label('Catégorie du client')
-                            ->options([
-                                'Particulier' => 'Particulier',
-                                'Professionnel' => 'Professionnel',
-                                'Institutionnel' => 'Institutionnel',
-                                'Personne Morale' => 'Personne Morale',
-                            ])
-                            ->default(fn (Client $record) => $record->categorie_client ?? ($record->onboardingSession?->payload['categorie_client'] ?? 'Particulier'))
+                            ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
+                            ->searchable()
                             ->required(),
                     ])
                     ->action(function (Client $record, array $data) {
@@ -189,10 +213,12 @@ class ClientResource extends Resource
                             $session = $record->onboardingSession;
                             $payload = $session->payload ?? [];
                             $payload['categorie_client'] = $data['categorie_client'];
+                            $payload['nature_client'] = $data['type_client'] === \App\Services\ClientCategoryService::TYPE_MORALE ? 'personne_morale' : 'personne_physique';
                             $session->payload = $payload;
 
                             $submitted = $session->submitted_payload ?? [];
                             $submitted['categorie_client'] = $data['categorie_client'];
+                            $submitted['nature_client'] = $payload['nature_client'];
                             $session->submitted_payload = $submitted;
 
                             $session->save();
