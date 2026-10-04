@@ -46,42 +46,52 @@ class SubscriptionsCollectChartWidget extends ChartWidget
         $labels = [];
         $values = [];
 
-        if ($activeFilter === '7d') {
-            for ($i = 6; $i >= 0; $i--) {
+        if ($activeFilter === '7d' || $activeFilter === '30d') {
+            $days = $activeFilter === '7d' ? 7 : 30;
+            $startDate = Carbon::now()->subDays($days - 1)->startOfDay();
+
+            $rawTotals = Subscription::where('statut', 'SuccÃ¨s')
+                ->where('created_at', '>=', $startDate)
+                ->select(\Illuminate\Support\Facades\DB::raw('DATE(created_at) as date_str'), \Illuminate\Support\Facades\DB::raw('SUM(montant_total) as total'))
+                ->groupBy('date_str')
+                ->pluck('total', 'date_str')
+                ->all();
+
+            for ($i = $days - 1; $i >= 0; $i--) {
                 $date = Carbon::now()->subDays($i);
                 $dayStr = $date->format('Y-m-d');
                 $labels[] = $date->format('d/m');
-                $values[] = (float) Subscription::where('statut', 'Succès')
-                    ->whereDate('created_at', $dayStr)
-                    ->sum('montant_total');
-            }
-        } elseif ($activeFilter === '30d') {
-            for ($i = 29; $i >= 0; $i--) {
-                $date = Carbon::now()->subDays($i);
-                $dayStr = $date->format('Y-m-d');
-                $labels[] = $date->format('d/m');
-                $values[] = (float) Subscription::where('statut', 'Succès')
-                    ->whereDate('created_at', $dayStr)
-                    ->sum('montant_total');
+                $values[] = (float) ($rawTotals[$dayStr] ?? 0);
             }
         } elseif ($activeFilter === '90d') {
+            $startDate = Carbon::now()->subWeeks(11)->startOfWeek();
+            $rawRecords = Subscription::where('statut', 'SuccÃ¨s')
+                ->where('created_at', '>=', $startDate)
+                ->select('created_at', 'montant_total')
+                ->get();
+
             for ($i = 11; $i >= 0; $i--) {
                 $start = Carbon::now()->subWeeks($i)->startOfWeek();
                 $end = Carbon::now()->subWeeks($i)->endOfWeek();
                 $labels[] = 'Sem. ' . $start->format('W');
-                $values[] = (float) Subscription::where('statut', 'Succès')
-                    ->whereBetween('created_at', [$start, $end])
-                    ->sum('montant_total');
+                $sum = $rawRecords->filter(fn ($r) => $r->created_at >= $start && $r->created_at <= $end)->sum('montant_total');
+                $values[] = (float) $sum;
             }
         } else { // 12 derniers mois
+            $startDate = Carbon::now()->subMonths(11)->startOfMonth();
+            $rawTotals = Subscription::where('statut', 'SuccÃ¨s')
+                ->where('created_at', '>=', $startDate)
+                ->select(\Illuminate\Support\Facades\DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month_str'), \Illuminate\Support\Facades\DB::raw('SUM(montant_total) as total'))
+                ->groupBy('month_str')
+                ->pluck('total', 'month_str')
+                ->all();
+
             for ($i = 11; $i >= 0; $i--) {
                 $month = Carbon::now()->subMonths($i);
-                $frMonths = [1 => 'Janv', 2 => 'Févr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'Août', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc'];
+                $monthKey = $month->format('Y-m');
+                $frMonths = [1 => 'Janv', 2 => 'FÃ©vr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'AoÃ»t', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'DÃ©c'];
                 $labels[] = ($frMonths[(int) $month->format('n')] ?? $month->format('M')) . ' ' . $month->format('Y');
-                $values[] = (float) Subscription::where('statut', 'Succès')
-                    ->whereYear('created_at', $month->year)
-                    ->whereMonth('created_at', $month->month)
-                    ->sum('montant_total');
+                $values[] = (float) ($rawTotals[$monthKey] ?? 0);
             }
         }
 

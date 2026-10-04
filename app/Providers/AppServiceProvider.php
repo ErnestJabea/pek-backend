@@ -34,6 +34,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        @ini_set('max_execution_time', '300');
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
         // Force the Admin panel to boot early to ensure all Livewire components
         // (widgets, pages, resources) are registered. This bypasses the ComponentNotFoundException
         // in this specific local MAMP environment where middleware execution order is failing.

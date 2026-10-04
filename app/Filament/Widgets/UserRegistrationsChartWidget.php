@@ -50,36 +50,52 @@ class UserRegistrationsChartWidget extends ChartWidget
             ->whereNull('admin_department_id')
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'super_admin'));
 
-        if ($activeFilter === '7d') {
-            for ($i = 6; $i >= 0; $i--) {
+        if ($activeFilter === '7d' || $activeFilter === '30d') {
+            $days = $activeFilter === '7d' ? 7 : 30;
+            $startDate = Carbon::now()->subDays($days - 1)->startOfDay();
+
+            $rawCounts = $baseQuery()
+                ->where('created_at', '>=', $startDate)
+                ->select(\Illuminate\Support\Facades\DB::raw('DATE(created_at) as date_str'), \Illuminate\Support\Facades\DB::raw('count(*) as count'))
+                ->groupBy('date_str')
+                ->pluck('count', 'date_str')
+                ->all();
+
+            for ($i = $days - 1; $i >= 0; $i--) {
                 $date = Carbon::now()->subDays($i);
                 $dayStr = $date->format('Y-m-d');
                 $labels[] = $date->format('d/m');
-                $values[] = (int) $baseQuery()->whereDate('created_at', $dayStr)->count();
-            }
-        } elseif ($activeFilter === '30d') {
-            for ($i = 29; $i >= 0; $i--) {
-                $date = Carbon::now()->subDays($i);
-                $dayStr = $date->format('Y-m-d');
-                $labels[] = $date->format('d/m');
-                $values[] = (int) $baseQuery()->whereDate('created_at', $dayStr)->count();
+                $values[] = (int) ($rawCounts[$dayStr] ?? 0);
             }
         } elseif ($activeFilter === '90d') {
+            $startDate = Carbon::now()->subWeeks(11)->startOfWeek();
+            $rawUsers = $baseQuery()
+                ->where('created_at', '>=', $startDate)
+                ->select('created_at')
+                ->get();
+
             for ($i = 11; $i >= 0; $i--) {
                 $start = Carbon::now()->subWeeks($i)->startOfWeek();
                 $end = Carbon::now()->subWeeks($i)->endOfWeek();
                 $labels[] = 'Sem. ' . $start->format('W');
-                $values[] = (int) $baseQuery()->whereBetween('created_at', [$start, $end])->count();
+                $cnt = $rawUsers->filter(fn ($u) => $u->created_at >= $start && $u->created_at <= $end)->count();
+                $values[] = (int) $cnt;
             }
         } else { // 12 derniers mois
+            $startDate = Carbon::now()->subMonths(11)->startOfMonth();
+            $rawCounts = $baseQuery()
+                ->where('created_at', '>=', $startDate)
+                ->select(\Illuminate\Support\Facades\DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month_str'), \Illuminate\Support\Facades\DB::raw('count(*) as count'))
+                ->groupBy('month_str')
+                ->pluck('count', 'month_str')
+                ->all();
+
             for ($i = 11; $i >= 0; $i--) {
                 $month = Carbon::now()->subMonths($i);
-                $frMonths = [1 => 'Janv', 2 => 'Févr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'Août', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc'];
+                $monthKey = $month->format('Y-m');
+                $frMonths = [1 => 'Janv', 2 => 'FÃ©vr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'AoÃ»t', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'DÃ©c'];
                 $labels[] = ($frMonths[(int) $month->format('n')] ?? $month->format('M')) . ' ' . $month->format('Y');
-                $values[] = (int) $baseQuery()
-                    ->whereYear('created_at', $month->year)
-                    ->whereMonth('created_at', $month->month)
-                    ->count();
+                $values[] = (int) ($rawCounts[$monthKey] ?? 0);
             }
         }
 
