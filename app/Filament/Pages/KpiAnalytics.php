@@ -9,10 +9,12 @@ use App\Filament\Widgets\SubscriptionsCollectChartWidget;
 use App\Filament\Widgets\SubscriptionsStatusChartWidget;
 use App\Filament\Widgets\UserRegistrationsChartWidget;
 use App\Services\BackofficeDashboard;
-use Filament\Pages\Page;
+use Filament\Pages\Dashboard as BaseDashboard;
 
-class KpiAnalytics extends Page
+class KpiAnalytics extends BaseDashboard
 {
+    protected static string $routePath = '/kpi-analytics';
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationGroup = 'Tableaux de bord';
@@ -22,8 +24,6 @@ class KpiAnalytics extends Page
     protected static ?string $title = 'Évolution des KPI & Graphiques Analytiques';
 
     protected static ?int $navigationSort = 2;
-
-    protected static string $view = 'filament.pages.kpi-analytics';
 
     public static function canAccess(): bool
     {
