@@ -19,21 +19,21 @@ class ClientCategoryService
     {
         return [
             self::TYPE_PHYSIQUE => [
-                'SalariÃ© secteur public' => 'SalariÃ© secteur public',
-                'SalariÃ© secteur privÃ©' => 'SalariÃ© secteur privÃ©',
+                'Salarié secteur public' => 'Salarié secteur public',
+                'Salarié secteur privé' => 'Salarié secteur privé',
                 'Agent des organismes internationaux' => 'Agent des organismes internationaux',
-                'Profession libÃ©rale' => 'Profession libÃ©rale',
-                'CommerÃ§ant / entrepreneur' => 'CommerÃ§ant / entrepreneur',
-                'ChÃ´meur' => 'ChÃ´meur',
+                'Profession libérale' => 'Profession libérale',
+                'Commerçant / entrepreneur' => 'Commerçant / entrepreneur',
+                'Chômeur' => 'Chômeur',
             ],
             self::TYPE_MORALE => [
                 'Banques' => 'Banques',
                 'OPC' => 'OPC',
-                'Caisses de dÃ©pÃ´t et consignation (CDC)' => 'Caisses de dÃ©pÃ´t et consignation (CDC)',
-                'Autres institutions financiÃ¨res' => 'Autres institutions financiÃ¨res',
-                'SociÃ©tÃ©s de bourse' => 'SociÃ©tÃ©s de bourse',
-                "SociÃ©tÃ© de gestion d'OPC" => "SociÃ©tÃ© de gestion d'OPC",
-                'Entreprises non financiÃ¨res' => 'Entreprises non financiÃ¨res',
+                'Caisses de dépôt et consignation (CDC)' => 'Caisses de dépôt et consignation (CDC)',
+                'Autres institutions financières' => 'Autres institutions financières',
+                'Sociétés de bourse' => 'Sociétés de bourse',
+                "Société de gestion d'OPC" => "Société de gestion d'OPC",
+                'Entreprises non financières' => 'Entreprises non financières',
             ],
         ];
     }
