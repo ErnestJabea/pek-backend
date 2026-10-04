@@ -17,12 +17,19 @@
                 <h2 class="text-base font-semibold text-gray-950 dark:text-white">{{ $heading }}</h2>
                 <div class="grid gap-6 md:grid-cols-2 {{ $loop->first ? 'xl:grid-cols-4' : 'xl:grid-cols-3' }}">
                     @foreach ($cards as $card)
-                        {{ \Filament\Widgets\StatsOverviewWidget\Stat::make($card['label'], $card['formatted'])
-                            ->description($card['description'])
-                            ->descriptionIcon($card['url'] ? 'heroicon-m-arrow-top-right-on-square' : 'heroicon-m-information-circle')
-                            ->icon($card['icon'])
-                            ->color($loop->parent->first ? 'primary' : 'warning')
-                            ->url($card['url']) }}
+                        @php
+                            $stat = \Filament\Widgets\StatsOverviewWidget\Stat::make($card['label'], $card['formatted'])
+                                ->description($card['description'])
+                                ->descriptionIcon($card['url'] ? 'heroicon-m-arrow-top-right-on-square' : 'heroicon-m-information-circle')
+                                ->icon($card['icon'])
+                                ->color($loop->parent->first ? 'primary' : 'warning')
+                                ->url($card['url']);
+
+                            if (! empty($card['chart'])) {
+                                $stat->chart($card['chart']);
+                            }
+                        @endphp
+                        {{ $stat }}
                     @endforeach
                 </div>
             </section>

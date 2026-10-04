@@ -66,6 +66,7 @@ class BackofficeDashboard
                 'key' => $key, 'label' => $label, 'value' => $value,
                 'formatted' => number_format((float) $value, 0, ',', ' ').($operation === 'sum' ? ' FCFA' : ''),
                 'description' => $description, 'icon' => $icon,
+                'chart' => $this->chartSparkline($key),
                 'url' => $resource::canViewAny() ? $resource::getUrl('index', ['tableFilters' => ['dashboard' => ['value' => $key]]], panel: 'admin') : null,
             ];
         }
@@ -148,5 +149,36 @@ class BackofficeDashboard
             ->where(fn ($q) => $q->whereNull('s3p_quote_id')->orWhere('s3p_quote_id', 'not like', 'SIM-%'))
             ->where(fn ($q) => $q->whereNull('s3p_context->simulation')->orWhere('s3p_context->simulation', false))
             ->where(fn ($q) => $q->whereNull('s3p_context->base_url')->orWhere('s3p_context->base_url', 'not like', '%staging%'));
+    }
+    public function chartSparkline(string $key): ?array
+    {
+        $today = $this->today();
+        $points = [];
+
+        for ($i = 6; $i >= 0; $i--) {
+            $day = $today->subDays($i);
+            $start = $day->setTimezone(config('app.timezone'))->toDateTimeString();
+            $end = $day->addDay()->setTimezone(config('app.timezone'))->toDateTimeString();
+
+            if (in_array($key, ['confirmed_today', 'confirmed_total'], true)) {
+                $points[] = (float) Subscription::where('statut', 'Succès')
+                    ->where('created_at', '>=', $start)
+                    ->where('created_at', '<', $end)
+                    ->sum('montant_total');
+            } elseif (in_array($key, ['subscriptions_today'], true)) {
+                $points[] = (int) Subscription::where('created_at', '>=', $start)
+                    ->where('created_at', '<', $end)
+                    ->count();
+            } elseif (in_array($key, ['registrations_today', 'clients_without_subscription'], true)) {
+                $points[] = (int) User::where('role', 'client')
+                    ->where('created_at', '>=', $start)
+                    ->where('created_at', '<', $end)
+                    ->count();
+            } else {
+                return null;
+            }
+        }
+
+        return count(array_filter($points)) > 0 ? $points : null;
     }
 }
