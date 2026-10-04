@@ -14,7 +14,7 @@ class SubscriptionsCollectChartWidget extends ChartWidget
 
     protected static ?int $sort = 2;
 
-    protected static ?string $maxHeight = '280px';
+    protected static ?string $maxHeight = '340px';
 
     protected int|string|array $columnSpan = 1;
 
@@ -76,7 +76,8 @@ class SubscriptionsCollectChartWidget extends ChartWidget
         } else { // 12 derniers mois
             for ($i = 11; $i >= 0; $i--) {
                 $month = Carbon::now()->subMonths($i);
-                $labels[] = $month->translatedFormat('M Y');
+                $frMonths = [1 => 'Janv', 2 => 'Févr', 3 => 'Mars', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'Août', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc'];
+                $labels[] = ($frMonths[(int) $month->format('n')] ?? $month->format('M')) . ' ' . $month->format('Y');
                 $values[] = (float) Subscription::where('statut', 'Succès')
                     ->whereYear('created_at', $month->year)
                     ->whereMonth('created_at', $month->month)

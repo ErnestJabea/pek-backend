@@ -14,7 +14,7 @@ class PaymentMethodsDistributionWidget extends ChartWidget
 
     protected static ?int $sort = 3;
 
-    protected static ?string $maxHeight = '280px';
+    protected static ?string $maxHeight = '340px';
 
     protected int|string|array $columnSpan = 1;
 

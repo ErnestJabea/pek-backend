@@ -6,9 +6,19 @@
                     <h2 class="text-lg font-semibold text-gray-950 dark:text-white">Vue d’ensemble de l’activité</h2>
                     <p class="text-sm text-gray-500 dark:text-gray-400">Mise à jour le {{ $updatedAt }} · {{ $timezone }}</p>
                 </div>
-                <x-filament::button wire:click="$refresh" wire:loading.attr="disabled" icon="heroicon-o-arrow-path" color="gray">
-                    Actualiser
-                </x-filament::button>
+                <div class="flex items-center gap-2">
+                    <x-filament::button
+                        href="{{ \App\Filament\Pages\KpiAnalytics::getUrl() }}"
+                        tag="a"
+                        icon="heroicon-o-chart-bar-square"
+                        color="primary"
+                    >
+                        📊 Voir les Graphiques des KPI
+                    </x-filament::button>
+                    <x-filament::button wire:click="$refresh" wire:loading.attr="disabled" icon="heroicon-o-arrow-path" color="gray">
+                        Actualiser
+                    </x-filament::button>
+                </div>
             </div>
         </x-filament::section>
 
@@ -17,19 +27,12 @@
                 <h2 class="text-base font-semibold text-gray-950 dark:text-white">{{ $heading }}</h2>
                 <div class="grid gap-6 md:grid-cols-2 {{ $loop->first ? 'xl:grid-cols-4' : 'xl:grid-cols-3' }}">
                     @foreach ($cards as $card)
-                        @php
-                            $stat = \Filament\Widgets\StatsOverviewWidget\Stat::make($card['label'], $card['formatted'])
-                                ->description($card['description'])
-                                ->descriptionIcon($card['url'] ? 'heroicon-m-arrow-top-right-on-square' : 'heroicon-m-information-circle')
-                                ->icon($card['icon'])
-                                ->color($loop->parent->first ? 'primary' : 'warning')
-                                ->url($card['url']);
-
-                            if (! empty($card['chart'])) {
-                                $stat->chart($card['chart']);
-                            }
-                        @endphp
-                        {{ $stat }}
+                        {{ \Filament\Widgets\StatsOverviewWidget\Stat::make($card['label'], $card['formatted'])
+                            ->description($card['description'])
+                            ->descriptionIcon($card['url'] ? 'heroicon-m-arrow-top-right-on-square' : 'heroicon-m-information-circle')
+                            ->icon($card['icon'])
+                            ->color($loop->parent->first ? 'primary' : 'warning')
+                            ->url($card['url']) }}
                     @endforeach
                 </div>
             </section>
