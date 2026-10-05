@@ -60,6 +60,15 @@ class OnboardingSessionResource extends Resource
         return $record->status === 'completed' && parent::canEdit($record);
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->whereHas('user', function (Builder $query) {
+                $query->where('role', '!=', 'admin')
+                    ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'super_admin'));
+            });
+    }
+
     public static function form(Form $form): Form
     {
         return $form

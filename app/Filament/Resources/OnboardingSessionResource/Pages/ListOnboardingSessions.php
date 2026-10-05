@@ -26,12 +26,12 @@ class ListOnboardingSessions extends ListRecords
             'pending' => Tab::make('À traiter / En cours')
                 ->icon('heroicon-o-clock')
                 ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['completed', 'in_progress']))
-                ->badge(OnboardingSession::whereIn('status', ['completed', 'in_progress'])->count())
+                ->badge(static::getResource()::getEloquentQuery()->whereIn('status', ['completed', 'in_progress'])->count())
                 ->badgeColor('warning'),
             'validated' => Tab::make('Dossiers Validés')
                 ->icon('heroicon-o-check-circle')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'validated'))
-                ->badge(OnboardingSession::where('status', 'validated')->count())
+                ->badge(static::getResource()::getEloquentQuery()->where('status', 'validated')->count())
                 ->badgeColor('success'),
             'rejected' => Tab::make('Rejetés')
                 ->icon('heroicon-o-x-circle')
