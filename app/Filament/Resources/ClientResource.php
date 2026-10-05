@@ -140,6 +140,7 @@ class ClientResource extends Resource
                     ->label('Rappel Pièce')
                     ->icon('heroicon-o-identification')
                     ->color('warning')
+                    ->visible(fn (Client $record): bool => (bool) $record->is_id_expired)
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer un rappel de renouvellement de pièce')
                     ->action(function (Client $record) {
@@ -147,7 +148,7 @@ class ClientResource extends Resource
                         \Illuminate\Support\Facades\Mail::to($record->email)->send(new \App\Mail\IdDocumentExpiryReminderMail($record, $days));
                         \App\Models\Notification::create([
                             'user_id' => $record->id,
-                            'title' => $days <= 0 ? 'Action requise : Votre pièce d\'identité a expiré' : "Rappel : Votre pièce d'identité expire dans {} jours",
+                            'title' => 'Action requise : Votre pièce d\'identité a expiré',
                             'body' => 'Veuillez renouveler votre pièce d\'identité dans votre profil.',
                             'type' => 'warning',
                         ]);

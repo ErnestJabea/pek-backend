@@ -75,12 +75,12 @@ class SendIdDocumentExpiryReminders extends Command
 
             $expiryDate = Carbon::parse($expiryStr)->endOfDay();
 
-            // Only notify if expiring within 30 days OR already expired
-            if ($expiryDate->gt($thirtyDaysFromNow)) {
+            $daysRemaining = (int) now()->diffInDays($expiryDate, false);
+
+            // Relancer UNIQUEMENT si la pièce est expirée
+            if ($daysRemaining > 0) {
                 continue;
             }
-
-            $daysRemaining = (int) now()->diffInDays($expiryDate, false);
 
             // Anti-spam throttle: do not send if notified within last 7 days unless --force
             if (! $force && $user->last_id_expiry_reminder_at && Carbon::parse($user->last_id_expiry_reminder_at)->gt($sevenDaysAgo)) {

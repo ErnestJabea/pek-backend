@@ -145,6 +145,7 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->label('Relancer')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
+                    ->visible(fn (User $record): bool => (bool) $record->is_id_expired)
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer un rappel d\'expiration de pièce')
                     ->modalDescription(fn (User $record) => "Un email transactionnel de mise à jour ainsi qu'une alerte in-app seront transmis à {$record->first_name} {$record->last_name} ({$record->email}).")
@@ -155,7 +156,7 @@ class IdDocumentExpirations extends Page implements HasTable
 
                             InAppNotification::create([
                                 'user_id' => $record->id,
-                                'title' => $days <= 0 ? 'Action requise : Votre pièce d\'identité a expiré' : "Rappel : Votre pièce d'identité expire dans {$days} jours",
+                                'title' => 'Action requise : Votre pièce d\'identité a expiré',
                                 'body' => 'Veuillez renouveler votre document d\'identification dans votre profil pour maintenir la conformité de votre compte.',
                                 'type' => 'warning',
                             ]);
@@ -179,19 +180,32 @@ class IdDocumentExpirations extends Page implements HasTable
             ])
             ->bulkActions([
                 BulkAction::make('bulk_send_reminders')
-                    ->label('Envoyer un rappel aux clients sélectionnés')
+                    ->label('Envoyer un rappel aux pièces expirées sélectionnées')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
                     ->requiresConfirmation()
+                    ->modalHeading('Relancer les pièces expirées')
+                    ->modalDescription('Seuls les clients dont la pièce est effectivement expirée recevront le rappel.')
                     ->action(function (Collection $records) {
+                        $expiredRecords = $records->filter(fn (User $u) => (bool) $u->is_id_expired);
+
+                        if ($expiredRecords->isEmpty()) {
+                            Notification::make()
+                                ->title('Aucune pièce expirée')
+                                ->body('Aucun des clients sélectionnés ne possède de pièce expirée.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
                         $count = 0;
-                        foreach ($records as $record) {
+                        foreach ($expiredRecords as $record) {
                             try {
                                 $days = $record->id_days_until_expiration ?? 0;
                                 Mail::to($record->email)->send(new IdDocumentExpiryReminderMail($record, $days));
                                 InAppNotification::create([
                                     'user_id' => $record->id,
-                                    'title' => $days <= 0 ? 'Action requise : Votre pièce d\'identité a expiré' : "Rappel : Votre pièce d'identité expire dans {$days} jours",
+                                    'title' => 'Action requise : Votre pièce d\'identité a expiré',
                                     'body' => 'Veuillez renouveler votre document d\'identification dans votre profil pour maintenir la conformité de votre compte.',
                                     'type' => 'warning',
                                 ]);
@@ -205,7 +219,7 @@ class IdDocumentExpirations extends Page implements HasTable
 
                         Notification::make()
                             ->title("Rappels envoyés ({$count})")
-                            ->body("Les rappels ont été envoyés à {$count} client(s).")
+                            ->body("Les rappels ont été envoyés à {$count} client(s) ayant une pièce expirée.")
                             ->success()
                             ->send();
                     }),
