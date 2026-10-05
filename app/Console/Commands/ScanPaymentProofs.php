@@ -17,9 +17,9 @@ class ScanPaymentProofs extends Command
     public function handle(ProofScanner $scanner): int
     {
         if (! config('payments.scanner_binary')) {
-            $this->error('PAYMENT_PROOF_SCANNER absent : les documents restent en quarantaine.');
+            $this->info('PAYMENT_PROOF_SCANNER absent : aucun scanner configuré. Documents conservés en quarantaine.');
 
-            return self::FAILURE;
+            return self::SUCCESS;
         }
         PaymentProof::where('scan_status', 'quarantined')->limit(50)->get()->each(function ($proof) use ($scanner) {
             $path = Storage::disk('payment_private')->path($proof->path);

@@ -108,8 +108,7 @@ class ClientBirthdays extends Page implements HasTable
 
                 TextColumn::make('last_birthday_wish_sent_at')
                     ->label('Dernier souhait')
-                    ->dateTime('d/m/Y H:i')
-                    ->placeholder('Aucun')
+                    ->state(fn (User $record) => $record->last_birthday_wish_sent_at ? Carbon::parse($record->last_birthday_wish_sent_at)->format('d/m/Y H:i') : 'Aucun')
                     ->sortable(),
             ])
             ->filters([

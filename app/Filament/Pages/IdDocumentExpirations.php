@@ -109,8 +109,7 @@ class IdDocumentExpirations extends Page implements HasTable
 
                 TextColumn::make('last_id_expiry_reminder_at')
                     ->label('Dernier rappel')
-                    ->dateTime('d/m/Y H:i')
-                    ->placeholder('Aucun')
+                    ->state(fn (User $record) => $record->last_id_expiry_reminder_at ? Carbon::parse($record->last_id_expiry_reminder_at)->format('d/m/Y H:i') : 'Aucun')
                     ->sortable(),
             ])
             ->filters([
