@@ -31,9 +31,7 @@ class ClientResource extends Resource
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ])
-            ->where('role', '!=', 'admin')
-            ->whereNull('admin_department_id')
-            ->whereDoesntHave('roles');
+            ->onlyClients();
     }
 
     public static function getModelLabel(): string

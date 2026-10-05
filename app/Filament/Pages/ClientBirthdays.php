@@ -41,9 +41,7 @@ class ClientBirthdays extends Page implements HasTable
         return $table
             ->query(
                 User::query()
-                    ->where('role', '!=', 'admin')
-                    ->whereNull('admin_department_id')
-                    ->whereDoesntHave('roles')
+                    ->onlyClients()
                     ->whereNull('deleted_at')
                     ->with('onboardingSession')
                     ->orderByRaw('dob IS NULL, dob DESC')

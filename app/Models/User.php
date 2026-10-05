@@ -6,6 +6,7 @@ namespace App\Models;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -18,6 +19,22 @@ class User extends Authenticatable implements FilamentUser, HasName
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
     use HasRoles { hasPermissionTo as private hasPermissionWithoutDepartment; }
+
+    public function scopeOnlyClients(Builder $query): Builder
+    {
+        return $query
+            ->where('role', '!=', 'admin')
+            ->whereNull('admin_department_id')
+            ->whereDoesntHave('roles')
+            ->where(function (Builder $q) {
+                $q->whereNull('first_name')
+                    ->orWhereRaw("LOWER(TRIM(first_name)) NOT IN ('admin', 'administrateur')");
+            })
+            ->where(function (Builder $q) {
+                $q->whereNull('last_name')
+                    ->orWhereRaw("LOWER(TRIM(last_name)) NOT IN ('admin', 'administrateur')");
+            });
+    }
 
     public function adminDepartment()
     {

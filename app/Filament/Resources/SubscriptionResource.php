@@ -49,9 +49,7 @@ class SubscriptionResource extends Resource
     {
         return parent::getEloquentQuery()
             ->whereHas('user', function (Builder $query) {
-                $query->where('role', '!=', 'admin')
-                    ->whereNull('admin_department_id')
-                    ->whereDoesntHave('roles');
+                $query->onlyClients();
             });
     }
 
@@ -136,7 +134,7 @@ class SubscriptionResource extends Resource
                             ->relationship(
                                 'user',
                                 'last_name',
-                                fn (Builder $query) => $query->where('role', '!=', 'admin')->whereNull('admin_department_id')->whereDoesntHave('roles')
+                                fn (Builder $query) => $query->onlyClients()
                             )
                             ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} ({$record->email} - {$record->phone})")
                             ->searchable(['first_name', 'last_name', 'email', 'phone'])
