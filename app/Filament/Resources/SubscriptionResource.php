@@ -17,6 +17,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class SubscriptionResource extends Resource
@@ -43,6 +44,16 @@ class SubscriptionResource extends Resource
     protected static ?string $navigationGroup = 'Opérations & Souscriptions';
 
     protected static ?int $navigationSort = 3;
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->whereHas('user', function (Builder $query) {
+                $query->where('role', '!=', 'admin')
+                    ->whereNull('admin_department_id')
+                    ->whereDoesntHave('roles');
+            });
+    }
 
     public static function getModelLabel(): string
     {
@@ -122,7 +133,11 @@ class SubscriptionResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('user_id')
                             ->label(__('messages.client'))
-                            ->relationship('user', 'last_name')
+                            ->relationship(
+                                'user',
+                                'last_name',
+                                fn (Builder $query) => $query->where('role', '!=', 'admin')->whereNull('admin_department_id')->whereDoesntHave('roles')
+                            )
                             ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} ({$record->email} - {$record->phone})")
                             ->searchable(['first_name', 'last_name', 'email', 'phone'])
                             ->preload()

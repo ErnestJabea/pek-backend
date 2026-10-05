@@ -65,7 +65,8 @@ class OnboardingSessionResource extends Resource
         return parent::getEloquentQuery()
             ->whereHas('user', function (Builder $query) {
                 $query->where('role', '!=', 'admin')
-                    ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'super_admin'));
+                    ->whereNull('admin_department_id')
+                    ->whereDoesntHave('roles');
             });
     }
 

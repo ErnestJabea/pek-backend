@@ -32,7 +32,8 @@ class ClientResource extends Resource
                 SoftDeletingScope::class,
             ])
             ->where('role', '!=', 'admin')
-            ->whereDoesntHave('roles', fn (Builder $query) => $query->where('name', 'super_admin'));
+            ->whereNull('admin_department_id')
+            ->whereDoesntHave('roles');
     }
 
     public static function getModelLabel(): string

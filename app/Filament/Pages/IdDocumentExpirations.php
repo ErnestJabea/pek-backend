@@ -42,7 +42,8 @@ class IdDocumentExpirations extends Page implements HasTable
             ->query(
                 User::query()
                     ->where('role', '!=', 'admin')
-                    ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'super_admin'))
+                    ->whereNull('admin_department_id')
+                    ->whereDoesntHave('roles')
                     ->whereNull('deleted_at')
                     ->with('onboardingSession')
                     ->orderByRaw('expiration_piece IS NULL, expiration_piece ASC')
