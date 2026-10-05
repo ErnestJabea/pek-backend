@@ -566,6 +566,7 @@ class SubscriptionResource extends Resource
                     }),
 
                 BankSubscriptionActions::reconcileAction(),
+                BankSubscriptionActions::valueAction(),
                 Tables\Actions\Action::make('printBulletin')
                     ->label('Bulletin de souscription')
                     ->icon('heroicon-o-printer')

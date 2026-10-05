@@ -45,6 +45,7 @@ class ClientBirthdays extends Page implements HasTable
                     ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'super_admin'))
                     ->whereNull('deleted_at')
                     ->with('onboardingSession')
+                    ->orderByRaw('dob IS NULL, dob DESC')
             )
             ->columns([
                 TextColumn::make('name')
@@ -69,7 +70,7 @@ class ClientBirthdays extends Page implements HasTable
                     ->sortable(['dob']),
 
                 TextColumn::make('age')
-                    ->label('ge actuel')
+                    ->label('Âge actuel')
                     ->state(fn (User $record) => $record->age !== null ? "{$record->age} ans" : '—'),
 
                 TextColumn::make('birthday_status')
@@ -108,7 +109,7 @@ class ClientBirthdays extends Page implements HasTable
                 TextColumn::make('last_birthday_wish_sent_at')
                     ->label('Dernier souhait')
                     ->dateTime('d/m/Y H:i')
-                    ->default('Aucun')
+                    ->placeholder('Aucun')
                     ->sortable(),
             ])
             ->filters([
@@ -128,6 +129,12 @@ class ClientBirthdays extends Page implements HasTable
 
                         match ($value) {
                             'today' => $query->whereNotNull('dob')->whereMonth('dob', $today->month)->whereDay('dob', $today->day),
+                            'this_week' => $query->whereNotNull('dob')->where(function ($q) use ($today) {
+                                for ($i = 0; $i <= 7; $i++) {
+                                    $d = $today->copy()->addDays($i);
+                                    $q->orWhere(fn ($sub) => $sub->whereMonth('dob', $d->month)->whereDay('dob', $d->day));
+                                }
+                            }),
                             'this_month' => $query->whereNotNull('dob')->whereMonth('dob', $today->month),
                             'missing' => $query->whereNull('dob'),
                             default => null,
@@ -139,6 +146,7 @@ class ClientBirthdays extends Page implements HasTable
                     ->label('Souhaiter')
                     ->icon('heroicon-o-gift')
                     ->color('success')
+                    ->visible(fn (User $record): bool => (bool) $record->is_birthday_today)
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer les vœux d\'anniversaire')
                     ->modalDescription(fn (User $record) => "Un email festif KAM ainsi qu'une notification in-app seront transmis à {$record->first_name} {$record->last_name} ({$record->email}).")
@@ -172,13 +180,26 @@ class ClientBirthdays extends Page implements HasTable
             ])
             ->bulkActions([
                 BulkAction::make('bulk_send_wishes')
-                    ->label('Envoyer les vœux aux clients sélectionnés')
+                    ->label('Envoyer les vœux aux anniversaires du jour')
                     ->icon('heroicon-o-gift')
                     ->color('success')
                     ->requiresConfirmation()
+                    ->modalHeading('Envoyer les vœux du jour')
+                    ->modalDescription('Seuls les clients dont l\'anniversaire est aujourd\'hui recevront les vœux par email et notification.')
                     ->action(function (Collection $records) {
+                        $todaysBirthdays = $records->filter(fn (User $u) => (bool) $u->is_birthday_today);
+
+                        if ($todaysBirthdays->isEmpty()) {
+                            Notification::make()
+                                ->title('Aucun anniversaire aujourd\'hui')
+                                ->body('Aucun des clients sélectionnés ne fête son anniversaire aujourd\'hui.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
                         $count = 0;
-                        foreach ($records as $record) {
+                        foreach ($todaysBirthdays as $record) {
                             try {
                                 Mail::to($record->email)->send(new ClientBirthdayMail($record));
                                 InAppNotification::create([
@@ -197,7 +218,7 @@ class ClientBirthdays extends Page implements HasTable
 
                         Notification::make()
                             ->title("Vœux envoyés ({$count})")
-                            ->body("Les souhaits ont été envoyés à {$count} client(s).")
+                            ->body("Les souhaits ont été envoyés à {$count} client(s) fêtant leur anniversaire aujourd'hui.")
                             ->success()
                             ->send();
                     }),

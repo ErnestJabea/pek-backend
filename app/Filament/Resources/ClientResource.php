@@ -159,13 +159,14 @@ class ClientResource extends Resource
                     ->label('Anniversaire')
                     ->icon('heroicon-o-cake')
                     ->color('success')
+                    ->visible(fn (Client $record): bool => (bool) $record->is_birthday_today)
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer les vœux d\'anniversaire')
                     ->action(function (Client $record) {
                         \Illuminate\Support\Facades\Mail::to($record->email)->send(new \App\Mail\ClientBirthdayMail($record));
                         \App\Models\Notification::create([
                             'user_id' => $record->id,
-                            'title' => 'Joyeux Anniversaire ! ðŸŽ‰',
+                            'title' => 'Joyeux Anniversaire ! 🎉',
                             'body' => "Toute l'équipe de KORI Asset Management vous souhaite un très heureux anniversaire !",
                             'type' => 'info',
                         ]);

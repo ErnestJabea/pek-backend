@@ -128,7 +128,7 @@ class ViewOnboardingSession extends ViewRecord
                     UserNotification::create([
                         'user_id' => $record->user_id,
                         'title' => 'Dossier d’onboarding rejeté',
-                        'body' => 'Votre dossier a été rejeté par l’équipe de conformité. Motif : '.$data['reason'],
+                        'body' => 'Votre dossier a été rejeté par l’équipe de KORI. Motif : '.$data['reason'],
                         'type' => 'danger',
                     ]);
 

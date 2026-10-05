@@ -12,9 +12,9 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class BankSubscriptionActions
 {
-    public static function confirm(string $actionClass): MountableAction
+    public static function confirm(string $actionClass, string $name = 'reviewAccounting'): MountableAction
     {
-        return $actionClass::make('reviewAccounting')
+        return $actionClass::make($name)
             ->label('Confirmer les fonds reçus')
             ->authorize(fn () => auth()->user()->can('confirm_bank_payment'))
             ->form([
@@ -78,5 +78,24 @@ class BankSubscriptionActions
                     ->body($record->statut === 'Succès' ? $record->nb_parts.' parts attribuées.' : 'Publiez une VL strictement antérieure au '.$record->value_date->format('d/m/Y').', puis relancez cette action.')
                     ->status($record->statut === 'Succès' ? 'success' : 'warning')->send();
             });
+    }
+
+    public static function reconcileAction(?string $actionClass = null): MountableAction
+    {
+        $class = $actionClass ?? \Filament\Tables\Actions\Action::class;
+
+        /** @var MountableAction $action */
+        $action = static::confirm($class, 'reconcileBankPayment');
+
+        return $action
+            ->label('Rapprochement bancaire')
+            ->modalHeading('Valider le rapprochement bancaire');
+    }
+
+    public static function valueAction(?string $actionClass = null): MountableAction
+    {
+        $class = $actionClass ?? \Filament\Tables\Actions\Action::class;
+
+        return static::value($class);
     }
 }

@@ -45,6 +45,7 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'super_admin'))
                     ->whereNull('deleted_at')
                     ->with('onboardingSession')
+                    ->orderByRaw('expiration_piece IS NULL, expiration_piece ASC')
             )
             ->columns([
                 TextColumn::make('name')
@@ -109,10 +110,9 @@ class IdDocumentExpirations extends Page implements HasTable
                 TextColumn::make('last_id_expiry_reminder_at')
                     ->label('Dernier rappel')
                     ->dateTime('d/m/Y H:i')
-                    ->default('Aucun')
+                    ->placeholder('Aucun')
                     ->sortable(),
             ])
-            ->defaultSort('expiration_piece', 'asc')
             ->filters([
                 SelectFilter::make('statut_piece')
                     ->label('Statut d\'échéance')
@@ -148,7 +148,7 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer un rappel d\'expiration de pièce')
-                    ->modalDescription(fn (User $record) => "Un email transactionnel de mise Ã  jour ainsi qu'une alerte in-app seront transmis Ã  {$record->first_name} {$record->last_name} ({$record->email}).")
+                    ->modalDescription(fn (User $record) => "Un email transactionnel de mise à jour ainsi qu'une alerte in-app seront transmis à {$record->first_name} {$record->last_name} ({$record->email}).")
                     ->action(function (User $record) {
                         try {
                             $days = $record->id_days_until_expiration ?? 0;
@@ -166,7 +166,7 @@ class IdDocumentExpirations extends Page implements HasTable
 
                             Notification::make()
                                 ->title('Rappel envoyé avec succès')
-                                ->body("Le rappel a été adressé Ã  {$record->email}.")
+                                ->body("Le rappel a été adressé à {$record->email}.")
                                 ->success()
                                 ->send();
                         } catch (\Throwable $e) {
@@ -206,7 +206,7 @@ class IdDocumentExpirations extends Page implements HasTable
 
                         Notification::make()
                             ->title("Rappels envoyés ({$count})")
-                            ->body("Les rappels ont été envoyés Ã  {$count} client(s).")
+                            ->body("Les rappels ont été envoyés à {$count} client(s).")
                             ->success()
                             ->send();
                     }),

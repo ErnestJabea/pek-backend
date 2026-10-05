@@ -147,10 +147,10 @@ class OnboardingController extends Controller
             'piece_verso' => ['nullable', 'string'],
             'doc_piece_verso' => ['nullable', 'string'],
         ], [
-            'type_piece.required' => 'Le type de pièce d'identification est obligatoire.',
-            'num_piece.required' => 'Le numéro de la pièce d'identification est obligatoire.',
-            'expiration_piece.required' => 'La date d'expiration de la pièce est obligatoire.',
-            'expiration_piece.after' => 'La nouvelle date d'expiration doit être dans le futur.',
+            'type_piece.required' => "Le type de pièce d'identification est obligatoire.",
+            'num_piece.required' => "Le numéro de la pièce d'identification est obligatoire.",
+            'expiration_piece.required' => "La date d'expiration de la pièce est obligatoire.",
+            'expiration_piece.after' => "La nouvelle date d'expiration doit être dans le futur.",
         ]);
 
         $user = $request->user();
@@ -206,26 +206,26 @@ class OnboardingController extends Controller
 
             $this->syncSupportingDocuments($session, $session->payload);
             $session->save();
-
+ 
             OnboardingEvent::create([
                 'onboarding_session_id' => $session->id,
                 'actor_user_id' => $user->id,
                 'event_type' => 'identity_document_renewed',
                 'from_status' => $session->status,
                 'to_status' => $session->status,
-                'reason' => 'Renouvellement de la pièce d'identité : ' . $validated['type_piece'] . ' n°' . $validated['num_piece'] . ' (exp. ' . $validated['expiration_piece'] . ')',
+                'reason' => "Renouvellement de la pièce d'identité : " . $validated['type_piece'] . ' n°' . $validated['num_piece'] . ' (exp. ' . $validated['expiration_piece'] . ')',
             ]);
         }
 
         Notification::create([
             'user_id' => $user->id,
-            'title' => 'Pièce d'identité mise Ã  jour',
-            'body' => 'Votre pièce d'identification a été mise Ã  jour avec succès.',
+            'title' => 'Pièce d\'identité mise à jour',
+            'body' => 'Votre pièce d\'identification a été mise à jour avec succès.',
             'type' => 'success',
         ]);
 
         return response()->json([
-            'message' => 'Pièce d'identification mise Ã  jour avec succès.',
+            'message' => 'Pièce d\'identification mise à jour avec succès.',
             'user' => $user->fresh(),
             'session' => $session,
         ]);

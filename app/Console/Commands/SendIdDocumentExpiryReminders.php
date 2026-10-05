@@ -106,8 +106,8 @@ class SendIdDocumentExpiryReminders extends Command
                     : "Rappel : Votre pièce d'identité expire dans {$daysRemaining} jours";
 
                 $body = $daysRemaining <= 0
-                    ? "Votre pièce d'identification ({$user->type_piece}) est expirée depuis le {$formattedDate}. Veuillez mettre Ã  jour votre document dans votre profil pour maintenir la conformité de votre compte."
-                    : "Votre pièce d'identification ({$user->type_piece}) arrive Ã  expiration le {$formattedDate} ({$daysRemaining} jours restants). Pensez Ã  renouveler votre pièce dès maintenant.";
+                    ? "Votre pièce d'identification ({$user->type_piece}) est expirée depuis le {$formattedDate}. Veuillez mettre à jour votre document dans votre profil pour maintenir la conformité de votre compte."
+                    : "Votre pièce d'identification ({$user->type_piece}) arrive à expiration le {$formattedDate} ({$daysRemaining} jours restants). Pensez à renouveler votre pièce dès maintenant.";
 
                 Notification::create([
                     'user_id' => $user->id,
