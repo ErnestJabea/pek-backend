@@ -38,7 +38,19 @@ class PaymentProofsRelationManager extends RelationManager
         ])->actions([
             Tables\Actions\Action::make('download')->label('Télécharger')
                 ->visible(fn (PaymentProof $record) => in_array($record->scan_status, ['clean', 'quarantined'], true) && auth()->user()->can('view_payment_proof'))
-                ->url(fn (PaymentProof $record) => route('admin.payment-proofs.download', $record))->openUrlInNewTab(),
+                ->action(function (PaymentProof $record) {
+                    if (!$record->path || !\Illuminate\Support\Facades\Storage::disk('payment_private')->exists($record->path)) {
+                        Notification::make()
+                            ->title('Justificatif non disponible')
+                            ->body('Ce justificatif n\'existe pas sur le serveur ou n\'a pas été téléversé par le client.')
+                            ->warning()
+                            ->send();
+
+                        return;
+                    }
+
+                    return redirect()->away(route('admin.payment-proofs.download', $record));
+                }),
             Tables\Actions\Action::make('review')->label('Examiner le justificatif')
                 ->authorize(fn () => auth()->user()->can('review_payment_proof'))
                 ->modalDescription('Un document en quarantaine nécessite une analyse antivirus sur le serveur. Le document ne prouve pas la réception des fonds : vérifiez le compte bancaire avant de confirmer le virement.')

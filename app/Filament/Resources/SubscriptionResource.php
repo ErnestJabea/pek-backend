@@ -591,8 +591,20 @@ class SubscriptionResource extends Resource
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('info')
                     ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists())
-                    ->url(fn (Subscription $record) => route('admin.payment-proofs.download', $record->paymentProofs()->latest()->first()))
-                    ->openUrlInNewTab(),
+                    ->action(function (Subscription $record) {
+                        $proof = $record->paymentProofs()->latest()->first();
+                        if (!$proof || !$proof->path || !\Illuminate\Support\Facades\Storage::disk('payment_private')->exists($proof->path)) {
+                            Notification::make()
+                                ->title('Justificatif non disponible')
+                                ->body('Ce justificatif n\'existe pas sur le serveur ou n\'a pas été téléversé par le client.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        return redirect()->away(route('admin.payment-proofs.download', $proof));
+                    }),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
