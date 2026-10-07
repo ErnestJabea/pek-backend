@@ -5,15 +5,18 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreKYCRequest;
 use App\Http\Requests\StoreLABFTRequest;
 use App\Jobs\GenerateOnboardingDocumentsJob;
+use App\Mail\NewOnboardingSubmittedAdminMail;
 use App\Models\IdentityVerification;
 use App\Models\Notification;
 use App\Models\OnboardingEvent;
 use App\Models\OnboardingSession;
+use App\Models\SystemSetting;
 use App\Services\ProfilRiskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -366,6 +369,19 @@ class OnboardingController extends Controller
 
                 return $session->fresh();
             });
+
+            // Notification par e-mail à l'équipe de conformité
+            try {
+                if (SystemSetting::get('onboarding_submission_notifications_enabled', true)) {
+                    $rawEmails = SystemSetting::get('onboarding_submission_notification_emails', 'conformite@koriassetmanagement.com');
+                    $adminEmails = array_filter(array_map('trim', explode(',', (string) $rawEmails)));
+                    if (! empty($adminEmails)) {
+                        Mail::to($adminEmails)->send(new NewOnboardingSubmittedAdminMail($session->loadMissing('user')));
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::error('Erreur envoi notification admin onboarding soumis: ' . $e->getMessage());
+            }
 
             return $this->privateResponse([
                 'message' => 'Onboarding soumis avec succès.',

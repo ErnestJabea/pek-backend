@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\NewSubscriptionAdminMail;
 use App\Models\BankDetail;
 use App\Models\Notification;
 use App\Models\Product;
 use App\Models\Subscription;
+use App\Models\SystemSetting;
 use App\Services\Payments\BankPaymentService;
 use App\Services\Payments\LocalPaymentGateway;
 use App\Services\Payments\MobilePaymentService;
@@ -20,6 +22,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
@@ -178,6 +181,21 @@ class SubscriptionController extends Controller
 
                 return [$subscription->load('product'), true];
             });
+
+            // Notification par e-mail à l'équipe des opérations & trésorerie
+            if ($created) {
+                try {
+                    if (SystemSetting::get('subscription_notifications_enabled', true)) {
+                        $rawEmails = SystemSetting::get('subscription_notification_emails', 'comptabilite@koriassetmanagement.com');
+                        $adminEmails = array_filter(array_map('trim', explode(',', (string) $rawEmails)));
+                        if (! empty($adminEmails)) {
+                            Mail::to($adminEmails)->send(new NewSubscriptionAdminMail($subscription->loadMissing(['user', 'product'])));
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('Erreur envoi notification admin nouvelle souscription: ' . $e->getMessage());
+                }
+            }
 
             if ($subscription->moyen_paiement === 'card') {
                 return $this->initiateStripeCheckout($subscription, $created ? 201 : 200);

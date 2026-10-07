@@ -34,6 +34,16 @@ class ManageNotificationSettings extends Page
             'subscription_sla_hours' => SystemSetting::get('subscription_sla_hours', 48),
             'sla_alerts_enabled' => SystemSetting::get('sla_alerts_enabled', true),
 
+            // Notifications d'événements immédiats
+            'registration_notifications_enabled' => SystemSetting::get('registration_notifications_enabled', true),
+            'registration_notification_emails' => SystemSetting::get('registration_notification_emails', 'contact@koriassetmanagement.com'),
+
+            'onboarding_submission_notifications_enabled' => SystemSetting::get('onboarding_submission_notifications_enabled', true),
+            'onboarding_submission_notification_emails' => SystemSetting::get('onboarding_submission_notification_emails', 'conformite@koriassetmanagement.com'),
+
+            'subscription_notifications_enabled' => SystemSetting::get('subscription_notifications_enabled', true),
+            'subscription_notification_emails' => SystemSetting::get('subscription_notification_emails', 'comptabilite@koriassetmanagement.com'),
+
             // Pièces d'identité
             'id_expiry_reminders_enabled' => SystemSetting::get('id_expiry_reminders_enabled', true),
             'id_expiry_notice_days' => SystemSetting::get('id_expiry_notice_days', 30),
@@ -50,6 +60,43 @@ class ManageNotificationSettings extends Page
     {
         return $form
             ->schema([
+                Section::make('Notifications Immédiates d\'Événements (Alertes Équipe)')
+                    ->description('Configurez les adresses e-mails spécifiques qui reçoivent immédiatement une alerte à chaque nouvel événement client.')
+                    ->schema([
+                        // Inscriptions
+                        Toggle::make('registration_notifications_enabled')
+                            ->label('Alerter par e-mail à chaque nouvelle inscription client')
+                            ->default(true),
+
+                        TextInput::make('registration_notification_emails')
+                            ->label('E-mails destinataires — Nouvelles Inscriptions')
+                            ->placeholder('contact@koriassetmanagement.com, admin@pek.com')
+                            ->helperText('Adresses e-mails recevant les alertes de nouveaux comptes créés. Séparer par des virgules si plusieurs.')
+                            ->required(fn (\Filament\Forms\Get $get) => (bool) $get('registration_notifications_enabled')),
+
+                        // Onboarding soumis
+                        Toggle::make('onboarding_submission_notifications_enabled')
+                            ->label('Alerter par e-mail dès qu\'un client soumet son dossier KYC à valider')
+                            ->default(true),
+
+                        TextInput::make('onboarding_submission_notification_emails')
+                            ->label('E-mails destinataires — Dossiers Onboarding Soumis (Conformité)')
+                            ->placeholder('conformite@koriassetmanagement.com')
+                            ->helperText('Adresses e-mails chargées de la vérification des pièces d\'identité et de l\'activation des comptes.')
+                            ->required(fn (\Filament\Forms\Get $get) => (bool) $get('onboarding_submission_notifications_enabled')),
+
+                        // Souscriptions
+                        Toggle::make('subscription_notifications_enabled')
+                            ->label('Alerter par e-mail lors de chaque nouvelle souscription client')
+                            ->default(true),
+
+                        TextInput::make('subscription_notification_emails')
+                            ->label('E-mails destinataires — Nouvelles Souscriptions (Opérations & Trésorerie)')
+                            ->placeholder('comptabilite@koriassetmanagement.com, operations@koriassetmanagement.com')
+                            ->helperText('Adresses e-mails chargées du suivi des règlements et de la comptabilisation des souscriptions.')
+                            ->required(fn (\Filament\Forms\Get $get) => (bool) $get('subscription_notifications_enabled')),
+                    ]),
+
                 Section::make('Rappels Réglementaires — Pièces d\'Identité (KYC)')
                     ->description('Paramétrez les relances automatiques lorsque la pièce d\'identification d\'un investisseur arrive à expiration ou est expirée.')
                     ->schema([
@@ -99,17 +146,17 @@ class ManageNotificationSettings extends Page
                             ->helperText('Texte inséré au cœur du courriel festif KORI Asset Management.'),
                     ]),
 
-                Section::make('Destinataires des Notifications Internes')
-                    ->description('Définissez les adresses e-mail des équipes chargées des contrôles internes.')
+                Section::make('Destinataires des Contrôles & Alertes SLA')
+                    ->description('Définissez les adresses e-mail des équipes chargées des contrôles internes et des dépassements de délais.')
                     ->schema([
                         TextInput::make('compliance_emails')
-                            ->label('E-mails Équipe Conformité')
+                            ->label('E-mails Équipe Conformité (Alertes SLA)')
                             ->placeholder('conformite@example.com, responsable@example.com')
                             ->helperText('Séparer les adresses par des virgules si vous en avez plusieurs.')
                             ->required(),
 
                         TextInput::make('accounting_emails')
-                            ->label('E-mails Équipe Comptabilité')
+                            ->label('E-mails Équipe Comptabilité (Alertes SLA)')
                             ->placeholder('comptabilite@example.com')
                             ->helperText('Séparer les adresses par des virgules si vous en avez plusieurs.')
                             ->required(),
@@ -144,6 +191,17 @@ class ManageNotificationSettings extends Page
     {
         $state = $this->form->getState();
 
+        // Notifications d'événements immédiats
+        SystemSetting::set('registration_notifications_enabled', (bool) ($state['registration_notifications_enabled'] ?? true), 'bool');
+        SystemSetting::set('registration_notification_emails', (string) ($state['registration_notification_emails'] ?? 'contact@koriassetmanagement.com'), 'string');
+
+        SystemSetting::set('onboarding_submission_notifications_enabled', (bool) ($state['onboarding_submission_notifications_enabled'] ?? true), 'bool');
+        SystemSetting::set('onboarding_submission_notification_emails', (string) ($state['onboarding_submission_notification_emails'] ?? 'conformite@koriassetmanagement.com'), 'string');
+
+        SystemSetting::set('subscription_notifications_enabled', (bool) ($state['subscription_notifications_enabled'] ?? true), 'bool');
+        SystemSetting::set('subscription_notification_emails', (string) ($state['subscription_notification_emails'] ?? 'comptabilite@koriassetmanagement.com'), 'string');
+
+        // SLA
         SystemSetting::set('compliance_emails', $state['compliance_emails']);
         SystemSetting::set('accounting_emails', $state['accounting_emails']);
         SystemSetting::set('onboarding_sla_hours', (int) $state['onboarding_sla_hours']);

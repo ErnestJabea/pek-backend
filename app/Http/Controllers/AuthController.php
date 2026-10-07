@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\NewClientRegistrationAdminMail;
 use App\Mail\OtpMail;
 use App\Models\OtpCode;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\PortfolioService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -87,8 +90,21 @@ class AuthController extends Controller
 
         [$otpCode, $challengeId] = $this->issueOtp($user, 'register');
 
-        // Send Email
+        // Send Email to client
         Mail::to($user->email)->send(new OtpMail($otpCode, $user));
+
+        // Notification interne pour les administrateurs
+        try {
+            if (SystemSetting::get('registration_notifications_enabled', true)) {
+                $rawEmails = SystemSetting::get('registration_notification_emails', 'contact@koriassetmanagement.com');
+                $adminEmails = array_filter(array_map('trim', explode(',', (string) $rawEmails)));
+                if (! empty($adminEmails)) {
+                    Mail::to($adminEmails)->send(new NewClientRegistrationAdminMail($user));
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('Erreur envoi notification admin nouvelle inscription: ' . $e->getMessage());
+        }
 
         $responseData = [
             'message' => 'Utilisateur créé. Veuillez vérifier votre email pour le code OTP.',
