@@ -195,6 +195,15 @@ class SubscriptionController extends Controller
                 } catch (\Throwable $e) {
                     Log::error('Erreur envoi notification admin nouvelle souscription: ' . $e->getMessage());
                 }
+
+                // Pour les virements bancaires : envoi immédiat des coordonnées bancaires et rappel de téléversement de la preuve
+                if (in_array($subscription->moyen_paiement, ['bank_transfer', 'virement'], true)) {
+                    try {
+                        \App\Services\Payments\BankTransferProofReminderService::sendReminder($subscription);
+                    } catch (\Throwable $e) {
+                        Log::error('Erreur envoi rappel preuve virement client: ' . $e->getMessage());
+                    }
+                }
             }
 
             if ($subscription->moyen_paiement === 'card') {

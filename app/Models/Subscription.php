@@ -117,6 +117,7 @@ class Subscription extends Model
         'value_date',
         'nav_date',
         'bank_reference',
+        'last_proof_reminder_at',
     ];
 
     protected $hidden = [
@@ -156,6 +157,7 @@ class Subscription extends Model
         'bank_snapshot' => 'array',
         'payment_phone' => 'encrypted',
         'funds_received_at' => 'datetime',
+        'last_proof_reminder_at' => 'datetime',
         'value_date' => 'date',
         'nav_date' => 'date',
         'mobile_checked_at' => 'datetime',

@@ -18,6 +18,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('onboarding:send-reminders')->daily();
         $schedule->command('id:send-expiry-reminders')->daily();
         $schedule->command('birthdays:send-wishes')->dailyAt('08:00');
+        $schedule->command('subscriptions:send-transfer-proof-reminders')->dailyAt('09:00');
         $schedule->command('sanctum:prune-expired --hours=24')->daily();
         $schedule->call(function () {
             OtpCode::where('expires_at', '<', now()->subDay())->delete();

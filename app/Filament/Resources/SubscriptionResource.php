@@ -466,6 +466,12 @@ class SubscriptionResource extends Resource
                     ->dateTime('d/m/Y H:i')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->sortable(),
+                Tables\Columns\TextColumn::make('last_proof_reminder_at')
+                    ->label('Dernière relance')
+                    ->dateTime('d/m/Y H:i')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->sortable(),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
@@ -580,6 +586,31 @@ class SubscriptionResource extends Resource
 
                 BankSubscriptionActions::reconcileAction(),
                 BankSubscriptionActions::valueAction(),
+                Tables\Actions\Action::make('remindTransferProof')
+                    ->label('Relancer preuve virement')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('warning')
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && !$record->funds_received_at && !$record->paymentProofs()->exists())
+                    ->requiresConfirmation()
+                    ->modalHeading('Relancer le client pour la preuve de virement')
+                    ->modalDescription(fn (Subscription $record) => 'Envoyer immédiatement un email de rappel avec les coordonnées bancaires et une notification In-App à ' . ($record->user ? ($record->user->first_name . ' ' . $record->user->last_name . ' (' . $record->user->email . ')') : 'ce client') . ' pour la souscription ' . $record->reference_transaction . ' ?')
+                    ->modalSubmitActionLabel('Envoyer le rappel')
+                    ->action(function (Subscription $record) {
+                        $sent = \App\Services\Payments\BankTransferProofReminderService::sendReminder($record, auth()->id());
+                        if ($sent) {
+                            Notification::make()
+                                ->title('Rappel envoyé avec succès')
+                                ->body('L\'email avec les coordonnées bancaires et la notification in-app ont été transmis au client.')
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('Échec de l\'envoi')
+                                ->body('Impossible d\'envoyer le rappel. Vérifiez l\'adresse e-mail du client.')
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\Action::make('printBulletin')
                     ->label('Bulletin de souscription')
                     ->icon('heroicon-o-printer')
@@ -609,6 +640,29 @@ class SubscriptionResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('bulkRemindTransferProof')
+                        ->label('Relancer pour preuve de virement')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Relancer les clients sélectionnés pour leur preuve de virement')
+                        ->modalDescription('Un email et une notification in-app seront envoyés aux clients dont les souscriptions par virement sont en attente de justificatif.')
+                        ->modalSubmitActionLabel('Envoyer les rappels')
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if (in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && !$record->funds_received_at && !$record->paymentProofs()->exists()) {
+                                    if (\App\Services\Payments\BankTransferProofReminderService::sendReminder($record, auth()->id())) {
+                                        $count++;
+                                    }
+                                }
+                            }
+                            Notification::make()
+                                ->title("Rappels envoyés ({$count})")
+                                ->body("{$count} client(s) ont été relancés par email et notification in-app.")
+                                ->success()
+                                ->send();
+                        }),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
