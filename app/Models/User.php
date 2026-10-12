@@ -169,6 +169,10 @@ class User extends Authenticatable implements FilamentUser, HasName
         'dob',
         'last_birthday_wish_sent_at',
         'last_onboarding_reminder_at',
+        'mfa_type',
+        'mfa_secret',
+        'mfa_confirmed_at',
+        'mfa_prompt_dismissed',
     ];
 
     protected $hidden = [
@@ -176,6 +180,7 @@ class User extends Authenticatable implements FilamentUser, HasName
         'admin_department_id',
         'admin_department',
         'remember_token',
+        'mfa_secret',
     ];
 
     protected $casts = [
@@ -185,6 +190,9 @@ class User extends Authenticatable implements FilamentUser, HasName
         'dob' => 'date:Y-m-d',
         'last_birthday_wish_sent_at' => 'datetime',
         'last_onboarding_reminder_at' => 'datetime',
+        'mfa_confirmed_at' => 'datetime',
+        'mfa_prompt_dismissed' => 'boolean',
+        'mfa_secret' => 'encrypted',
         'password' => 'hashed',
     ];
 

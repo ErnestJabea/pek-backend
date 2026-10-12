@@ -62,6 +62,11 @@ $defineApiRoutes = function () {
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
         Route::post('/update-password', [AuthController::class, 'updatePassword']);
         Route::post('/reset-temp-password', [AuthController::class, 'resetTempPassword']);
+        // Multi-Factor Authentication (MFA)
+        Route::post('/mfa/setup-totp', [AuthController::class, 'setupTotp']);
+        Route::post('/mfa/confirm-totp', [AuthController::class, 'confirmTotp']);
+        Route::post('/mfa/update-preference', [AuthController::class, 'updateMfaPreference']);
+        Route::post('/mfa/dismiss-prompt', [AuthController::class, 'dismissMfaPrompt']);
         Route::get('/notifications', function (Request $request) {
             return $request->user()->notifications()->orderByDesc('created_at')->paginate(30);
         });

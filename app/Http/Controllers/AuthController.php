@@ -7,6 +7,7 @@ use App\Mail\OtpMail;
 use App\Models\OtpCode;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\Auth\TotpService;
 use App\Services\PortfolioService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -168,14 +169,7 @@ class AuthController extends Controller
             ->where('expires_at', '>', Carbon::now())
             ->first();
 
-        if (! $otp || $otp->attempts >= 5 || ! Hash::check($request->code, $otp->code)) {
-            if ($otp) {
-                $otp->increment('attempts');
-                if ($otp->fresh()->attempts >= 5) {
-                    $otp->delete();
-                }
-            }
-
+        if (! $otp || $otp->attempts >= 5) {
             return response()->json(['message' => 'Code invalide ou expiré.'], 422);
         }
 
@@ -183,34 +177,39 @@ class AuthController extends Controller
         if ($user->role === 'admin' || $user->hasRole('super_admin')) {
             return response()->json(['message' => 'Identifiants invalides.'], 401);
         }
+
+        // Vérification selon le type (TOTP Authenticator ou OTP email/SMS)
+        if ($otp->purpose === 'login_totp') {
+            $isValidTotp = ! empty($user->mfa_secret) && TotpService::verify($user->mfa_secret, $request->code);
+            if (! $isValidTotp) {
+                $otp->increment('attempts');
+                if ($otp->fresh()->attempts >= 5) {
+                    $otp->delete();
+                }
+
+                return response()->json(['message' => 'Code de sécurité TOTP invalide ou expiré.'], 422);
+            }
+        } else {
+            if (! Hash::check($request->code, $otp->code)) {
+                $otp->increment('attempts');
+                if ($otp->fresh()->attempts >= 5) {
+                    $otp->delete();
+                }
+
+                return response()->json(['message' => 'Code invalide ou expiré.'], 422);
+            }
+        }
+
         if ($otp->purpose === 'register') {
             $user->email_verified_at = Carbon::now();
         }
         $user->save();
 
-        $user->tokens()->delete();
-        $token = $user->createToken('auth_token', ['*'], now()->addDay())->plainTextToken;
-
         $otp->forceFill(['consumed_at' => now()])->save();
 
-        $cookie = cookie(
-            'auth_token',
-            $token,
-            1440, // 24 heures
-            '/',
-            null,
-            app()->environment('production') || config('session.same_site') === 'none' || (bool) config('session.secure'),
-            true, // HttpOnly
-            false,
-            config('session.same_site', 'lax')
-        );
-
-        return response()->json([
-            'access_token' => 'cookie_session',
-            'token_type' => 'Bearer',
-            'user' => $user,
-            'requires_password_change' => (bool) $user->has_temp_password,
-        ])->withCookie($cookie);
+        return $this->respondWithToken($user, [
+            'prompt_mfa' => ! $user->mfa_prompt_dismissed && ($user->mfa_type === 'none' || empty($user->mfa_type)),
+        ]);
     }
 
     public function login(Request $request)
@@ -230,18 +229,39 @@ class AuthController extends Controller
             return response()->json(['message' => 'Compte non vérifié.'], 403);
         }
 
+        // 1. Si l'utilisateur n'a pas activé de MFA (choix direct ou désactivé)
+        if (empty($user->mfa_type) || $user->mfa_type === 'none') {
+            return $this->respondWithToken($user, [
+                'requires_mfa' => false,
+                'prompt_mfa' => ! $user->mfa_prompt_dismissed,
+                'message' => 'Connexion réussie.',
+            ]);
+        }
+
+        // 2. Si l'utilisateur utilise une application d'authentification TOTP (Google/Microsoft Authenticator)
+        if ($user->mfa_type === 'totp' && ! empty($user->mfa_secret)) {
+            [$otpCode, $challengeId] = $this->issueOtp($user, 'login_totp');
+
+            return response()->json([
+                'requires_mfa' => true,
+                'mfa_type' => 'totp',
+                'challenge_id' => $challengeId,
+                'message' => 'Veuillez saisir le code à 6 chiffres généré par votre application d\'authentification.',
+            ]);
+        }
+
+        // 3. Si l'utilisateur utilise l'envoi d'OTP par e-mail
         [$otpCode, $challengeId] = $this->issueOtp($user, 'login');
 
         // Send Email
         Mail::to($user->email)->send(new OtpMail($otpCode, $user, 'login'));
 
-        $responseData = [
+        return response()->json([
             'requires_mfa' => true,
+            'mfa_type' => 'email',
             'challenge_id' => $challengeId,
             'message' => 'Un code de vérification MFA a été envoyé à votre adresse email.',
-        ];
-
-        return response()->json($responseData);
+        ]);
     }
 
     public function resendOtp(Request $request)
@@ -254,17 +274,22 @@ class AuthController extends Controller
 
         $challengeId = (string) Str::uuid();
         if ($user) {
+            if ($user->mfa_type === 'totp') {
+                return response()->json([
+                    'message' => 'Veuillez saisir le code actuel depuis votre application d\'authentification.',
+                    'mfa_type' => 'totp',
+                ]);
+            }
+
             $type = $user->email_verified_at ? 'login' : 'register';
             [$otpCode, $challengeId] = $this->issueOtp($user, $type);
             Mail::to($user->email)->send(new OtpMail($otpCode, $user, $type));
         }
 
-        $responseData = [
+        return response()->json([
             'message' => 'Un nouveau code a été envoyé.',
             'challenge_id' => $challengeId,
-        ];
-
-        return response()->json($responseData);
+        ]);
     }
 
     public function updateProfile(Request $request)
@@ -417,5 +442,144 @@ class AuthController extends Controller
         ]);
 
         return [$plainCode, $challengeId];
+    }
+
+    /**
+     * Helper pour standardiser la génération de token Sanctum et le cookie HTTP-Only.
+     */
+    private function respondWithToken(User $user, array $extra = [])
+    {
+        $user->tokens()->delete();
+        $token = $user->createToken('auth_token', ['*'], now()->addDay())->plainTextToken;
+
+        $cookie = cookie(
+            'auth_token',
+            $token,
+            1440, // 24 heures
+            '/',
+            null,
+            app()->environment('production') || config('session.same_site') === 'none' || (bool) config('session.secure'),
+            true, // HttpOnly
+            false,
+            config('session.same_site', 'lax')
+        );
+
+        return response()->json(array_merge([
+            'access_token' => 'cookie_session',
+            'token_type' => 'Bearer',
+            'user' => $user,
+            'requires_password_change' => (bool) $user->has_temp_password,
+        ], $extra))->withCookie($cookie);
+    }
+
+    /**
+     * Initialise la configuration TOTP pour l'utilisateur connecté.
+     * Route : POST /api/mfa/setup-totp
+     */
+    public function setupTotp(Request $request)
+    {
+        $user = $request->user();
+        $secret = TotpService::generateSecret();
+        $appName = config('app.name', 'FCP Kori Asset Management');
+        $provisioningUri = TotpService::getProvisioningUri($secret, $user->email, $appName);
+
+        return response()->json([
+            'secret' => $secret,
+            'provisioning_uri' => $provisioningUri,
+            'issuer' => $appName,
+            'account' => $user->email,
+        ]);
+    }
+
+    /**
+     * Confirme l'activation TOTP avec validation du premier code.
+     * Route : POST /api/mfa/confirm-totp
+     */
+    public function confirmTotp(Request $request)
+    {
+        $request->validate([
+            'secret' => 'required|string',
+            'code' => 'required|digits:6',
+        ]);
+
+        $user = $request->user();
+
+        if (! TotpService::verify($request->secret, $request->code)) {
+            return response()->json([
+                'message' => 'Code d\'authentification invalide. Vérifiez l\'heure de votre appareil et réessayez.',
+            ], 422);
+        }
+
+        $user->forceFill([
+            'mfa_type' => 'totp',
+            'mfa_secret' => $request->secret,
+            'mfa_confirmed_at' => now(),
+            'mfa_prompt_dismissed' => true,
+        ])->save();
+
+        return response()->json([
+            'message' => 'Application d\'authentification activée avec succès.',
+            'user' => $user->fresh(),
+        ]);
+    }
+
+    /**
+     * Met à jour la préférence MFA (désactivation 'none' ou passage à 'email').
+     * Route : POST /api/mfa/update-preference
+     */
+    public function updateMfaPreference(Request $request)
+    {
+        $request->validate([
+            'mfa_type' => 'required|in:none,email',
+        ]);
+
+        $user = $request->user();
+
+        if ($request->mfa_type === 'none') {
+            $user->forceFill([
+                'mfa_type' => 'none',
+                'mfa_secret' => null,
+                'mfa_confirmed_at' => null,
+                'mfa_prompt_dismissed' => true,
+            ])->save();
+
+            return response()->json([
+                'message' => 'Authentification à deux facteurs désactivée.',
+                'user' => $user->fresh(),
+            ]);
+        }
+
+        if ($request->mfa_type === 'email') {
+            $user->forceFill([
+                'mfa_type' => 'email',
+                'mfa_secret' => null,
+                'mfa_confirmed_at' => now(),
+                'mfa_prompt_dismissed' => true,
+            ])->save();
+
+            return response()->json([
+                'message' => 'Double authentification par e-mail activée.',
+                'user' => $user->fresh(),
+            ]);
+        }
+
+        return response()->json(['message' => 'Type de MFA non pris en charge.'], 422);
+    }
+
+    /**
+     * Marque que l'utilisateur a ignoré le prompt MFA pour ne plus le harceler.
+     * Route : POST /api/mfa/dismiss-prompt
+     */
+    public function dismissMfaPrompt(Request $request)
+    {
+        $user = $request->user();
+        $user->forceFill([
+            'mfa_prompt_dismissed' => true,
+        ])->save();
+
+        return response()->json([
+            'message' => 'Préférence enregistrée.',
+            'user' => $user->fresh(),
+        ]);
     }
 }
