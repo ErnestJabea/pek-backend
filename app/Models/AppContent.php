@@ -23,4 +23,13 @@ class AppContent extends Model
         'metadata' => 'array',
         'is_active' => 'boolean',
     ];
+
+    protected $appends = [
+        'image_url',
+    ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image_path ? asset('storage/'.$this->image_path) : null;
+    }
 }
