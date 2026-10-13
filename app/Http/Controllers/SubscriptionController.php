@@ -57,6 +57,19 @@ class SubscriptionController extends Controller
             'idempotency_key' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
         ]);
 
+        if (\Illuminate\Support\Facades\Schema::hasTable('payment_methods')) {
+            $methodKey = match ($validated['moyen_paiement']) {
+                'mobile_money' => 'orange_money',
+                default => $validated['moyen_paiement'],
+            };
+            $paymentMethodModel = \App\Models\PaymentMethod::where('code', $methodKey)->first();
+            if ($paymentMethodModel && ! $paymentMethodModel->is_active) {
+                return response()->json([
+                    'message' => 'Ce moyen de paiement est actuellement désactivé.',
+                ], 422);
+            }
+        }
+
         if ($validated['moyen_paiement'] === 'orange_money') {
             if (! preg_match('/^2376(9[0-9]|4[0-9]|5[5-9])[0-9]{6}$/', (string) ($validated['payment_phone'] ?? ''))) {
                 abort(422, 'Le numéro renseigné n’est pas un numéro Orange Cameroun valide (préfixes autorisés : 69x, 64x ou 655-659).');

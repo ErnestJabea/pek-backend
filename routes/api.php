@@ -40,9 +40,53 @@ $defineApiRoutes = function () {
     Route::post('/stripe/webhook', [WebhookController::class, 'handleStripe'])->middleware('throttle:provider-webhooks');
     Route::post('/s3p/webhook', S3pWebhookController::class)->middleware('throttle:provider-webhooks');
     Route::get('/payment-options', function (S3pGateway $gateway) {
-        return response()->json(['card' => true, 'stripe' => true, 'orange_money' => $gateway->available('orange_money'), 'mtn_momo' => $gateway->available('mtn_momo'),
+        $isCardActive = true;
+        $isOmActive = true;
+        $isMtnActive = true;
+        $isBankActive = true;
+        $methodsList = [];
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('payment_methods')) {
+            $methods = \App\Models\PaymentMethod::orderBy('sort_order')->get();
+            $mapped = $methods->keyBy('code');
+
+            if ($mapped->has('card')) {
+                $isCardActive = (bool) $mapped['card']->is_active;
+            }
+            if ($mapped->has('orange_money')) {
+                $isOmActive = (bool) $mapped['orange_money']->is_active;
+            }
+            if ($mapped->has('mtn_momo')) {
+                $isMtnActive = (bool) $mapped['mtn_momo']->is_active;
+            }
+            if ($mapped->has('bank_transfer')) {
+                $isBankActive = (bool) $mapped['bank_transfer']->is_active;
+            }
+
+            $methodsList = $methods->map(fn ($m) => [
+                'code' => $m->code,
+                'name' => $m->name,
+                'name_en' => $m->name_en,
+                'description' => $m->description,
+                'description_en' => $m->description_en,
+                'is_active' => (bool) $m->is_active,
+                'sort_order' => $m->sort_order,
+                'min_amount' => $m->min_amount,
+                'max_amount' => $m->max_amount,
+            ]);
+        }
+
+        return response()->json([
+            'card' => $isCardActive,
+            'stripe' => $isCardActive,
+            'orange_money' => $isOmActive && $gateway->available('orange_money'),
+            'mtn_momo' => $isMtnActive && $gateway->available('mtn_momo'),
+            'bank_transfer' => $isBankActive,
             's3p_mode' => $gateway->isStaging() ? 'staging' : 'live',
-            'fee_basis_points' => config('payments.fee_basis_points'), 'max_investment' => config('payments.max_investment')]);
+            'fee_basis_points' => config('payments.fee_basis_points'),
+            'max_investment' => config('payments.max_investment'),
+            'methods' => $methodsList,
+        ]);
     });
     Route::post('/stripe/checkout-return', [SubscriptionController::class, 'stripeCheckoutReturn'])
         ->middleware('throttle:payment-return');
