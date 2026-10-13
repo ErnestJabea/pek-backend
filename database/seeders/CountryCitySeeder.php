@@ -14,16 +14,35 @@ class CountryCitySeeder extends Seeder
      */
     public function run(): void
     {
+        $localDataPath = database_path('data/countries.json');
         $countriesPath = base_path('../fcp-mobile/src/data/countries.js');
-        $citiesPath = base_path('../fcp-mobile/src/data/cities.js');
 
         $countriesData = [];
-        if (file_exists($countriesPath)) {
+        if (file_exists($localDataPath)) {
+            $countriesData = json_decode(file_get_contents($localDataPath), true) ?? [];
+        } elseif (file_exists($countriesPath)) {
             $content = file_get_contents($countriesPath);
-            // Extraire le tableau JSON de "export const countries = [...]"
             if (preg_match('/export\s+const\s+countries\s*=\s*(\[.*?\]);/s', $content, $matches)) {
                 $countriesData = json_decode($matches[1], true) ?? [];
             }
+        }
+
+        // Repli de sécurité garanti (si aucun fichier de pays n'est trouvé)
+        if (empty($countriesData)) {
+            $countriesData = [
+                ['name' => 'Cameroun', 'english' => 'Cameroon', 'code' => 'CM', 'dial_code' => '+237'],
+                ['name' => 'Gabon', 'english' => 'Gabon', 'code' => 'GA', 'dial_code' => '+241'],
+                ['name' => 'Congo', 'english' => 'Congo', 'code' => 'CG', 'dial_code' => '+242'],
+                ['name' => 'Tchad', 'english' => 'Chad', 'code' => 'TD', 'dial_code' => '+235'],
+                ['name' => 'Centrafrique', 'english' => 'Central African Republic', 'code' => 'CF', 'dial_code' => '+236'],
+                ['name' => 'Guinée Équatoriale', 'english' => 'Equatorial Guinea', 'code' => 'GQ', 'dial_code' => '+240'],
+                ['name' => "Côte d'Ivoire", 'english' => 'Ivory Coast', 'code' => 'CI', 'dial_code' => '+225'],
+                ['name' => 'Sénégal', 'english' => 'Senegal', 'code' => 'SN', 'dial_code' => '+221'],
+                ['name' => 'France', 'english' => 'France', 'code' => 'FR', 'dial_code' => '+33'],
+                ['name' => 'Belgique', 'english' => 'Belgium', 'code' => 'BE', 'dial_code' => '+32'],
+                ['name' => 'Canada', 'english' => 'Canada', 'code' => 'CA', 'dial_code' => '+1'],
+                ['name' => 'États-Unis', 'english' => 'United States', 'code' => 'US', 'dial_code' => '+1'],
+            ];
         }
 
         // Compléments de villes pour les principaux pays

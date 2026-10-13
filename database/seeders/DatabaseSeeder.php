@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ProductSeeder::class,
             BankDetailSeeder::class,
+            CountryCitySeeder::class,
         ]);
     }
 }
