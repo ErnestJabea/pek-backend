@@ -64,7 +64,7 @@ class AdminPanelProvider extends PanelProvider
                 SetLocale::class,
             ])
             ->authMiddleware([
-                Authenticate::class,
+                \App\Http\Middleware\FilamentAuthenticate::class,
             ])
             ->plugins([
                 FilamentShieldPlugin::make(),

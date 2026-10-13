@@ -9,6 +9,15 @@ use Illuminate\Support\Facades\Route;
 Route::get('/admin/payment-proofs/{proof}/download', [PaymentProofController::class, 'download'])
     ->middleware(['web', 'auth'])->name('admin.payment-proofs.download');
 
+Route::get('/admin/logout', function (\Illuminate\Http\Request $request) {
+    \Filament\Facades\Filament::auth()->logout();
+    auth()->logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return redirect('/admin/login');
+})->middleware('web')->name('admin.get_logout');
+
 Route::get('/subscriptions/{subscription}/bulletin', [SubscriptionBulletinController::class, 'show'])
     ->name('subscriptions.bulletin.show');
 Route::get('/subscriptions/{subscription}/bulletin/download', [SubscriptionBulletinController::class, 'downloadPdf'])
