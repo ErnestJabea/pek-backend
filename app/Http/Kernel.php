@@ -66,6 +66,7 @@ class Kernel extends HttpKernel
             EncryptCookies::class,
             AddQueuedCookiesToResponse::class,
             AuthenticateWithCookie::class,
+            \App\Http\Middleware\SetLocale::class,
             ThrottleRequests::class.':api',
             SubstituteBindings::class,
         ],

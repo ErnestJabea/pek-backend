@@ -32,7 +32,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:12|confirmed',
             'type_piece' => 'required|string|in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport',
             'num_piece' => 'required|string|max:100',
-            'expiration_piece' => 'required|date|after:today',
+            'expiration_piece' => 'required|date|after_or_equal:today + 1 month',
             'piece_recto' => 'nullable|string',
             'doc_piece_identite' => 'nullable|string',
             'piece_verso' => 'nullable|string',
@@ -41,7 +41,8 @@ class AuthController extends Controller
             'type_piece.required' => 'Le type d\'identification (Carte de séjour, CNI ou Passeport) est obligatoire.',
             'num_piece.required' => 'Le numéro de la pièce d\'identification est obligatoire.',
             'expiration_piece.required' => 'La date d\'expiration de la pièce d\'identification est obligatoire.',
-            'expiration_piece.after' => 'La date d\'expiration doit être supérieure à la date du jour.',
+            'expiration_piece.after' => 'La date d\'expiration doit être valide pour au moins 1 mois supplémentaire.',
+            'expiration_piece.after_or_equal' => 'La date d\'expiration doit être valide pour au moins 1 mois supplémentaire.',
         ]);
 
         $rectoDoc = $request->input('doc_piece_identite') ?: $request->input('piece_recto');
@@ -465,7 +466,7 @@ class AuthController extends Controller
         );
 
         return response()->json(array_merge([
-            'access_token' => 'cookie_session',
+            'access_token' => $token,
             'token_type' => 'Bearer',
             'user' => $user,
             'requires_password_change' => (bool) $user->has_temp_password,

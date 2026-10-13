@@ -144,7 +144,7 @@ class OnboardingController extends Controller
         $validated = $request->validate([
             'type_piece' => ['required', 'string', 'in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport'],
             'num_piece' => ['required', 'string', 'max:100'],
-            'expiration_piece' => ['required', 'date', 'after:today'],
+            'expiration_piece' => ['required', 'date', 'after_or_equal:today + 1 month'],
             'piece_recto' => ['nullable', 'string'],
             'doc_piece_identite' => ['nullable', 'string'],
             'piece_verso' => ['nullable', 'string'],
@@ -153,7 +153,8 @@ class OnboardingController extends Controller
             'type_piece.required' => "Le type de pièce d'identification est obligatoire.",
             'num_piece.required' => "Le numéro de la pièce d'identification est obligatoire.",
             'expiration_piece.required' => "La date d'expiration de la pièce est obligatoire.",
-            'expiration_piece.after' => "La nouvelle date d'expiration doit être dans le futur.",
+            'expiration_piece.after' => "La nouvelle date d'expiration doit être valide pour au moins 1 mois supplémentaire.",
+            'expiration_piece.after_or_equal' => "La nouvelle date d'expiration doit être valide pour au moins 1 mois supplémentaire.",
         ]);
 
         $user = $request->user();

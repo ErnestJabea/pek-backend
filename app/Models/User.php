@@ -156,10 +156,12 @@ class User extends Authenticatable implements FilamentUser, HasName
         'phone',
         'password',
         'role',
+        'locale',
         'city',
         'country',
         'employer',
         'categorie_client',
+        'nature_client',
         'type_piece',
         'num_piece',
         'doc_piece_identite',
@@ -319,5 +321,25 @@ class User extends Authenticatable implements FilamentUser, HasName
         }
 
         return (int) $today->diffInDays($nextBirthday);
+    }
+
+    public function bankAccounts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ClientBankAccount::class);
+    }
+
+    public function activeBankAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ClientBankAccount::class)->where('is_primary', true);
+    }
+
+    public function changeRequests(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ProfileChangeRequest::class);
+    }
+
+    public function pendingChangeRequests(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ProfileChangeRequest::class)->where('status', 'pending');
     }
 }

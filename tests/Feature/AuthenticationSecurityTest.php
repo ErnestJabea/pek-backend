@@ -24,6 +24,9 @@ class AuthenticationSecurityTest extends TestCase
             'email' => 'ada@example.test',
             'city' => 'Yaoundé',
             'country' => 'Cameroun',
+            'type_piece' => 'CNI',
+            'num_piece' => 'DOC-001-AUTH',
+            'expiration_piece' => now()->addYear()->toDateString(),
             'password' => 'a-secure-password',
             'password_confirmation' => 'a-secure-password',
         ]);
@@ -80,6 +83,7 @@ class AuthenticationSecurityTest extends TestCase
             'first_name' => 'Ada',
             'last_name' => 'Lovelace',
             'email' => 'ada@example.test',
+            'mfa_type' => 'email',
             'password' => bcrypt('a-secure-password'),
         ]);
         $user->forceFill(['email_verified_at' => now()])->save();
@@ -100,8 +104,8 @@ class AuthenticationSecurityTest extends TestCase
             'challenge_id' => $login->json('challenge_id'),
             'code' => $plainCode,
         ]);
-        $verification->assertOk()
-            ->assertJsonPath('access_token', 'cookie_session');
+        $verification->assertOk();
+        $this->assertNotEmpty($verification->json('access_token'));
         $cookie = collect($verification->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === 'auth_token');
         $this->assertSame('none', $cookie->getSameSite());
         $this->assertTrue($cookie->isSecure());

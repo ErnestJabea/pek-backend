@@ -34,7 +34,7 @@ class StoreKYCRequest extends FormRequest
             'email' => 'required|email|max:255',
             'piece' => 'required|string|in:CNI,Passeport,Carte Résident,Permis de Conduire',
             'num_piece' => 'required|string|max:100',
-            'expiration_piece' => 'required|date|after:today',
+            'expiration_piece' => 'required|date|after_or_equal:today + 1 month',
             'profession' => 'nullable|string|max:255',
             'employeur' => 'nullable|string|max:255',
             'piece_recto' => 'nullable|string',
@@ -65,7 +65,8 @@ class StoreKYCRequest extends FormRequest
     {
         return [
             'dob.before_or_equal' => 'Vous devez être âgé d\'au moins 21 ans pour procéder à l\'onboarding.',
-            'expiration_piece.after' => 'La date d\'expiration doit être supérieure à la date du jour.',
+            'expiration_piece.after' => 'La date d\'expiration doit être valide pour au moins 1 mois supplémentaire.',
+            'expiration_piece.after_or_equal' => 'La date d\'expiration doit être valide pour au moins 1 mois supplémentaire.',
         ];
     }
 }

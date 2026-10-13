@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes (Versionnées v1)
+| API Routes (Versionnees v1)
 |--------------------------------------------------------------------------
 */
 
@@ -61,6 +61,11 @@ $defineApiRoutes = function () {
         Route::get('/dashboard-stats', [AuthController::class, 'dashboardStats']);
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
         Route::post('/update-password', [AuthController::class, 'updatePassword']);
+        Route::post('/user/locale', function (\Illuminate\Http\Request $request) {
+            $request->validate(['locale' => 'required|string|in:fr,en']);
+            $request->user()->update(['locale' => $request->locale]);
+            return response()->json(['message' => 'Langue mise a jour', 'locale' => $request->locale]);
+        });
         Route::post('/reset-temp-password', [AuthController::class, 'resetTempPassword']);
         // Multi-Factor Authentication (MFA)
         Route::post('/mfa/setup-totp', [AuthController::class, 'setupTotp']);
@@ -73,7 +78,11 @@ $defineApiRoutes = function () {
         Route::post('/notifications/read-all', function (Request $request) {
             $request->user()->notifications()->whereNull('read_at')->update(['read_at' => now()]);
 
-            return response()->json(['message' => 'Toutes les notifications ont été marquées comme lues.']);
+            $message = app()->getLocale() === 'en'
+                ? 'All notifications have been marked as read.'
+                : 'Toutes les notifications ont été marquées comme lues.';
+
+            return response()->json(['message' => $message]);
         });
         Route::get('/subscriptions', [SubscriptionController::class, 'index']);
         Route::post('/subscriptions', [SubscriptionController::class, 'store'])->middleware('throttle:payment-initiation');
@@ -88,7 +97,7 @@ $defineApiRoutes = function () {
                 Route::get('/subscriptions/{subscription}/bulletin-pdf', [SubscriptionBulletinController::class, 'downloadPdf']);
         Route::get('/subscriptions/{subscription}/bulletin/download', [SubscriptionBulletinController::class, 'downloadPdf']);
 
-        // Valorisation en temps réel du portefeuille FCP (positions détaillées)
+        // Valorisation en temps reel du portefeuille FCP (positions detaillees)
         Route::get('/portfolio/valuation', [AuthController::class, 'portfolioValuation']);
 
         // Onboarding Client FCP
@@ -100,6 +109,11 @@ $defineApiRoutes = function () {
         Route::post('/user/renew-identity-document', [OnboardingController::class, 'renewIdentityDocument']);
         Route::post('/onboarding/renew-identity', [OnboardingController::class, 'renewIdentityDocument']);
 
+        // Demandes de modification Nature/Categorie & Coordonnees Bancaires
+        Route::get('/user/profile-regulatory', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'getProfileStatus']);
+        Route::post('/user/request-category-update', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'requestCategoryUpdate']);
+        Route::post('/user/request-bank-update', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'requestBankAccountUpdate']);
+
         Route::get('/identity-verification/status', [IdentityVerificationController::class, 'status']);
         Route::post('/identity-verification/session', [IdentityVerificationController::class, 'start'])
             ->middleware('throttle:identity-verification');
@@ -109,7 +123,15 @@ $defineApiRoutes = function () {
 // API Version 1 Prefix (Route officielle /api/v1/...)
 Route::prefix('v1')->name('api.v1.')->group($defineApiRoutes);
 
-// Fallback pour la compatibilité legacy (/api/...)
+// Fallback pour la compatibilite legacy (/api/...)
 $defineApiRoutes();
 
 Route::get('/app-contents', [\App\Http\Controllers\Api\AppContentController::class, 'index']);
+
+// Routes de geolocalisation pour les pays et villes
+Route::get('/geo/countries', [\App\Http\Controllers\GeoController::class, 'countries']);
+Route::get('/geo/countries/{country}/cities', [\App\Http\Controllers\GeoController::class, 'cities']);
+Route::prefix('v1')->group(function () {
+    Route::get('/geo/countries', [\App\Http\Controllers\GeoController::class, 'countries']);
+    Route::get('/geo/countries/{country}/cities', [\App\Http\Controllers\GeoController::class, 'cities']);
+});
