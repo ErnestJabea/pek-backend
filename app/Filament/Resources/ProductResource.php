@@ -143,8 +143,9 @@ class ProductResource extends Resource
                     ->searchable()
                     ->description(fn (Product $record) => $record->libelle_en ? "EN: {$record->libelle_en}" : null),
                 Tables\Columns\TextColumn::make('vl')
-                    ->numeric()
                     ->label(__('messages.vl'))
+                    ->formatStateUsing(fn ($state) => number_format((float) $state, 2, ',', ' ') . ' FCFA')
+                    ->description(fn (Product $record) => strlen(substr(strrchr((string) (float) $record->vl, '.') ?: '', 1)) > 2 ? 'Exacte : ' . (string) (float) $record->vl : null)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('seuil_minimum')
                     ->label(__('messages.seuil_minimum'))
@@ -210,7 +211,7 @@ class ProductResource extends Resource
                         ->form([
                             Forms\Components\Placeholder::make('current_vl_info')
                                 ->label('Valeur Liquidative actuelle')
-                                ->content(fn (Product $record) => number_format((float) $record->vl, 2, ',', ' ') . ' FCFA' . ($record->vls()->orderByDesc('date_vl')->value('date_vl') ? ' (au ' . \Carbon\Carbon::parse($record->vls()->orderByDesc('date_vl')->value('date_vl'))->format('d/m/Y') . ')' : '')),
+                                ->content(fn (Product $record) => number_format((float) $record->vl, 2, ',', ' ') . ' FCFA' . ($record->vls()->orderByDesc('date_vl')->value('date_vl') ? ' (au ' . \Carbon\Carbon::parse($record->vls()->orderByDesc('date_vl')->value('date_vl'))->format('d/m/Y') . ')' : '') . (strlen(substr(strrchr((string) (float) $record->vl, '.') ?: '', 1)) > 2 ? ' [Exacte: ' . (string) (float) $record->vl . ']' : '')),
                             Forms\Components\DatePicker::make('date_vl')
                                 ->label('Date de valeur de la nouvelle VL')
                                 ->default(now()->toDateString())
@@ -218,9 +219,10 @@ class ProductResource extends Resource
                             Forms\Components\TextInput::make('vl')
                                 ->label('Nouvelle Valeur Liquidative (FCFA)')
                                 ->numeric()
+                                ->step('any')
                                 ->required()
                                 ->prefix('XAF')
-                                ->helperText('Enregistre la VL dans l\'historique et actualise automatiquement la valorisation du fonds.'),
+                                ->helperText('Saisissez toutes les décimales officielles. La VL s\'affiche à 2 décimales mais toutes les décimales sont conservées pour les calculs de valorisation et de parts.'),
                         ])
                         ->action(function (Product $record, array $data): void {
                             \App\Models\ProductVl::updateOrCreate(

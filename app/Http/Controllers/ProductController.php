@@ -32,6 +32,7 @@ class ProductController extends Controller
                 $history = $product->vls->take(16)->reverse()->values()->map(function ($vl) {
                     return [
                         'vl' => (float) $vl->vl,
+                        'vl_display' => number_format((float) $vl->vl, 2, ',', ' '),
                         'date' => $vl->date_vl->format('d/m'),
                         'full_date' => $vl->date_vl->format('d/m/Y'),
                     ];
@@ -52,6 +53,8 @@ class ProductController extends Controller
                     ? ($product->document_information_en_url ?: $product->document_information_url)
                     : $product->document_information_url;
 
+                $latestVlValue = $latestVl ? (float) $latestVl->vl : (float) $product->vl;
+
                 return [
                     'id' => $product->id,
                     'name' => $isEn ? ($product->libelle_en ?: $product->libelle) : $product->libelle,
@@ -59,7 +62,9 @@ class ProductController extends Controller
                     'libelle_en' => $product->libelle_en,
                     'description' => $isEn ? ($product->description_en ?: $product->description) : $product->description,
                     'description_en' => $product->description_en,
-                    'vl' => $latestVl ? (float) $latestVl->vl : (float) $product->vl,
+                    'vl' => $latestVlValue,
+                    'vl_display' => number_format($latestVlValue, 2, ',', ' '),
+                    'vl_formatted' => number_format($latestVlValue, 2, ',', ' ') . ' FCFA',
                     'min' => (float) $product->seuil_minimum,
                     'trend' => ($trend >= 0 ? '+' : '').number_format($trend, 2).'%',
                     'risk' => $riskText,

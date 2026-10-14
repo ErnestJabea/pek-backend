@@ -163,7 +163,7 @@ class Subscription extends Model
         'mobile_checked_at' => 'datetime',
         'mobile_initiated_at' => 'datetime',
         'nb_parts' => 'decimal:8',
-        'prix_unitaire' => 'decimal:4',
+        'prix_unitaire' => 'decimal:6',
         'montant_total' => 'decimal:2',
         'payment_confirmed_at' => 'datetime',
         'payment_initiated_at' => 'datetime',

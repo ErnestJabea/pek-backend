@@ -93,7 +93,7 @@ class PortfolioService
             $valorisation_ligne = $nb_parts * $vl_actuelle;
             $plus_value_ligne = round($valorisation_ligne - $cout_revient, 2) + 0.0;
             $rendement_ligne = $cout_revient > 0
-                ? ($plus_value_ligne / $cout_revient) * 100
+                ? round(($plus_value_ligne / $cout_revient) * 100, 2)
                 : 0.0;
 
             // Détail par souscription / transaction
@@ -102,14 +102,16 @@ class PortfolioService
                 'reference' => $sub->reference_transaction,
                 'produit' => $product ? $product->libelle : 'Produit inconnu',
                 'product_id' => $productId,
-                'vl_achat' => (float) $sub->prix_unitaire,
-                'vl_actuelle' => round($vl_actuelle, 4),
+                'vl_achat' => round((float) $sub->prix_unitaire, 2),
+                'vl_achat_raw' => (float) $sub->prix_unitaire,
+                'vl_actuelle' => round($vl_actuelle, 2),
+                'vl_actuelle_raw' => $vl_actuelle,
                 'date_vl' => $latestVlRecord ? $latestVlRecord->date_vl->format('Y-m-d') : null,
                 'nb_parts' => round($nb_parts, 4),
                 'cout_revient' => round($cout_revient, 2),
-                'valorisation' => round($valorisation_ligne, 2),
+                'valorisation' => (int) round($valorisation_ligne),
                 'plus_value' => round($plus_value_ligne, 2),
-                'rendement_pct' => round($rendement_ligne, 4),
+                'rendement_pct' => round($rendement_ligne, 2),
                 'date_souscription' => $sub->created_at?->format('Y-m-d'),
             ];
 
@@ -121,7 +123,7 @@ class PortfolioService
                     'code_produit' => $product ? $product->name : '',
                     'nb_parts_total' => 0.0,
                     'cout_revient_total' => 0.0,
-                    'vl_actuelle' => round($vl_actuelle, 4),
+                    'vl_actuelle' => $vl_actuelle,
                     'date_vl' => $latestVlRecord ? $latestVlRecord->date_vl->format('Y-m-d') : null,
                     'nb_souscriptions' => 0,
                 ];
@@ -144,35 +146,38 @@ class PortfolioService
             $pmp = $nbParts > 0 ? $coutRevient / $nbParts : 0.0;
             $valorisation = $nbParts * $vlActuelle;
             $plusValue = round($valorisation - $coutRevient, 2) + 0.0;
-            $rendementPct = $coutRevient > 0 ? ($plusValue / $coutRevient) * 100 : 0.0;
+            $rendementPct = $coutRevient > 0 ? round(($plusValue / $coutRevient) * 100, 2) : 0.0;
 
             $productPositions[] = [
                 'product_id' => $pid,
                 'produit' => $data['produit'],
                 'code_produit' => $data['code_produit'],
                 'nb_parts_total' => round($nbParts, 4),
-                'pmp' => round($pmp, 4), // Prix Moyen Pondéré d'Achat
-                'vl_actuelle' => round($vlActuelle, 4),
+                'pmp' => round($pmp, 2),
+                'pmp_raw' => round($pmp, 4),
+                'vl_actuelle' => round($vlActuelle, 2),
+                'vl_actuelle_raw' => (float) $vlActuelle,
                 'date_vl' => $data['date_vl'],
                 'cout_revient_total' => round($coutRevient, 2),
-                'valorisation_actuelle' => round($valorisation, 2),
+                'valorisation_actuelle' => (int) round($valorisation),
                 'plus_value' => round($plusValue, 2),
-                'rendement_pct' => round($rendementPct, 4),
+                'rendement_pct' => round($rendementPct, 2),
                 'nb_souscriptions' => $data['nb_souscriptions'],
             ];
         }
 
         $plus_value_totale = round($valorisation_totale - $cout_revient_total, 2) + 0.0;
         $rendement_global = $cout_revient_total > 0
-            ? ($plus_value_totale / $cout_revient_total) * 100
+            ? round(($plus_value_totale / $cout_revient_total) * 100, 2)
             : 0.0;
         $total_parts = array_sum(array_column($positions, 'nb_parts'));
 
         return [
-            'valorisation_totale' => round($valorisation_totale, 2),
+            'valorisation_totale' => (int) round($valorisation_totale),
+            'total_balance' => (int) round($valorisation_totale),
             'cout_revient_total' => round($cout_revient_total, 2),
             'plus_value_totale' => round($plus_value_totale, 2),
-            'rendement_global' => round($rendement_global, 4),
+            'rendement_global' => round($rendement_global, 2),
             'total_parts' => round($total_parts, 4),
             'nb_positions' => count($positions),
             'nb_produits' => count($productPositions),

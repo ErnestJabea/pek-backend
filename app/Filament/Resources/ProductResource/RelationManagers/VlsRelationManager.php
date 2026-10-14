@@ -25,8 +25,10 @@ class VlsRelationManager extends RelationManager
                 Forms\Components\TextInput::make('vl')
                     ->required()
                     ->numeric()
+                    ->step('any')
                     ->label(__('messages.vl'))
-                    ->prefix('XAF'),
+                    ->prefix('XAF')
+                    ->helperText('Saisissez la valeur liquidative officielle avec toutes ses décimales.'),
                 Forms\Components\DatePicker::make('date_vl')
                     ->required()
                     ->label(__('messages.date'))
@@ -45,8 +47,10 @@ class VlsRelationManager extends RelationManager
                     ->label(__('messages.date'))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('vl')
-                    ->money('XAF')
-                    ->label(__('messages.vl')),
+                    ->label(__('messages.vl'))
+                    ->formatStateUsing(fn ($state) => number_format((float) $state, 2, ',', ' ') . ' FCFA')
+                    ->description(fn ($state) => strlen(substr(strrchr((string) (float) $state, '.') ?: '', 1)) > 2 ? 'Valeur exacte : ' . (string) (float) $state : null)
+                    ->sortable(),
             ])
             ->filters([
                 //

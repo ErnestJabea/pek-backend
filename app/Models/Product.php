@@ -29,13 +29,19 @@ class Product extends Model
         'depliant_en_url',
         'document_information_url',
         'document_information_en_url',
+        'vl_display',
     ];
 
     protected $casts = [
-        'vl' => 'decimal:4',
+        'vl' => 'decimal:6',
         'seuil_minimum' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    public function getVlDisplayAttribute(): string
+    {
+        return number_format((float) $this->vl, 2, ',', ' ');
+    }
 
     public function getDepliantUrlAttribute(): ?string
     {

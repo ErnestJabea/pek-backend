@@ -197,6 +197,7 @@ class SubscriptionResource extends Resource
                         Forms\Components\TextInput::make('prix_unitaire')
                             ->label('Valeur Liquidative retenue (FCFA)')
                             ->numeric()
+                            ->step('any')
                             ->disabled(fn (Forms\Get $get) => $get('mode_calcul_frais') !== 'manuel')
                             ->dehydrated()
                             ->live(onBlur: true)
@@ -367,7 +368,8 @@ class SubscriptionResource extends Resource
                             ->disabled()->dehydrated(false)
                             ->label('VL souscription')
                             ->required()
-                            ->numeric(),
+                            ->numeric()
+                            ->step('any'),
                         Forms\Components\TextInput::make('nb_parts')
                             ->disabled()->dehydrated(false)
                             ->label('Nombre de parts')
@@ -449,6 +451,11 @@ class SubscriptionResource extends Resource
                     ->label('VL retenue')
                     ->numeric(decimalPlaces: 2)
                     ->suffix(' FCFA')
+                    ->description(fn (Subscription $record): ?string => 
+                        $record->prix_unitaire && strlen(substr(strrchr((string) $record->prix_unitaire, "."), 1)) > 2
+                            ? 'Exact : ' . rtrim(rtrim((string) $record->prix_unitaire, '0'), '.') . ' FCFA'
+                            : null
+                    )
                     ->sortable(),
                 Tables\Columns\TextColumn::make('nb_parts')
                     ->label('Parts')

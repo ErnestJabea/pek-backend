@@ -14,9 +14,18 @@ class ProductVl extends Model
     ];
 
     protected $casts = [
-        'vl' => 'decimal:4',
+        'vl' => 'decimal:6',
         'date_vl' => 'date',
     ];
+
+    protected $appends = [
+        'vl_display',
+    ];
+
+    public function getVlDisplayAttribute(): string
+    {
+        return number_format((float) $this->vl, 2, ',', ' ');
+    }
 
     public function product()
     {
