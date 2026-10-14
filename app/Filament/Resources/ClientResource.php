@@ -3,7 +3,10 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClientResource\Pages;
+use App\Models\City;
 use App\Models\Client;
+use App\Models\Country;
+use App\Services\ClientActivationService;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -48,46 +51,150 @@ class ClientResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('first_name')
-                    ->label(__('messages.first_name'))
-                    ->required(),
-                Forms\Components\TextInput::make('last_name')
-                    ->label(__('messages.last_name'))
-                    ->required(),
-                Forms\Components\TextInput::make('email')
-                    ->label(__('messages.email'))
-                    ->email()
-                    ->required(),
-                Forms\Components\TextInput::make('phone')
-                    ->label(__('messages.phone'))
-                    ->tel(),
-                Forms\Components\TextInput::make('city')
-                    ->label(__('messages.city') !== 'messages.city' ? __('messages.city') : 'Ville')
-                    ->required(),
-                Forms\Components\TextInput::make('country')
-                    ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays')
-                    ->required(),
-                Forms\Components\Select::make('type_client')
-                    ->label('Type de client')
-                    ->options(\App\Services\ClientCategoryService::getTypes())
-                    ->dehydrated(false)
-                    ->afterStateHydrated(function (Forms\Components\Select $component, ?Client $record) {
-                        if ($record) {
-                            $component->state(\App\Services\ClientCategoryService::getTypeForCategory($record->categorie_client));
-                        }
-                    })
-                    ->live()
-                    ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
-                Forms\Components\Select::make('categorie_client')
-                    ->label('Catégorie du client')
-                    ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
-                    ->searchable()
-                    ->required(),
-                Forms\Components\TextInput::make('password')
-                    ->label(__('messages.password'))
-                    ->password()
-                    ->required(fn (string $context): bool => $context === 'create')
-                    ->dehydrated(fn ($state) => filled($state)),
+                Forms\Components\Section::make('Informations Personnelles & Contact')
+                    ->schema([
+                        Forms\Components\TextInput::make('first_name')
+                            ->label(__('messages.first_name'))
+                            ->required(),
+                        Forms\Components\TextInput::make('last_name')
+                            ->label(__('messages.last_name'))
+                            ->required(),
+                        Forms\Components\TextInput::make('email')
+                            ->label(__('messages.email'))
+                            ->email()
+                            ->unique(table: 'users', column: 'email', ignorable: fn (?Client $record) => $record)
+                            ->required(),
+                        Forms\Components\TextInput::make('phone')
+                            ->label(__('messages.phone'))
+                            ->tel(),
+                        Forms\Components\Select::make('country')
+                            ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays de résidence')
+                            ->options(function (?Client $record) {
+                                $countries = Country::query()
+                                    ->where('is_active', true)
+                                    ->orderBy('sort_order')
+                                    ->orderBy('name')
+                                    ->pluck('name', 'name')
+                                    ->toArray();
+
+                                if ($record && $record->country && ! isset($countries[$record->country])) {
+                                    $countries[$record->country] = $record->country;
+                                }
+
+                                if (empty($countries)) {
+                                    $countries = [
+                                        'Cameroun' => 'Cameroun',
+                                        'Gabon' => 'Gabon',
+                                        'Congo' => 'Congo',
+                                        'Tchad' => 'Tchad',
+                                        'Centrafrique' => 'Centrafrique',
+                                        'Guinée Équatoriale' => 'Guinée Équatoriale',
+                                        "Côte d'Ivoire" => "Côte d'Ivoire",
+                                        'Sénégal' => 'Sénégal',
+                                        'France' => 'France',
+                                        'Belgique' => 'Belgique',
+                                        'Canada' => 'Canada',
+                                        'États-Unis' => 'États-Unis',
+                                    ];
+                                }
+
+                                return $countries;
+                            })
+                            ->default('Cameroun')
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(fn (Forms\Set $set) => $set('city', null))
+                            ->required(),
+                        Forms\Components\Select::make('city')
+                            ->label(__('messages.city') !== 'messages.city' ? __('messages.city') : 'Ville')
+                            ->options(function (Forms\Get $get, ?Client $record) {
+                                $countryName = $get('country') ?? $record?->country ?? 'Cameroun';
+                                if (! $countryName) {
+                                    return [];
+                                }
+
+                                $country = Country::query()
+                                    ->where('name', $countryName)
+                                    ->orWhere('code', $countryName)
+                                    ->first();
+
+                                $cities = [];
+                                if ($country) {
+                                    $cities = City::query()
+                                        ->where('country_id', $country->id)
+                                        ->where('is_active', true)
+                                        ->orderBy('sort_order')
+                                        ->orderBy('name')
+                                        ->pluck('name', 'name')
+                                        ->toArray();
+                                }
+
+                                if ($record && $record->city && ! isset($cities[$record->city])) {
+                                    $cities[$record->city] = $record->city;
+                                }
+
+                                return $cities;
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->createOptionUsing(function (string $value, Forms\Get $get) {
+                                $cleanVal = trim($value);
+                                $countryName = $get('country') ?? 'Cameroun';
+                                $country = Country::query()->where('name', $countryName)->first();
+                                if ($country && $cleanVal !== '') {
+                                    City::firstOrCreate([
+                                        'country_id' => $country->id,
+                                        'name' => $cleanVal,
+                                    ]);
+                                }
+
+                                return $cleanVal;
+                            })
+                            ->required(),
+                        Forms\Components\Select::make('type_client')
+                            ->label('Type de client')
+                            ->options(\App\Services\ClientCategoryService::getTypes())
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function (Forms\Components\Select $component, ?Client $record) {
+                                if ($record) {
+                                    $component->state(\App\Services\ClientCategoryService::getTypeForCategory($record->categorie_client));
+                                }
+                            })
+                            ->live()
+                            ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
+                        Forms\Components\Select::make('categorie_client')
+                            ->label('Catégorie du client')
+                            ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
+                            ->searchable()
+                            ->required(),
+                        Forms\Components\TextInput::make('password')
+                            ->label(__('messages.password'))
+                            ->password()
+                            ->required(fn (string $context): bool => $context === 'create')
+                            ->dehydrated(fn ($state) => filled($state)),
+                    ])->columns(2),
+
+                Forms\Components\Section::make('Activation & Statut E-mail (Accès PWA)')
+                    ->description('Définissez le statut d\'activation du compte client pour son accès à la PWA.')
+                    ->schema([
+                        Forms\Components\Toggle::make('email_verified')
+                            ->label('Marquer l\'e-mail comme déjà vérifié')
+                            ->helperText('Active immédiatement le compte du client pour la PWA (recommandé pour les créations manuelles / guichet).')
+                            ->default(true)
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function (Forms\Components\Toggle $component, ?Client $record) {
+                                if ($record) {
+                                    $component->state((bool) $record->email_verified_at);
+                                }
+                            }),
+
+                        Forms\Components\Toggle::make('send_activation_email')
+                            ->label('Envoyer un e-mail d\'activation / bienvenue')
+                            ->helperText('Envoie un e-mail officiel KORI au client avec son code d\'activation OTP.')
+                            ->default(false)
+                            ->dehydrated(false),
+                    ])->columns(2),
             ]);
     }
 
@@ -110,18 +217,27 @@ class ClientResource extends Resource
                 Tables\Columns\TextColumn::make('phone')
                     ->label(__('messages.phone'))
                     ->searchable(),
-                Tables\Columns\TextColumn::make('city')
-                    ->label(__('messages.city') !== 'messages.city' ? __('messages.city') : 'Ville')
-                    ->searchable(),
                 Tables\Columns\TextColumn::make('country')
                     ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('city')
+                    ->label(__('messages.city') !== 'messages.city' ? __('messages.city') : 'Ville')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('categorie_client')
                     ->label('Catégorie')
                     ->badge()
                     ->color('info')
                     ->default('Particulier')
                     ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('email_verified_at')
+                    ->label('Statut E-mail')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Vérifié' : 'En attente')
+                    ->color(fn ($state) => $state ? 'success' : 'warning')
+                    ->description(fn (Client $record) => $record->email_verified_at ? $record->email_verified_at->format('d/m/Y') : 'Bloqué PWA')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('messages.inscribed_at'))
@@ -133,8 +249,70 @@ class ClientResource extends Resource
                 Tables\Filters\SelectFilter::make('categorie_client')
                     ->label('Catégorie client')
                     ->options(\App\Services\ClientCategoryService::getCategoriesByType()),
+                Tables\Filters\Filter::make('email_verified')
+                    ->label('E-mail vérifié (Actif PWA)')
+                    ->query(fn (Builder $query) => $query->whereNotNull('email_verified_at')),
+                Tables\Filters\Filter::make('email_unverified')
+                    ->label('E-mail non vérifié (En attente)')
+                    ->query(fn (Builder $query) => $query->whereNull('email_verified_at')),
             ])
             ->actions([
+                Tables\Actions\Action::make('verify_email')
+                    ->label('Valider E-mail')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->visible(fn (Client $record): bool => ! $record->email_verified_at && ! $record->trashed())
+                    ->requiresConfirmation()
+                    ->modalHeading('Valider manuellement l\'adresse e-mail')
+                    ->modalDescription(fn (Client $record) => "Confirmez-vous la validation de {$record->email} ? Le client pourra immédiatement se connecter à la PWA.")
+                    ->action(function (Client $record) {
+                        app(ClientActivationService::class)->validateEmail($record);
+                        Notification::make()
+                            ->title('E-mail validé avec succès')
+                            ->body("Le compte de {$record->first_name} {$record->last_name} est désormais activé.")
+                            ->success()
+                            ->send();
+                    }),
+                Tables\Actions\Action::make('resend_activation')
+                    ->label('Renvoyer OTP')
+                    ->icon('heroicon-o-envelope')
+                    ->color('info')
+                    ->visible(fn (Client $record): bool => ! $record->trashed())
+                    ->requiresConfirmation()
+                    ->modalHeading('Renvoyer le code d\'activation OTP')
+                    ->modalDescription(fn (Client $record) => "Un nouveau code OTP de vérification va être envoyé à {$record->email}.")
+                    ->action(function (Client $record) {
+                        try {
+                            app(ClientActivationService::class)->sendActivationEmail($record);
+                            Notification::make()
+                                ->title('Code d\'activation envoyé')
+                                ->body("Un nouveau code OTP a été transmis à {$record->email}.")
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->title('Erreur lors de l\'envoi')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('revoke_verification')
+                    ->label('Révoquer E-mail')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->visible(fn (Client $record): bool => (bool) $record->email_verified_at && ! $record->trashed())
+                    ->requiresConfirmation()
+                    ->modalHeading('Révoquer la validation de l\'e-mail')
+                    ->modalDescription(fn (Client $record) => "Êtes-vous sûr de vouloir révoquer la validation de {$record->email} ? L'accès à la PWA sera suspendu jusqu'à nouvelle vérification.")
+                    ->action(function (Client $record) {
+                        app(ClientActivationService::class)->invalidateEmail($record);
+                        Notification::make()
+                            ->title('Validation révoquée')
+                            ->body("L'accès PWA de {$record->first_name} {$record->last_name} est désormais suspendu.")
+                            ->warning()
+                            ->send();
+                    }),
                 Tables\Actions\Action::make('remind_id')
                     ->label('Rappel Pièce')
                     ->icon('heroicon-o-identification')
@@ -231,7 +409,38 @@ class ClientResource extends Resource
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->mutateRecordDataUsing(function (array $data, Client $record): array {
+                        $data['email_verified'] = (bool) $record->email_verified_at;
+
+                        return $data;
+                    })
+                    ->mutateFormDataBeforeSave(function (array $data, Client $record): array {
+                        if (array_key_exists('email_verified', $data)) {
+                            $data['email_verified_at'] = $data['email_verified'] ? ($record->email_verified_at ?? now()) : null;
+                            unset($data['email_verified']);
+                        }
+
+                        return $data;
+                    })
+                    ->after(function (Client $record, array $data) {
+                        if (! empty($data['send_activation_email'])) {
+                            try {
+                                app(ClientActivationService::class)->sendActivationEmail($record);
+                                Notification::make()
+                                    ->title('E-mail d\'activation envoyé')
+                                    ->body("Un code de vérification a été transmis à {$record->email}.")
+                                    ->success()
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('Erreur d\'envoi d\'e-mail')
+                                    ->body($e->getMessage())
+                                    ->warning()
+                                    ->send();
+                            }
+                        }
+                    }),
                 Tables\Actions\DeleteAction::make(),
                 Tables\Actions\RestoreAction::make(),
                 Tables\Actions\ForceDeleteAction::make(),
@@ -320,8 +529,43 @@ class ClientResource extends Resource
                 ]),
             ])
             ->emptyStateActions([
-                Tables\Actions\CreateAction::make(),
+                static::configureCreateAction(Tables\Actions\CreateAction::make()),
             ]);
+    }
+
+    public static function configureCreateAction($action)
+    {
+        return $action
+            ->mutateFormDataBeforeCreate(function (array $data): array {
+                $data['role'] = 'client';
+                if (! empty($data['email_verified'])) {
+                    $data['email_verified_at'] = now();
+                } else {
+                    $data['email_verified_at'] = null;
+                }
+                unset($data['email_verified']);
+
+                return $data;
+            })
+            ->after(function (Client $record, array $data) {
+                if (! empty($data['send_activation_email'])) {
+                    try {
+                        app(ClientActivationService::class)->sendActivationEmail($record);
+                        Notification::make()
+                            ->title('E-mail d\'activation envoyé')
+                            ->body("Un code de vérification a été transmis à {$record->email}.")
+                            ->success()
+                            ->send();
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Erreur envoi activation client : ' . $e->getMessage());
+                        Notification::make()
+                            ->title('Client créé, mais erreur d\'envoi d\'e-mail')
+                            ->body($e->getMessage())
+                            ->warning()
+                            ->send();
+                    }
+                }
+            });
     }
 
     public static function getPages(): array

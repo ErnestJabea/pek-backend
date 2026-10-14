@@ -175,6 +175,7 @@ class User extends Authenticatable implements FilamentUser, HasName
         'mfa_secret',
         'mfa_confirmed_at',
         'mfa_prompt_dismissed',
+        'email_verified_at',
     ];
 
     protected $hidden = [

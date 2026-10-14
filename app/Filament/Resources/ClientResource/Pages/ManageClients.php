@@ -13,7 +13,7 @@ class ManageClients extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            ClientResource::configureCreateAction(Actions\CreateAction::make()),
         ];
     }
 }
