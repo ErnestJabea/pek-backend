@@ -202,6 +202,44 @@ class ProductResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('update_vl')
+                        ->label('Mettre à jour la VL')
+                        ->icon('heroicon-o-chart-bar')
+                        ->color('warning')
+                        ->visible(fn (Product $record) => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_product') || auth()->user()?->can('update_product_vl') || auth()->user()?->can('create_product_vl'))
+                        ->form([
+                            Forms\Components\Placeholder::make('current_vl_info')
+                                ->label('Valeur Liquidative actuelle')
+                                ->content(fn (Product $record) => number_format((float) $record->vl, 2, ',', ' ') . ' FCFA' . ($record->vls()->orderByDesc('date_vl')->value('date_vl') ? ' (au ' . \Carbon\Carbon::parse($record->vls()->orderByDesc('date_vl')->value('date_vl'))->format('d/m/Y') . ')' : '')),
+                            Forms\Components\DatePicker::make('date_vl')
+                                ->label('Date de valeur de la nouvelle VL')
+                                ->default(now()->toDateString())
+                                ->required(),
+                            Forms\Components\TextInput::make('vl')
+                                ->label('Nouvelle Valeur Liquidative (FCFA)')
+                                ->numeric()
+                                ->required()
+                                ->prefix('XAF')
+                                ->helperText('Enregistre la VL dans l\'historique et actualise automatiquement la valorisation du fonds.'),
+                        ])
+                        ->action(function (Product $record, array $data): void {
+                            \App\Models\ProductVl::updateOrCreate(
+                                [
+                                    'product_id' => $record->id,
+                                    'date_vl' => $data['date_vl'],
+                                ],
+                                [
+                                    'vl' => $data['vl'],
+                                ]
+                            );
+                            $record->updateLatestVl();
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('VL mise à jour avec succès')
+                                ->body("La VL du fonds {$record->libelle} a été fixée à " . number_format((float) $data['vl'], 2, ',', ' ') . " FCFA au " . \Carbon\Carbon::parse($data['date_vl'])->format('d/m/Y') . ".")
+                                ->success()
+                                ->send();
+                        }),
                     Tables\Actions\Action::make('view_depliant_fr')
                         ->label('Brochure FR')
                         ->icon('heroicon-o-document-text')
