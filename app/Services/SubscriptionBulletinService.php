@@ -62,8 +62,9 @@ class SubscriptionBulletinService
 
         // Calcul des frais (par défaut 1.00% selon barème)
         $tauxSouscription = '1,00 %';
-        $montantFrais = $subscription->frais_gestion
-            ?? max(0, $montantTotal - round($montantTotal / 1.01));
+        $montantFrais = $subscription->subscription_fee
+            ?? $subscription->frais_gestion
+            ?? round($montantTotal * 0.01);
 
         $montantEnLettres = self::numberToFrenchWords((int) round($montantTotal));
 

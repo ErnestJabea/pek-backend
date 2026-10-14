@@ -82,9 +82,10 @@ class SubscriptionResource extends Resource
 
         if ($montantTotal > 0) {
             $taux = max(0.0, $tauxFrais) / 100.0;
-            // Placement net = Montant total / (1 + taux)
-            $montantPlacement = round($montantTotal / (1.0 + $taux));
-            $fraisEntree = round($montantTotal - $montantPlacement);
+            // Frais d'entrée = Montant total * taux (ex: 50 000 * 1% = 500 FCFA)
+            $fraisEntree = round($montantTotal * $taux);
+            // Placement net = Montant total - Frais (ex: 50 000 - 500 = 49 500 FCFA)
+            $montantPlacement = max(0.0, $montantTotal - $fraisEntree);
 
             $set('investment_amount', (string) ((int) $montantPlacement));
             $set('subscription_fee', (string) ((int) $fraisEntree));
@@ -210,14 +211,14 @@ class SubscriptionResource extends Resource
                             ->disabled()
                             ->dehydrated()
                             ->default('0')
-                            ->helperText('Calculé automatiquement : Montant total ÷ (1 + Taux). Ex: 100 000 FCFA'),
+                            ->helperText('Calculé automatiquement : Montant total - Frais d\'entrée. Ex: 49 500 FCFA'),
 
                         Forms\Components\TextInput::make('subscription_fee')
                             ->label('Frais d\'entrée prélevés (FCFA)')
                             ->disabled()
                             ->dehydrated()
                             ->required()
-                            ->helperText('Calculé automatiquement : Montant total - Placement net. Ex: 1 000 FCFA'),
+                            ->helperText('Calculé automatiquement : Montant total × Taux. Ex: 500 FCFA'),
 
                         Forms\Components\TextInput::make('nb_parts')
                             ->label('Nombre de parts calculées')
