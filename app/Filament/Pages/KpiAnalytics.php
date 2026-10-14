@@ -27,7 +27,8 @@ class KpiAnalytics extends BaseDashboard
 
     public static function canAccess(): bool
     {
-        return app(BackofficeDashboard::class)->canAccess(auth()->user());
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('page_KpiAnalytics') ?? false);
     }
 
     public function getColumns(): int | string | array

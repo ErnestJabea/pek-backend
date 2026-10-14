@@ -41,6 +41,18 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => '#009a4d',
             ])
+            ->navigationGroups([
+                'Opérations & Souscriptions',
+                'Produits & Trésorerie',
+                'Conformité & Contrôle',
+                'Conformité & CRM',
+                'Tableaux de bord',
+                'Configuration',
+                'Sécurité',
+                'Utilisateurs & Accès',
+                'Administration',
+                'Configuration Système',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([

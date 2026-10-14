@@ -27,6 +27,12 @@ class CityResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Villes';
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('view_any_city') ?? false);
+    }
+
     public static function form(Form $form): Form
     {
         return $form

@@ -32,6 +32,13 @@ class AppContentResource extends Resource
         return 'Contenus PWA';
     }
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('view_any_app_content') ?? false)
+            || (auth()->user()?->can('view_any_app::content') ?? false);
+    }
+
     public static function form(Form $form): Form
     {
         return $form

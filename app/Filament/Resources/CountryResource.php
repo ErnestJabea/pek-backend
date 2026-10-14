@@ -26,6 +26,12 @@ class CountryResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Pays';
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('view_any_country') ?? false);
+    }
+
     public static function form(Form $form): Form
     {
         return $form

@@ -36,6 +36,13 @@ class IdDocumentExpirations extends Page implements HasTable
 
     protected static string $view = 'filament.pages.id-document-expirations';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('page_IdDocumentExpirations') ?? false)
+            || (auth()->user()?->can('review_subscription_compliance') ?? false);
+    }
+
     public function table(Table $table): Table
     {
         return $table

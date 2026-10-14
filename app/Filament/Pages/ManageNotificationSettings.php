@@ -23,6 +23,12 @@ class ManageNotificationSettings extends Page
 
     protected static string $view = 'filament.pages.manage-notification-settings';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('page_ManageNotificationSettings') ?? false);
+    }
+
     public ?array $data = [];
 
     public function mount(): void

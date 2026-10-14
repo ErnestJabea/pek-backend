@@ -26,6 +26,13 @@ class PaymentMethodResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Moyens de paiement';
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('view_any_payment_method') ?? false)
+            || (auth()->user()?->can('view_any_payment::method') ?? false);
+    }
+
     public static function form(Form $form): Form
     {
         return $form

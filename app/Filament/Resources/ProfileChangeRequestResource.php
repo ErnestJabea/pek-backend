@@ -29,6 +29,14 @@ class ProfileChangeRequestResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Demandes de modifications Profil & RIB';
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('view_any_profile_change_request') ?? false)
+            || (auth()->user()?->can('view_any_profile::change::request') ?? false)
+            || (auth()->user()?->can('review_subscription_compliance') ?? false);
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $count = static::getModel()::where('status', 'pending')->count();

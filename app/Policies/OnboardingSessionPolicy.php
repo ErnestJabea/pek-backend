@@ -15,7 +15,9 @@ class OnboardingSessionPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('super_admin') || $user->can('view_any_onboarding_session');
+        return $user->hasRole('super_admin') 
+            || $user->can('view_any_onboarding::session') 
+            || $user->can('view_any_onboarding_session');
     }
 
     /**
@@ -23,7 +25,9 @@ class OnboardingSessionPolicy
      */
     public function view(User $user, OnboardingSession $onboardingSession): bool
     {
-        return $user->hasRole('super_admin') || $user->can('view_onboarding_session');
+        return $user->hasRole('super_admin') 
+            || $user->can('view_onboarding::session') 
+            || $user->can('view_onboarding_session');
     }
 
     /**
@@ -31,7 +35,9 @@ class OnboardingSessionPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('super_admin') || $user->can('create_onboarding_session');
+        return $user->hasRole('super_admin') 
+            || $user->can('create_onboarding::session') 
+            || $user->can('create_onboarding_session');
     }
 
     /**
@@ -39,7 +45,9 @@ class OnboardingSessionPolicy
      */
     public function update(User $user, OnboardingSession $onboardingSession): bool
     {
-        return $user->hasRole('super_admin') || $user->can('update_onboarding_session');
+        return $user->hasRole('super_admin') 
+            || $user->can('update_onboarding::session') 
+            || $user->can('update_onboarding_session');
     }
 
     /**
@@ -47,6 +55,8 @@ class OnboardingSessionPolicy
      */
     public function delete(User $user, OnboardingSession $onboardingSession): bool
     {
-        return $user->hasRole('super_admin') || $user->can('delete_onboarding_session');
+        return $user->hasRole('super_admin') 
+            || $user->can('delete_onboarding::session') 
+            || $user->can('delete_onboarding_session');
     }
 }

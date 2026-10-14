@@ -53,7 +53,15 @@ class BackofficeDashboard
     {
         abort_unless($this->canAccess($user), 403);
 
-        return array_filter($this->definitions(), fn ($definition) => collect($definition[3])->every(fn ($permission) => $user->can($permission)));
+        return array_filter($this->definitions(), function ($definition) use ($user) {
+            return collect($definition[3])->every(function ($permission) use ($user) {
+                if ($permission === 'view_any_onboarding_session') {
+                    return $user->can('view_any_onboarding::session') || $user->can('view_any_onboarding_session');
+                }
+
+                return $user->can($permission);
+            });
+        });
     }
 
     public function snapshot(User $user): array
