@@ -144,8 +144,29 @@ class ProductResource extends Resource
                     ->description(fn (Product $record) => $record->libelle_en ? "EN: {$record->libelle_en}" : null),
                 Tables\Columns\TextColumn::make('vl')
                     ->label(__('messages.vl'))
-                    ->formatStateUsing(fn ($state) => number_format((float) $state, 2, ',', ' ') . ' FCFA')
-                    ->description(fn (Product $record) => strlen(substr(strrchr((string) (float) $record->vl, '.') ?: '', 1)) > 2 ? 'Exacte : ' . (string) (float) $record->vl : null)
+                    ->formatStateUsing(function ($state) {
+                        if ($state === null || $state === '') return '-';
+                        $str = rtrim(rtrim((string) $state, '0'), '.');
+                        $parts = explode('.', $str);
+                        $intPart = number_format((float) ($parts[0] ?? 0), 0, '', ' ');
+                        if (!isset($parts[1]) || $parts[1] === '') {
+                            return $intPart . ',00 FCFA';
+                        }
+                        if (strlen($parts[1]) === 1) {
+                            return $intPart . ',' . $parts[1] . '0 FCFA';
+                        }
+                        return $intPart . ',' . $parts[1] . ' FCFA';
+                    })
+                    ->description(function (Product $record) {
+                        $state = $record->vl;
+                        if ($state === null || $state === '') return null;
+                        $str = rtrim(rtrim((string) $state, '0'), '.');
+                        $parts = explode('.', $str);
+                        if (isset($parts[1]) && strlen($parts[1]) > 2) {
+                            return 'Affichage client : ' . number_format((float) $state, 2, ',', ' ') . ' FCFA';
+                        }
+                        return null;
+                    })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('seuil_minimum')
                     ->label(__('messages.seuil_minimum'))
@@ -211,7 +232,18 @@ class ProductResource extends Resource
                         ->form([
                             Forms\Components\Placeholder::make('current_vl_info')
                                 ->label('Valeur Liquidative actuelle')
-                                ->content(fn (Product $record) => number_format((float) $record->vl, 2, ',', ' ') . ' FCFA' . ($record->vls()->orderByDesc('date_vl')->value('date_vl') ? ' (au ' . \Carbon\Carbon::parse($record->vls()->orderByDesc('date_vl')->value('date_vl'))->format('d/m/Y') . ')' : '') . (strlen(substr(strrchr((string) (float) $record->vl, '.') ?: '', 1)) > 2 ? ' [Exacte: ' . (string) (float) $record->vl . ']' : '')),
+                                ->content(function (Product $record) {
+                                    $state = $record->vl;
+                                    $str = rtrim(rtrim((string) $state, '0'), '.');
+                                    $parts = explode('.', $str);
+                                    $intPart = number_format((float) ($parts[0] ?? 0), 0, '', ' ');
+                                    $decPart = isset($parts[1]) ? (strlen($parts[1]) === 1 ? $parts[1].'0' : $parts[1]) : '00';
+                                    $fullDisplay = $intPart . ',' . $decPart . ' FCFA';
+                                    $dateText = $record->vls()->orderByDesc('date_vl')->value('date_vl')
+                                        ? ' (au ' . \Carbon\Carbon::parse($record->vls()->orderByDesc('date_vl')->value('date_vl'))->format('d/m/Y') . ')'
+                                        : '';
+                                    return $fullDisplay . $dateText;
+                                }),
                             Forms\Components\DatePicker::make('date_vl')
                                 ->label('Date de valeur de la nouvelle VL')
                                 ->default(now()->toDateString())

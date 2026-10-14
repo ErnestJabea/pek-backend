@@ -163,7 +163,6 @@ class Subscription extends Model
         'mobile_checked_at' => 'datetime',
         'mobile_initiated_at' => 'datetime',
         'nb_parts' => 'decimal:8',
-        'prix_unitaire' => 'decimal:6',
         'montant_total' => 'decimal:2',
         'payment_confirmed_at' => 'datetime',
         'payment_initiated_at' => 'datetime',
@@ -173,6 +172,23 @@ class Subscription extends Model
         'manager_reviewed_at' => 'datetime',
         'is_historical' => 'boolean',
     ];
+
+    public function getPrixUnitaireAttribute($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $str = (string) $value;
+        if (str_contains($str, '.')) {
+            return rtrim(rtrim($str, '0'), '.');
+        }
+        return $str;
+    }
+
+    public function setPrixUnitaireAttribute($value): void
+    {
+        $this->attributes['prix_unitaire'] = is_string($value) ? str_replace(',', '.', trim($value)) : $value;
+    }
 
     public function getMontantNetAttribute(): float
     {

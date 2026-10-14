@@ -33,10 +33,26 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'vl' => 'decimal:6',
         'seuil_minimum' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    public function getVlAttribute($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $str = (string) $value;
+        if (str_contains($str, '.')) {
+            return rtrim(rtrim($str, '0'), '.');
+        }
+        return $str;
+    }
+
+    public function setVlAttribute($value): void
+    {
+        $this->attributes['vl'] = is_string($value) ? str_replace(',', '.', trim($value)) : $value;
+    }
 
     public function getVlDisplayAttribute(): string
     {

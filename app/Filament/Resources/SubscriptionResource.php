@@ -451,11 +451,16 @@ class SubscriptionResource extends Resource
                     ->label('VL retenue')
                     ->numeric(decimalPlaces: 2)
                     ->suffix(' FCFA')
-                    ->description(fn (Subscription $record): ?string => 
-                        $record->prix_unitaire && strlen(substr(strrchr((string) $record->prix_unitaire, "."), 1)) > 2
-                            ? 'Exact : ' . rtrim(rtrim((string) $record->prix_unitaire, '0'), '.') . ' FCFA'
-                            : null
-                    )
+                    ->description(function (Subscription $record): ?string {
+                        if (!$record->prix_unitaire) return null;
+                        $str = rtrim(rtrim((string) $record->prix_unitaire, '0'), '.');
+                        $parts = explode('.', $str);
+                        if (isset($parts[1]) && strlen($parts[1]) > 2) {
+                            $intPart = number_format((float) ($parts[0] ?? 0), 0, '', ' ');
+                            return 'Exacte : ' . $intPart . ',' . $parts[1] . ' FCFA';
+                        }
+                        return null;
+                    })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('nb_parts')
                     ->label('Parts')

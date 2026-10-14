@@ -48,8 +48,28 @@ class VlsRelationManager extends RelationManager
                     ->sortable(),
                 Tables\Columns\TextColumn::make('vl')
                     ->label(__('messages.vl'))
-                    ->formatStateUsing(fn ($state) => number_format((float) $state, 2, ',', ' ') . ' FCFA')
-                    ->description(fn ($state) => strlen(substr(strrchr((string) (float) $state, '.') ?: '', 1)) > 2 ? 'Valeur exacte : ' . (string) (float) $state : null)
+                    ->formatStateUsing(function ($state) {
+                        if ($state === null || $state === '') return '-';
+                        $str = rtrim(rtrim((string) $state, '0'), '.');
+                        $parts = explode('.', $str);
+                        $intPart = number_format((float) ($parts[0] ?? 0), 0, '', ' ');
+                        if (!isset($parts[1]) || $parts[1] === '') {
+                            return $intPart . ',00 FCFA';
+                        }
+                        if (strlen($parts[1]) === 1) {
+                            return $intPart . ',' . $parts[1] . '0 FCFA';
+                        }
+                        return $intPart . ',' . $parts[1] . ' FCFA';
+                    })
+                    ->description(function ($state) {
+                        if ($state === null || $state === '') return null;
+                        $str = rtrim(rtrim((string) $state, '0'), '.');
+                        $parts = explode('.', $str);
+                        if (isset($parts[1]) && strlen($parts[1]) > 2) {
+                            return 'Affichage client : ' . number_format((float) $state, 2, ',', ' ') . ' FCFA';
+                        }
+                        return null;
+                    })
                     ->sortable(),
             ])
             ->filters([
