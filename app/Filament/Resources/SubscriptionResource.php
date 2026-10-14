@@ -210,7 +210,7 @@ class SubscriptionResource extends Resource
                             ->disabled()
                             ->dehydrated()
                             ->default('0')
-                            ->helperText('Calculé automatiquement : Montant versé - Frais (99%)'),
+                            ->helperText('Calculé automatiquement : Montant versé - Frais (1%)'),
 
                         Forms\Components\TextInput::make('subscription_fee')
                             ->label('Frais d\'entrée prélevés (FCFA)')
