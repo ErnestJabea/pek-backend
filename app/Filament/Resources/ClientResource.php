@@ -178,16 +178,12 @@ class ClientResource extends Resource
                 Forms\Components\Section::make('Activation & Statut E-mail (Accès PWA)')
                     ->description('Définissez le statut d\'activation du compte client pour son accès à la PWA.')
                     ->schema([
-                        Forms\Components\Toggle::make('email_verified')
+                        Forms\Components\Toggle::make('email_verified_at')
                             ->label('Marquer l\'e-mail comme déjà vérifié')
                             ->helperText('Active immédiatement le compte du client pour la PWA (recommandé pour les créations manuelles / guichet).')
                             ->default(true)
-                            ->dehydrated(false)
-                            ->afterStateHydrated(function (Forms\Components\Toggle $component, ?Client $record) {
-                                if ($record) {
-                                    $component->state((bool) $record->email_verified_at);
-                                }
-                            }),
+                            ->formatStateUsing(fn ($state) => (bool) $state)
+                            ->dehydrateStateUsing(fn ($state) => $state ? now() : null),
 
                         Forms\Components\Toggle::make('send_activation_email')
                             ->label('Envoyer un e-mail d\'activation / bienvenue')
@@ -237,7 +233,16 @@ class ClientResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state ? 'Vérifié' : 'En attente')
                     ->color(fn ($state) => $state ? 'success' : 'warning')
-                    ->description(fn (Client $record) => $record->email_verified_at ? $record->email_verified_at->format('d/m/Y') : 'Bloqué PWA')
+                    ->description(function (Client $record) {
+                        if (! $record->email_verified_at) {
+                            return 'Bloqué PWA';
+                        }
+                        try {
+                            return Carbon::parse($record->email_verified_at)->format('d/m/Y');
+                        } catch (\Throwable) {
+                            return 'Vérifié';
+                        }
+                    })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('messages.inscribed_at'))
@@ -410,19 +415,6 @@ class ClientResource extends Resource
                             ->send();
                     }),
                 Tables\Actions\EditAction::make()
-                    ->mutateRecordDataUsing(function (array $data, Client $record): array {
-                        $data['email_verified'] = (bool) $record->email_verified_at;
-
-                        return $data;
-                    })
-                    ->mutateFormDataBeforeSave(function (array $data, Client $record): array {
-                        if (array_key_exists('email_verified', $data)) {
-                            $data['email_verified_at'] = $data['email_verified'] ? ($record->email_verified_at ?? now()) : null;
-                            unset($data['email_verified']);
-                        }
-
-                        return $data;
-                    })
                     ->after(function (Client $record, array $data) {
                         if (! empty($data['send_activation_email'])) {
                             try {
@@ -529,43 +521,8 @@ class ClientResource extends Resource
                 ]),
             ])
             ->emptyStateActions([
-                static::configureCreateAction(Tables\Actions\CreateAction::make()),
+                Tables\Actions\CreateAction::make(),
             ]);
-    }
-
-    public static function configureCreateAction($action)
-    {
-        return $action
-            ->mutateFormDataBeforeCreate(function (array $data): array {
-                $data['role'] = 'client';
-                if (! empty($data['email_verified'])) {
-                    $data['email_verified_at'] = now();
-                } else {
-                    $data['email_verified_at'] = null;
-                }
-                unset($data['email_verified']);
-
-                return $data;
-            })
-            ->after(function (Client $record, array $data) {
-                if (! empty($data['send_activation_email'])) {
-                    try {
-                        app(ClientActivationService::class)->sendActivationEmail($record);
-                        Notification::make()
-                            ->title('E-mail d\'activation envoyé')
-                            ->body("Un code de vérification a été transmis à {$record->email}.")
-                            ->success()
-                            ->send();
-                    } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::error('Erreur envoi activation client : ' . $e->getMessage());
-                        Notification::make()
-                            ->title('Client créé, mais erreur d\'envoi d\'e-mail')
-                            ->body($e->getMessage())
-                            ->warning()
-                            ->send();
-                    }
-                }
-            });
     }
 
     public static function getPages(): array
