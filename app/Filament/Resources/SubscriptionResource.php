@@ -76,22 +76,46 @@ class SubscriptionResource extends Resource
         $valueDate = $get('value_date');
         $montantTotal = (float) $get('montant_total');
         $tauxFrais = (float) ($get('taux_frais') ?? 1.0); // 1.00% par défaut
+        $modeCalcul = $get('mode_calcul_frais') ?? 'en_sus';
 
         $montantPlacement = 0.0;
         $fraisEntree = 0.0;
 
-        if ($montantTotal > 0) {
-            $taux = max(0.0, $tauxFrais) / 100.0;
-            // Frais d'entrée = Montant total * taux (ex: 50 000 * 1% = 500 FCFA)
-            $fraisEntree = round($montantTotal * $taux);
-            // Placement net = Montant total - Frais (ex: 50 000 - 500 = 49 500 FCFA)
-            $montantPlacement = max(0.0, $montantTotal - $fraisEntree);
+        if ($modeCalcul === 'en_sus') {
+            // Mode Frais en sus : Le client paie le capital net souhaité + la commission (ex: 50 500 versés => 50 000 net + 500 frais)
+            if ($montantTotal > 0) {
+                $taux = max(0.0, $tauxFrais) / 100.0;
+                $montantPlacement = round($montantTotal / (1.0 + $taux));
+                $fraisEntree = round($montantTotal - $montantPlacement);
 
-            $set('investment_amount', (string) ((int) $montantPlacement));
-            $set('subscription_fee', (string) ((int) $fraisEntree));
+                $set('investment_amount', (string) ((int) $montantPlacement));
+                $set('subscription_fee', (string) ((int) $fraisEntree));
+            } else {
+                $set('investment_amount', '0');
+                $set('subscription_fee', '0');
+            }
+        } elseif ($modeCalcul === 'deduit') {
+            // Mode Frais déduits : Frais prélevés sur une enveloppe fixe (ex: 50 000 versés => 49 500 net + 500 frais)
+            if ($montantTotal > 0) {
+                $taux = max(0.0, $tauxFrais) / 100.0;
+                $fraisEntree = round($montantTotal * $taux);
+                $montantPlacement = max(0.0, $montantTotal - $fraisEntree);
+
+                $set('investment_amount', (string) ((int) $montantPlacement));
+                $set('subscription_fee', (string) ((int) $fraisEntree));
+            } else {
+                $set('investment_amount', '0');
+                $set('subscription_fee', '0');
+            }
         } else {
-            $set('investment_amount', '0');
-            $set('subscription_fee', '0');
+            // Mode manuel : l'opérateur a la main directe sur les montants
+            $montantPlacement = (float) ($get('investment_amount') ?? 0);
+            $fraisEntree = (float) ($get('subscription_fee') ?? 0);
+
+            if ($montantPlacement <= 0 && $montantTotal > 0) {
+                $montantPlacement = $montantTotal;
+                $set('investment_amount', (string) ((int) $montantPlacement));
+            }
         }
 
         if ($productId && $valueDate) {
@@ -183,13 +207,33 @@ class SubscriptionResource extends Resource
 
                 Forms\Components\Section::make('3. Montant, Frais & Attribution des Parts')
                     ->schema([
+                        Forms\Components\Radio::make('mode_calcul_frais')
+                            ->label('Modalité de prise en compte des frais')
+                            ->options([
+                                'en_sus' => 'Frais en sus / Net rond (Ex: 50 500 versés → 50 000 net + 500 frais)',
+                                'deduit' => 'Frais déduits du total (Ex: 50 000 versés → 49 500 net + 500 frais)',
+                                'manuel' => 'Saisie manuelle personnalisée (Déverrouillage des montants)',
+                            ])
+                            ->descriptions([
+                                'en_sus' => 'Le client a versé le capital désiré + 1% de commission (ex: 50 500 pour 50 000 net, 101 000 pour 100 000 net).',
+                                'deduit' => 'Le client a versé une enveloppe forfaitaire dont la commission de 1% est retranchée.',
+                                'manuel' => 'Déverrouille le montant net placé et les frais pour un ajustement sur mesure au franc près.',
+                            ])
+                            ->default('en_sus')
+                            ->dehydrated()
+                            ->live()
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                            ->columnSpanFull(),
+
                         Forms\Components\TextInput::make('montant_total')
                             ->label('Montant total versé (FCFA)')
                             ->numeric()
                             ->required()
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->helperText('Exemple : 101 000 FCFA'),
+                            ->helperText(fn (Forms\Get $get) => $get('mode_calcul_frais') === 'en_sus'
+                                ? 'Exemple : 50 500 FCFA (pour 50 000 FCFA net) ou 101 000 FCFA'
+                                : 'Exemple : 50 000 FCFA (pour 49 500 FCFA net) ou 100 000 FCFA'),
 
                         Forms\Components\Select::make('taux_frais')
                             ->label('Barème des frais d\'entrée')
@@ -208,17 +252,24 @@ class SubscriptionResource extends Resource
 
                         Forms\Components\TextInput::make('investment_amount')
                             ->label('Montant de placement net (FCFA)')
-                            ->disabled()
+                            ->numeric()
+                            ->disabled(fn (Forms\Get $get) => $get('mode_calcul_frais') !== 'manuel')
                             ->dehydrated()
                             ->default('0')
-                            ->helperText('Calculé automatiquement : Montant total - Frais d\'entrée. Ex: 49 500 FCFA'),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                            ->helperText('Montant affecté à l\'achat de parts (génère la valeur liquidative du portefeuille)'),
 
                         Forms\Components\TextInput::make('subscription_fee')
                             ->label('Frais d\'entrée prélevés (FCFA)')
-                            ->disabled()
+                            ->numeric()
+                            ->disabled(fn (Forms\Get $get) => $get('mode_calcul_frais') !== 'manuel')
                             ->dehydrated()
                             ->required()
-                            ->helperText('Calculé automatiquement : Montant total × Taux. Ex: 500 FCFA'),
+                            ->default('0')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                            ->helperText('Commission prélevée par la société de gestion'),
 
                         Forms\Components\TextInput::make('nb_parts')
                             ->label('Nombre de parts calculées')
