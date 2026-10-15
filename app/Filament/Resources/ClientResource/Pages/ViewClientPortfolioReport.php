@@ -51,39 +51,22 @@ class ViewClientPortfolioReport extends Page
         return "Visibilité financière à date, valorisation du portefeuille, historique des mouvements et génération du relevé officiel FCP.";
     }
 
+    public function getHeader(): ?\Illuminate\Contracts\View\View
+    {
+        return view('filament.resources.client-resource.pages.portfolio-report-header', [
+            'record' => $this->record,
+            'heading' => $this->getTitle(),
+            'subheading' => $this->getSubheading(),
+            'breadcrumbs' => filament()->hasBreadcrumbs() ? $this->getBreadcrumbs() : [],
+            'startDate' => $this->startDate,
+            'endDate' => $this->endDate,
+            'productId' => $this->productId,
+        ]);
+    }
+
     protected function getHeaderActions(): array
     {
-        return [
-            Action::make('download_pdf')
-                ->label('Télécharger le Relevé PDF')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('warning')
-                ->url(fn (): string => route('client.statement.pdf', [
-                    'client' => $this->record->id,
-                    'start_date' => $this->startDate,
-                    'end_date' => $this->endDate,
-                    'product_id' => $this->productId,
-                ]))
-                ->openUrlInNewTab(),
-
-            Action::make('preview_statement')
-                ->label('Aperçu / Imprimer')
-                ->icon('heroicon-o-printer')
-                ->color('primary')
-                ->url(fn (): string => route('client.statement.preview', [
-                    'client' => $this->record->id,
-                    'start_date' => $this->startDate,
-                    'end_date' => $this->endDate,
-                    'product_id' => $this->productId,
-                ]))
-                ->openUrlInNewTab(),
-
-            Action::make('back_to_clients')
-                ->label('Retour aux clients')
-                ->icon('heroicon-o-arrow-left')
-                ->color('gray')
-                ->url(ClientResource::getUrl('index')),
-        ];
+        return [];
     }
 
     public function getProductsProperty()
