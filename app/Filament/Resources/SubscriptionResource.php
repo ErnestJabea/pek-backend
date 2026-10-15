@@ -565,7 +565,7 @@ class SubscriptionResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Apposer le visa de Conformité')
                     ->modalDescription('Confirmez-vous que les pièces d\'identification et les règles LAB/FT sont conformes pour cette opération ?')
-                    ->visible(fn (Subscription $record) => ! $record->compliance_reviewed_at)
+                    ->visible(fn (Subscription $record) => ! $record->compliance_reviewed_at && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('review_subscription_compliance')))
                     ->action(function (Subscription $record) {
                         $record->update([
                             'compliance_reviewed_at' => now(),
@@ -586,7 +586,7 @@ class SubscriptionResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Confirmation des fonds & Attribution des parts')
                     ->modalDescription(fn (Subscription $record) => "Confirmez-vous que les fonds ont bien été reçus sur le compte séquestre du FCP ? Cela validera immédiatement l'attribution de {$record->nb_parts} parts du fonds {$record->product?->libelle} pour le client {$record->user?->first_name} {$record->user?->last_name}." . ($record->is_historical ? ' (Mode historique : Aucun mail ne sera envoyé au client)' : ''))
-                    ->visible(fn (Subscription $record) => $record->statut !== 'Succès')
+                    ->visible(fn (Subscription $record) => $record->statut !== 'Succès' && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('confirm_bank_payment')))
                     ->action(function (Subscription $record) {
                         $record->forceFill([
                             'accounting_reviewed_at' => now(),
@@ -621,7 +621,7 @@ class SubscriptionResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Visa Global de Régularisation Historique')
                     ->modalDescription(fn (Subscription $record) => "Certifier en un clic les 3 visas (Conformité + Comptabilité + Gérant) pour cette opération historique ({$record->reference_transaction}). Aucun mail ne sera envoyé au client.")
-                    ->visible(fn (Subscription $record) => $record->is_historical && $record->statut !== 'Succès')
+                    ->visible(fn (Subscription $record) => $record->is_historical && $record->statut !== 'Succès' && (auth()->user()?->hasRole('super_admin') || (auth()->user()?->can('confirm_bank_payment') && auth()->user()?->can('review_subscription_compliance'))))
                     ->action(function (Subscription $record) {
                         $record->forceFill([
                             'compliance_reviewed_at' => now(),
@@ -649,7 +649,7 @@ class SubscriptionResource extends Resource
                     ->label('Relancer preuve virement')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
-                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && !$record->funds_received_at && !$record->paymentProofs()->exists())
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && !$record->funds_received_at && !$record->paymentProofs()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('confirm_bank_payment') || auth()->user()?->can('review_subscription_compliance') || auth()->user()?->can('update_subscription')))
                     ->requiresConfirmation()
                     ->modalHeading('Relancer le client pour la preuve de virement')
                     ->modalDescription(fn (Subscription $record) => 'Envoyer immédiatement un email de rappel avec les coordonnées bancaires et une notification In-App à ' . ($record->user ? ($record->user->first_name . ' ' . $record->user->last_name . ' (' . $record->user->email . ')') : 'ce client') . ' pour la souscription ' . $record->reference_transaction . ' ?')
@@ -674,13 +674,14 @@ class SubscriptionResource extends Resource
                     ->label('Bulletin de souscription')
                     ->icon('heroicon-o-printer')
                     ->color('secondary')
+                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_subscription') || auth()->user()?->can('view_any_subscription'))
                     ->url(fn (Subscription $record) => route('subscriptions.bulletin.show', $record))
                     ->openUrlInNewTab(),
                 Tables\Actions\Action::make('downloadPaymentProof')
                     ->label('Preuve de paiement')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('info')
-                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists())
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_payment_proof') || auth()->user()?->can('review_payment_proof')))
                     ->action(function (Subscription $record) {
                         $proof = $record->paymentProofs()->latest()->first();
                         if (!$proof || !$proof->path || !\Illuminate\Support\Facades\Storage::disk('payment_private')->exists($proof->path)) {

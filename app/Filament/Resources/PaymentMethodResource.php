@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class PaymentMethodResource extends Resource
 {
@@ -31,6 +32,27 @@ class PaymentMethodResource extends Resource
         return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('view_any_payment_method') ?? false)
             || (auth()->user()?->can('view_any_payment::method') ?? false);
+    }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('create_payment_method') ?? false)
+            || (auth()->user()?->can('create_payment::method') ?? false);
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('update_payment_method') ?? false)
+            || (auth()->user()?->can('update_payment::method') ?? false);
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('delete_payment_method') ?? false)
+            || (auth()->user()?->can('delete_payment::method') ?? false);
     }
 
     public static function form(Form $form): Form

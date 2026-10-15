@@ -25,7 +25,8 @@ class PaymentMethodsDistributionWidget extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin') || $user->can('confirm_bank_payment') || $user->can('view_any_subscription') || in_array($user->adminDepartment?->name, ['Comptabilité / Trésorerie', 'Gestion des fonds'], true);
+        return $user->hasRole('super_admin')
+            || $user->can('view_any_subscription');
     }
 
     protected function getData(): array

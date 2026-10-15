@@ -622,6 +622,7 @@ class OnboardingSessionResource extends Resource
                         ->label('Modifier Catégorie Client')
                         ->icon('heroicon-o-identification')
                         ->color('warning')
+                        ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_onboarding::session') || auth()->user()?->can('update_onboarding_session'))
                         ->modalHeading('Mettre à jour la catégorie du client')
                         ->modalDescription('Modifie le type et la catégorie du client pour ses futurs bulletins officiels.')
                         ->fillForm(function (OnboardingSession $record): array {

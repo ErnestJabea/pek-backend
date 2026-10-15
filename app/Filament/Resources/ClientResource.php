@@ -266,7 +266,7 @@ class ClientResource extends Resource
                     ->label('Valider E-mail')
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
-                    ->visible(fn (Client $record): bool => ! $record->email_verified_at && ! $record->trashed())
+                    ->visible(fn (Client $record): bool => ! $record->email_verified_at && ! $record->trashed() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_client')))
                     ->requiresConfirmation()
                     ->modalHeading('Valider manuellement l\'adresse e-mail')
                     ->modalDescription(fn (Client $record) => "Confirmez-vous la validation de {$record->email} ? Le client pourra immédiatement se connecter à la PWA.")
@@ -282,7 +282,7 @@ class ClientResource extends Resource
                     ->label('Renvoyer OTP')
                     ->icon('heroicon-o-envelope')
                     ->color('info')
-                    ->visible(fn (Client $record): bool => ! $record->trashed())
+                    ->visible(fn (Client $record): bool => ! $record->trashed() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_client')))
                     ->requiresConfirmation()
                     ->modalHeading('Renvoyer le code d\'activation OTP')
                     ->modalDescription(fn (Client $record) => "Un nouveau code OTP de vérification va être envoyé à {$record->email}.")
@@ -306,7 +306,7 @@ class ClientResource extends Resource
                     ->label('Révoquer E-mail')
                     ->icon('heroicon-o-no-symbol')
                     ->color('danger')
-                    ->visible(fn (Client $record): bool => (bool) $record->email_verified_at && ! $record->trashed())
+                    ->visible(fn (Client $record): bool => (bool) $record->email_verified_at && ! $record->trashed() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_client')))
                     ->requiresConfirmation()
                     ->modalHeading('Révoquer la validation de l\'e-mail')
                     ->modalDescription(fn (Client $record) => "Êtes-vous sûr de vouloir révoquer la validation de {$record->email} ? L'accès à la PWA sera suspendu jusqu'à nouvelle vérification.")
@@ -322,7 +322,7 @@ class ClientResource extends Resource
                     ->label('Rappel Pièce')
                     ->icon('heroicon-o-identification')
                     ->color('warning')
-                    ->visible(fn (Client $record): bool => (bool) $record->is_id_expired)
+                    ->visible(fn (Client $record): bool => (bool) $record->is_id_expired && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('remind_client_id') || auth()->user()?->can('page_IdDocumentExpirations')))
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer un rappel de renouvellement de pièce')
                     ->action(function (Client $record) {
@@ -342,7 +342,7 @@ class ClientResource extends Resource
                     ->label('Anniversaire')
                     ->icon('heroicon-o-cake')
                     ->color('success')
-                    ->visible(fn (Client $record): bool => (bool) $record->is_birthday_today)
+                    ->visible(fn (Client $record): bool => (bool) $record->is_birthday_today && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('wish_client_birthday') || auth()->user()?->can('page_ClientBirthdays')))
                     ->requiresConfirmation()
                     ->modalHeading('Envoyer les vœux d\'anniversaire')
                     ->action(function (Client $record) {
@@ -361,6 +361,7 @@ class ClientResource extends Resource
                     ->label('Catégorie')
                     ->icon('heroicon-o-identification')
                     ->color('warning')
+                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_client'))
                     ->modalHeading('Modifier la catégorie du client')
                     ->modalDescription('Définissez le type et la catégorie d\'investisseur du client pour ses bulletins de souscription.')
                     ->fillForm(function (Client $record): array {
@@ -444,7 +445,7 @@ class ClientResource extends Resource
                     ->modalHeading('Créer la session d\'onboarding')
                     ->modalDescription('Êtes-vous sûr de vouloir initialiser la session d\'onboarding pour ce client ? Ses informations de base seront pré-remplies.')
                     ->modalSubmitActionLabel('Créer')
-                    ->visible(fn (Client $record) => ! $record->trashed() && ! $record->onboardingSession()->exists())
+                    ->visible(fn (Client $record) => ! $record->trashed() && ! $record->onboardingSession()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('create_onboarding::session') || auth()->user()?->can('create_onboarding_session')))
                     ->action(function (Client $record) {
                         $record->onboardingSession()->create([
                             'current_step' => 'kyc',
@@ -476,12 +477,13 @@ class ClientResource extends Resource
                     ->tooltip('Consulter la valorisation à date et générer le relevé officiel FCP')
                     ->icon('heroicon-o-chart-pie')
                     ->color('warning')
+                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_client') || auth()->user()?->can('view_any_client'))
                     ->url(fn (Client $record): string => ClientResource::getUrl('portfolio-report', ['record' => $record])),
                 Tables\Actions\Action::make('view_onboarding')
                     ->label('Voir Onboarding')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('info')
-                    ->visible(fn (Client $record) => $record->onboardingSession()->exists())
+                    ->visible(fn (Client $record) => $record->onboardingSession()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_onboarding::session') || auth()->user()?->can('view_onboarding_session')))
                     ->url(fn (Client $record) => OnboardingSessionResource::getUrl('view', ['record' => $record->onboardingSession])),
             ])
             ->bulkActions([

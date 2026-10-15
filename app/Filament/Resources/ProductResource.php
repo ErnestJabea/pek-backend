@@ -228,7 +228,7 @@ class ProductResource extends Resource
                         ->label('Mettre à jour la VL')
                         ->icon('heroicon-o-chart-bar')
                         ->color('warning')
-                        ->visible(fn (Product $record) => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_product') || auth()->user()?->can('update_product_vl') || auth()->user()?->can('create_product_vl'))
+                        ->visible(fn (Product $record) => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_product_vl') || auth()->user()?->can('create_product_vl'))
                         ->form([
                             Forms\Components\Placeholder::make('current_vl_info')
                                 ->label('Valeur Liquidative actuelle')

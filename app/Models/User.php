@@ -43,12 +43,29 @@ class User extends Authenticatable implements FilamentUser, HasName
 
     public function hasPermissionTo($permission, $guardName = null): bool
     {
-        $granted = $this->hasPermissionWithoutDepartment($permission, $guardName);
-        if (! $granted || ! $this->admin_department_id || $this->hasRole('super_admin')) return $granted;
+        try {
+            $granted = $this->hasPermissionWithoutDepartment($permission, $guardName);
+        } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+            return false;
+        }
+
+        if (! $granted || ! $this->admin_department_id || $this->hasRole('super_admin')) {
+            return $granted;
+        }
+
         // Read current department configuration: cached role permissions cannot bypass a revocation.
         $department = $this->adminDepartment()->first();
+        if (! $department || ! $department->is_active) {
+            return false;
+        }
+
         $resolved = $this->filterPermission($permission, $guardName);
-        return $department && $department->is_active && in_array($resolved->name, $department->permissions ?? [], true);
+        $name = $resolved->name;
+        $deptPerms = (array) ($department->permissions ?? []);
+
+        return in_array($name, $deptPerms, true)
+            || in_array(str_replace('::', '_', $name), $deptPerms, true)
+            || in_array(str_replace('_', '::', $name), $deptPerms, true);
     }
 
     public function isBackofficeAccount(): bool

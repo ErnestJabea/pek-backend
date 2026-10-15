@@ -37,6 +37,7 @@ class EditAdminDepartment extends EditRecord
         }
 
         $data['module_permissions'] = $modulePermissions;
+        $data['permissions'] = null;
 
         return $data;
     }
@@ -50,6 +51,10 @@ class EditAdminDepartment extends EditRecord
                     $all = array_merge($all, $perms);
                 }
             }
+        }
+
+        if (! empty($data['permissions']) && is_array($data['permissions'])) {
+            $all = $data['permissions'];
         }
 
         $data['permissions'] = array_values(array_unique($all));

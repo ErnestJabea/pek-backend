@@ -8,6 +8,18 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class CurrencyStats extends BaseWidget
 {
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('super_admin')
+            || $user->can('widget_CurrencyStats')
+            || $user->can('view_any_currency');
+    }
+
     protected function getStats(): array
     {
         $service = new ExchangeRateService;

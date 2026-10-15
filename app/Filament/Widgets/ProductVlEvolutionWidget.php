@@ -27,7 +27,9 @@ class ProductVlEvolutionWidget extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin') || $user->can('view_any_product') || in_array($user->adminDepartment?->name, ['Gestion des fonds', 'Activité commune'], true);
+        return $user->hasRole('super_admin')
+            || $user->can('view_any_product')
+            || $user->can('view_any_product_vl');
     }
 
     protected function getFilters(): ?array

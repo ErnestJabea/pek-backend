@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class AppContentResource extends Resource
 {
@@ -37,6 +38,27 @@ class AppContentResource extends Resource
         return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('view_any_app_content') ?? false)
             || (auth()->user()?->can('view_any_app::content') ?? false);
+    }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('create_app_content') ?? false)
+            || (auth()->user()?->can('create_app::content') ?? false);
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('update_app_content') ?? false)
+            || (auth()->user()?->can('update_app::content') ?? false);
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('delete_app_content') ?? false)
+            || (auth()->user()?->can('delete_app::content') ?? false);
     }
 
     public static function form(Form $form): Form

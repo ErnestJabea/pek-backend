@@ -39,8 +39,7 @@ class IdDocumentExpirations extends Page implements HasTable
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('super_admin')
-            || (auth()->user()?->can('page_IdDocumentExpirations') ?? false)
-            || (auth()->user()?->can('review_subscription_compliance') ?? false);
+            || (auth()->user()?->can('page_IdDocumentExpirations') ?? false);
     }
 
     public function table(Table $table): Table

@@ -21,7 +21,7 @@ class SubscriptionsStatusChartWidget extends ChartWidget
     public static function canView(): bool
     {
         $user = auth()->user();
-        return $user && app(\App\Services\BackofficeDashboard::class)->canAccess($user);
+        return $user && ($user->hasRole('super_admin') || $user->can('view_any_subscription'));
     }
 
     protected function getData(): array

@@ -4,7 +4,10 @@ class BankDetailPolicy
 {
     public function viewAny(\App\Models\User $user): bool
     {
-        return $user->hasRole('super_admin') || $user->can('view_any_bank_detail');
+        return $user->hasRole('super_admin') 
+            || $user->can('view_any_bank_detail') 
+            || $user->can('view_any_bank::detail')
+            || (! $user->admin_department_id && $user->isBackofficeAccount());
     }
     public function view(\App\Models\User $user): bool
     {

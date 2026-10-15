@@ -21,6 +21,13 @@ class ViewClientPortfolioReport extends Page
 
     public ?string $startDate = null;
 
+    public static function canAccess(array $parameters = []): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('view_client') ?? false)
+            || (auth()->user()?->can('view_any_client') ?? false);
+    }
+
     public ?string $endDate = null;
 
     public ?int $productId = null;

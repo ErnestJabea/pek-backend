@@ -12,6 +12,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class ProfileChangeRequestResource extends Resource
 {
@@ -33,8 +34,24 @@ class ProfileChangeRequestResource extends Resource
     {
         return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('view_any_profile_change_request') ?? false)
-            || (auth()->user()?->can('view_any_profile::change::request') ?? false)
-            || (auth()->user()?->can('review_subscription_compliance') ?? false);
+            || (auth()->user()?->can('view_any_profile::change::request') ?? false);
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('delete_profile_change_request') ?? false)
+            || (auth()->user()?->can('delete_profile::change::request') ?? false);
     }
 
     public static function getNavigationBadge(): ?string
@@ -160,7 +177,7 @@ class ProfileChangeRequestResource extends Resource
                     ->label('Approuver')
                     ->icon('heroicon-m-check-circle')
                     ->color('success')
-                    ->visible(fn ($record) => $record->status === 'pending')
+                    ->visible(fn ($record) => $record->status === 'pending' && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_profile_change_request') || auth()->user()?->can('update_profile::change::request') || auth()->user()?->can('review_subscription_compliance')))
                     ->requiresConfirmation()
                     ->modalHeading('Approuver la mise à jour')
                     ->modalDescription('Les données actives du client seront immédiatement mises à jour et le client recevra un email et une notification InApp.')
@@ -177,7 +194,7 @@ class ProfileChangeRequestResource extends Resource
                     ->label('Rejeter')
                     ->icon('heroicon-m-x-circle')
                     ->color('danger')
-                    ->visible(fn ($record) => $record->status === 'pending')
+                    ->visible(fn ($record) => $record->status === 'pending' && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_profile_change_request') || auth()->user()?->can('update_profile::change::request') || auth()->user()?->can('review_subscription_compliance')))
                     ->form([
                         Forms\Components\Textarea::make('reason')
                             ->label('Motif du rejet (transmis au client)')

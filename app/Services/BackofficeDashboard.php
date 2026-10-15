@@ -30,10 +30,10 @@ class BackofficeDashboard
     public function definitions(): array
     {
         return [
-            'subscriptions_today' => ['Activité commune', 'Souscriptions du jour', SubscriptionResource::class, [], 'count', 'Demandes créées aujourd’hui · tous statuts', 'heroicon-o-document-plus'],
-            'registrations_today' => ['Activité commune', 'Inscriptions du jour', UserResource::class, [], 'count', 'Nouveaux comptes clients · hors personnel', 'heroicon-o-user-plus'],
-            'confirmed_today' => ['Activité commune', 'Souscriptions confirmées du jour', SubscriptionResource::class, [], 'sum', 'Montant brut confirmé · frais inclus', 'heroicon-o-banknotes'],
-            'confirmed_total' => ['Activité commune', 'Souscriptions confirmées cumulées', SubscriptionResource::class, [], 'sum', 'Depuis l’origine · montant brut, frais inclus', 'heroicon-o-chart-bar'],
+            'subscriptions_today' => ['Activité commune', 'Souscriptions du jour', SubscriptionResource::class, ['view_any_subscription'], 'count', 'Demandes créées aujourd’hui · tous statuts', 'heroicon-o-document-plus'],
+            'registrations_today' => ['Activité commune', 'Inscriptions du jour', UserResource::class, ['view_any_client'], 'count', 'Nouveaux comptes clients · hors personnel', 'heroicon-o-user-plus'],
+            'confirmed_today' => ['Activité commune', 'Souscriptions confirmées du jour', SubscriptionResource::class, ['view_any_subscription'], 'sum', 'Montant brut confirmé · frais inclus', 'heroicon-o-banknotes'],
+            'confirmed_total' => ['Activité commune', 'Souscriptions confirmées cumulées', SubscriptionResource::class, ['view_any_subscription'], 'sum', 'Depuis l’origine · montant brut, frais inclus', 'heroicon-o-chart-bar'],
             'kyc_pending' => ['Conformité / KYC', 'Dossiers KYC à examiner', OnboardingSessionResource::class, ['view_any_onboarding_session'], 'count', 'Dossiers soumis en attente de décision', 'heroicon-o-identification'],
             'kyc_rejected' => ['Conformité / KYC', 'Dossiers KYC rejetés', OnboardingSessionResource::class, ['view_any_onboarding_session'], 'count', 'Dossiers actuellement rejetés', 'heroicon-o-exclamation-circle'],
             'compliance_pending' => ['Conformité / KYC', 'Souscriptions à contrôler', SubscriptionResource::class, ['view_any_subscription', 'review_subscription_compliance'], 'count', 'Hors échecs · revue de conformité absente', 'heroicon-o-shield-check'],
@@ -57,6 +57,10 @@ class BackofficeDashboard
             return collect($definition[3])->every(function ($permission) use ($user) {
                 if ($permission === 'view_any_onboarding_session') {
                     return $user->can('view_any_onboarding::session') || $user->can('view_any_onboarding_session');
+                }
+
+                if ($permission === 'view_any_client') {
+                    return $user->can('view_any_client') || $user->can('view_any_user');
                 }
 
                 return $user->can($permission);

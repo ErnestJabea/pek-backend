@@ -27,7 +27,7 @@ class UserRegistrationsChartWidget extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin') || $user->can('view_any_user') || in_array($user->adminDepartment?->name, ['Support client', 'Activité commune'], true);
+        return $user->hasRole('super_admin') || $user->can('view_any_client') || $user->can('view_any_user');
     }
 
     protected function getFilters(): ?array

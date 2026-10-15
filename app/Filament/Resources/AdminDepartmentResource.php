@@ -52,14 +52,14 @@ class AdminDepartmentResource extends Resource
     {
         return [
             'clients' => [
-                'label' => 'Clients',
+                'label' => 'Clients & CRM',
                 'icon' => 'heroicon-o-users',
-                'description' => 'Gestion des comptes clients et de leurs informations.',
+                'description' => 'Gestion des comptes clients, vœux d\'anniversaire et échéances des pièces.',
                 'permissions' => [
                     'view_any_client' => 'Consulter la liste des clients',
-                    'view_client' => 'Consulter la fiche client',
+                    'view_client' => 'Consulter la fiche client et relevé',
                     'create_client' => 'Créer un client',
-                    'update_client' => 'Modifier un client',
+                    'update_client' => 'Modifier un client (profil, statut, email, catégorie)',
                     'replicate_client' => 'Dupliquer un client',
                     'delete_client' => 'Supprimer un client',
                     'delete_any_client' => 'Supprimer des clients en masse',
@@ -68,17 +68,21 @@ class AdminDepartmentResource extends Resource
                     'force_delete_client' => 'Supprimer définitivement un client',
                     'force_delete_any_client' => 'Supprimer définitivement en masse',
                     'reorder_client' => 'Réordonner les clients',
+                    'page_ClientBirthdays' => 'Consulter les anniversaires clients (Rubrique & Menu)',
+                    'wish_client_birthday' => 'Envoyer les vœux d\'anniversaire au client',
+                    'page_IdDocumentExpirations' => 'Consulter les échéances des pièces d\'identité (Rubrique & Menu)',
+                    'remind_client_id' => 'Envoyer les rappels d\'expiration de pièce d\'identité',
                 ],
             ],
             'onboarding' => [
-                'label' => 'Dossiers KYC (Onboarding)',
+                'label' => 'Dossiers KYC & Profils',
                 'icon' => 'heroicon-o-document-check',
-                'description' => 'Parcours d\'onboarding, vérification d\'identité et conformité KYC.',
+                'description' => 'Parcours d\'onboarding, vérification d\'identité et modifications de RIB/profil.',
                 'permissions' => [
                     'view_any_onboarding::session' => 'Consulter la liste des dossiers KYC',
                     'view_onboarding::session' => 'Consulter le détail du dossier KYC',
                     'create_onboarding::session' => 'Créer un dossier d\'onboarding',
-                    'update_onboarding::session' => 'Modifier un dossier d\'onboarding',
+                    'update_onboarding::session' => 'Valider / rejeter un dossier KYC ou modifier la catégorie',
                     'replicate_onboarding::session' => 'Dupliquer un dossier',
                     'delete_onboarding::session' => 'Supprimer un dossier',
                     'delete_any_onboarding::session' => 'Supprimer des dossiers en masse',
@@ -87,6 +91,9 @@ class AdminDepartmentResource extends Resource
                     'force_delete_onboarding::session' => 'Supprimer définitivement un dossier',
                     'force_delete_any_onboarding::session' => 'Supprimer définitivement en masse',
                     'reorder_onboarding::session' => 'Réordonner les dossiers',
+                    'view_any_profile_change_request' => 'Consulter les demandes de modification Profil & RIB (Rubrique & Menu)',
+                    'update_profile_change_request' => 'Approuver ou rejeter les demandes de modification Profil & RIB',
+                    'delete_profile_change_request' => 'Supprimer une demande de modification',
                 ],
             ],
             'subscriptions' => [
@@ -106,9 +113,9 @@ class AdminDepartmentResource extends Resource
                     'force_delete_subscription' => 'Supprimer définitivement une souscription',
                     'force_delete_any_subscription' => 'Supprimer définitivement en masse',
                     'reorder_subscription' => 'Réordonner les souscriptions',
-                    'confirm_bank_payment' => 'Confirmer les fonds et attribuer les parts (Finance)',
-                    'review_subscription_compliance' => 'Valider la conformité des souscriptions (Compliance)',
-                    'review_payment_proof' => 'Examiner les justificatifs de paiement',
+                    'confirm_bank_payment' => 'Apposer le Visa Comptabilité & Attribuer les parts (Finance)',
+                    'review_subscription_compliance' => 'Apposer le Visa de Conformité (Compliance)',
+                    'review_payment_proof' => 'Examiner et valider les justificatifs de paiement',
                     'view_payment_proof' => 'Consulter les justificatifs de paiement',
                 ],
             ],
@@ -175,6 +182,44 @@ class AdminDepartmentResource extends Resource
                     'widget_CurrencyStats' => 'Consulter les statistiques des devises (Widget)',
                 ],
             ],
+            'analytics' => [
+                'label' => 'Tableaux de bord & Alertes',
+                'icon' => 'heroicon-o-chart-bar-square',
+                'description' => 'Accès aux graphiques analytiques, KPI et configuration des notifications SLA.',
+                'permissions' => [
+                    'page_KpiAnalytics' => 'Consulter les graphiques analytiques et KPI (Rubrique & Menu)',
+                    'page_ManageNotificationSettings' => 'Gérer les réglages de notifications et délais SLA (Rubrique & Menu)',
+                    'widget_SubscriptionsCollectChartWidget' => 'Visualiser le graphique des collectes de souscriptions',
+                    'widget_PaymentMethodsDistributionWidget' => 'Visualiser le graphique de distribution des paiements',
+                    'widget_ProductVlEvolutionWidget' => 'Visualiser le graphique d\'évolution des VL',
+                    'widget_KycFunnelChartWidget' => 'Visualiser le graphique de l\'entonnoir KYC',
+                    'widget_UserRegistrationsChartWidget' => 'Visualiser le graphique des inscriptions clients',
+                    'widget_SubscriptionsStatusChartWidget' => 'Visualiser le graphique des statuts de souscription',
+                ],
+            ],
+            'system_config' => [
+                'label' => 'Configuration Système & PWA',
+                'icon' => 'heroicon-o-cog-6-tooth',
+                'description' => 'Gestion des contenus de l\'application mobile/PWA, pays, villes et moyens de paiement.',
+                'permissions' => [
+                    'view_any_app_content' => 'Consulter les contenus de l\'application PWA (Rubrique & Menu)',
+                    'create_app_content' => 'Créer un contenu d\'application',
+                    'update_app_content' => 'Modifier les contenus d\'application',
+                    'delete_app_content' => 'Supprimer un contenu d\'application',
+                    'view_any_payment_method' => 'Consulter les moyens de paiement (Rubrique & Menu)',
+                    'create_payment_method' => 'Créer un moyen de paiement',
+                    'update_payment_method' => 'Modifier les moyens de paiement',
+                    'delete_payment_method' => 'Supprimer un moyen de paiement',
+                    'view_any_country' => 'Consulter la liste des pays (Rubrique & Menu)',
+                    'create_country' => 'Créer un pays',
+                    'update_country' => 'Modifier un pays',
+                    'delete_country' => 'Supprimer un pays',
+                    'view_any_city' => 'Consulter la liste des villes (Rubrique & Menu)',
+                    'create_city' => 'Créer une ville',
+                    'update_city' => 'Modifier une ville',
+                    'delete_city' => 'Supprimer une ville',
+                ],
+            ],
             'users' => [
                 'label' => 'Utilisateurs & Collaborateurs',
                 'icon' => 'heroicon-o-user-group',
@@ -195,7 +240,7 @@ class AdminDepartmentResource extends Resource
                 ],
             ],
             'admin' => [
-                'label' => 'Administration & Système',
+                'label' => 'Administration & Sécurité',
                 'icon' => 'heroicon-o-shield-check',
                 'description' => 'Accès général au backoffice et gestion des rôles.',
                 'permissions' => [
@@ -223,6 +268,7 @@ class AdminDepartmentResource extends Resource
                         ->required()
                         ->maxLength(120)
                         ->unique(ignoreRecord: true),
+                    Forms\Components\Hidden::make('permissions'),
                     Forms\Components\Toggle::make('is_active')
                         ->label('Département actif')
                         ->default(true)

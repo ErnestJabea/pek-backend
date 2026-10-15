@@ -10,6 +10,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class CityResource extends Resource
 {
@@ -31,6 +32,24 @@ class CityResource extends Resource
     {
         return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('view_any_city') ?? false);
+    }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('create_city') ?? false);
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('update_city') ?? false);
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin')
+            || (auth()->user()?->can('delete_city') ?? false);
     }
 
     public static function form(Form $form): Form

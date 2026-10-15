@@ -27,7 +27,7 @@ class SubscriptionsCollectChartWidget extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin') || $user->can('view_any_subscription') || in_array($user->adminDepartment?->name, ['Gestion des fonds', 'Comptabilité / Trésorerie'], true);
+        return $user->hasRole('super_admin') || $user->can('view_any_subscription');
     }
 
     protected function getFilters(): ?array

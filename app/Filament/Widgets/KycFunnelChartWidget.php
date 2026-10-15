@@ -25,7 +25,9 @@ class KycFunnelChartWidget extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin') || $user->can('view_any_onboarding_session') || in_array($user->adminDepartment?->name, ['Conformité / KYC', 'Support client'], true);
+        return $user->hasRole('super_admin')
+            || $user->can('view_any_onboarding_session')
+            || $user->can('view_any_onboarding::session');
     }
 
     protected function getData(): array
