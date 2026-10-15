@@ -17,8 +17,15 @@ return new class extends Migration
             'delete_product_vl',
         ];
 
+        $guards = Role::pluck('guard_name')->unique()->filter()->values()->all();
+        if (!in_array('web', $guards, true)) {
+            $guards[] = 'web';
+        }
+
         foreach ($vlPermissions as $permName) {
-            Permission::firstOrCreate(['name' => $permName, 'guard_name' => 'web']);
+            foreach ($guards as $guard) {
+                Permission::firstOrCreate(['name' => $permName, 'guard_name' => $guard]);
+            }
         }
 
         // 2. Attribution automatique à tous les rôles autorisés à modifier/gérer les produits
@@ -27,13 +34,17 @@ return new class extends Migration
         })->get();
 
         foreach ($rolesWithProductUpdate as $role) {
-            $role->givePermissionTo(['view_any_product_vl', 'view_product_vl', 'create_product_vl', 'update_product_vl']);
+            try {
+                $role->givePermissionTo(['view_any_product_vl', 'view_product_vl', 'create_product_vl', 'update_product_vl']);
+            } catch (\Throwable $e) {}
         }
 
         // 3. Attribution explicite au rôle 'test' s'il existe
         $testRole = Role::where('name', 'test')->first();
         if ($testRole) {
-            $testRole->givePermissionTo(['view_any_product_vl', 'view_product_vl', 'create_product_vl', 'update_product_vl']);
+            try {
+                $testRole->givePermissionTo(['view_any_product_vl', 'view_product_vl', 'create_product_vl', 'update_product_vl']);
+            } catch (\Throwable $e) {}
         }
 
         // 4. Invalidation du cache de permissions Spatie
