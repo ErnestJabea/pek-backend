@@ -11,7 +11,7 @@
        ========================================================================== */
     @page {
       size: A4 portrait;
-      margin: 12mm 15mm 15mm 15mm;
+      margin: 12mm 15mm 20mm 15mm;
     }
     * {
       box-sizing: border-box;
@@ -278,23 +278,46 @@
       color: #000000;
     }
 
-    /* Pied de page */
+    /* Pied de page officiel PDF A4 */
     .statement-footer {
       text-align: center;
-      font-size: 7pt;
-      color: #444444;
-      line-height: 1.4;
+      font-size: 7.5pt;
+      color: #555555;
+      line-height: 1.45;
       margin-top: 25px;
-      padding-top: 12px;
+      padding-top: 10px;
       border-top: 1px solid #E5DCD3;
     }
     .statement-footer a {
-      color: #444444;
+      color: #555555;
       text-decoration: none;
     }
+
+    @if (!empty($is_pdf))
+    .pdf-page-footer {
+      position: fixed;
+      bottom: -15mm;
+      left: 0;
+      right: 0;
+      height: 12mm;
+      text-align: center;
+      font-size: 7.5pt;
+      color: #4A4A4A;
+      line-height: 1.45;
+      border-top: 1px solid #E5DCD3;
+      padding-top: 7px;
+    }
+    @endif
   </style>
 </head>
 <body>
+
+@if (!empty($is_pdf))
+  <div class="pdf-page-footer">
+    Kori Asset Management - Rue 1.131 DIKOUME BELL, BP: 1245 BALI-DOUALA<br>
+    info@koriassetmanagement.com | www.koriassetmanagement.com
+  </div>
+@endif
 
 @php
   // Préparation du logo en Base64 pour DomPDF
@@ -449,11 +472,13 @@
         </tr>
       </table>
 
-      <!-- 8. Pied de page officiel -->
-      <div class="statement-footer">
-        Kori Asset Management - Rue 1.131 DIKOUME BELL, BP: 1245 BALI-DOUALA<br>
-        info@koriassetmanagement.com | www.koriassetmanagement.com
-      </div>
+      <!-- 8. Pied de page officiel (pour affichage écran et impression navigateur) -->
+      @if (empty($is_pdf))
+        <div class="statement-footer">
+          Kori Asset Management - Rue 1.131 DIKOUME BELL, BP: 1245 BALI-DOUALA<br>
+          info@koriassetmanagement.com | www.koriassetmanagement.com
+        </div>
+      @endif
     </div>
   @empty
     <div style="padding: 40px; text-align: center; color: #666;">

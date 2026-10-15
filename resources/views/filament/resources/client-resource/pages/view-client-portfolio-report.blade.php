@@ -639,5 +639,15 @@
             </div>
         @endforelse
 
+        {{-- Pied de page officiel KORI --}}
+        <div class="pt-8 pb-4 border-t border-[#E5DCD3] dark:border-gray-800 text-center text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <div class="font-medium">Kori Asset Management - Rue 1.131 DIKOUME BELL, BP: 1245 BALI-DOUALA</div>
+            <div class="text-[11px] text-gray-400 dark:text-gray-500">
+                <span>info@koriassetmanagement.com</span>
+                <span class="mx-1">|</span>
+                <span>www.koriassetmanagement.com</span>
+            </div>
+        </div>
+
     </div>
 </x-filament-panels::page>
