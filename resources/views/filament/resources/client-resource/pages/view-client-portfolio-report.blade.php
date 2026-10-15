@@ -607,17 +607,12 @@
 
                 {{-- Encadré Valorisation Totale (Bas de tableau - Charte KORI officielle) --}}
                 <div class="kori-valorisation-box">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-[#8C4B18]/10 text-[#8C4B18] dark:text-amber-300 flex items-center justify-center font-black">
-                            <x-heroicon-m-shield-check class="w-6 h-6" />
+                    <div>
+                        <div class="text-xs uppercase tracking-wider font-extrabold text-[#8C4B18] dark:text-amber-400">
+                            Valorisation du portefeuille
                         </div>
-                        <div>
-                            <div class="text-xs uppercase tracking-wider font-extrabold text-[#8C4B18] dark:text-amber-400">
-                                Valorisation Officielle
-                            </div>
-                            <div class="text-sm sm:text-base font-black uppercase text-gray-900 dark:text-white">
-                                AU {{ $fs['valorisation_finale']['date_label'] }}
-                            </div>
+                        <div class="text-sm sm:text-base font-black uppercase text-gray-900 dark:text-white">
+                            AU {{ $fs['valorisation_finale']['date_label'] }}
                         </div>
                     </div>
 
