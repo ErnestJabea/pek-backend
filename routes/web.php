@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\PdfDownloadController;
+use App\Http\Controllers\ClientStatementController;
 use App\Http\Controllers\PaymentProofController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SubscriptionBulletinController;
@@ -8,6 +9,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/admin/payment-proofs/{proof}/download', [PaymentProofController::class, 'download'])
     ->middleware(['web', 'auth'])->name('admin.payment-proofs.download');
+
+Route::get('/admin/clients/{client}/statement', [ClientStatementController::class, 'show'])
+    ->middleware('web')
+    ->name('client.statement.preview');
+
+Route::get('/admin/clients/{client}/statement/pdf', [ClientStatementController::class, 'downloadPdf'])
+    ->middleware('web')
+    ->name('client.statement.pdf');
 
 Route::get('/admin/logout', function (\Illuminate\Http\Request $request) {
     \Filament\Facades\Filament::auth()->logout();

@@ -471,6 +471,12 @@ class ClientResource extends Resource
                             ->success()
                             ->send();
                     }),
+                Tables\Actions\Action::make('portfolio_report')
+                    ->label('Relevé & Portefeuille')
+                    ->tooltip('Consulter la valorisation à date et générer le relevé officiel FCP')
+                    ->icon('heroicon-o-chart-pie')
+                    ->color('warning')
+                    ->url(fn (Client $record): string => ClientResource::getUrl('portfolio-report', ['record' => $record])),
                 Tables\Actions\Action::make('view_onboarding')
                     ->label('Voir Onboarding')
                     ->icon('heroicon-o-clipboard-document-check')
@@ -529,6 +535,7 @@ class ClientResource extends Resource
     {
         return [
             'index' => Pages\ManageClients::route('/'),
+            'portfolio-report' => Pages\ViewClientPortfolioReport::route('/{record}/portfolio-report'),
         ];
     }
 }
