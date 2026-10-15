@@ -13,6 +13,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // 1. Table product_vls
         if (Schema::hasTable('product_vls') && Schema::hasColumn('product_vls', 'vl')) {
             DB::statement('ALTER TABLE product_vls MODIFY COLUMN vl DECIMAL(18, 6) NOT NULL');
@@ -34,6 +38,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         if (Schema::hasTable('product_vls') && Schema::hasColumn('product_vls', 'vl')) {
             DB::statement('ALTER TABLE product_vls MODIFY COLUMN vl DECIMAL(12, 4) NOT NULL');
         }

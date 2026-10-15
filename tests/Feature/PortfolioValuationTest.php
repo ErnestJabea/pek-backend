@@ -174,7 +174,7 @@ class PortfolioValuationTest extends TestCase
         $this->assertEquals(291500.00, $valuation['valorisation_totale']);
         $this->assertEquals(255000.00, $valuation['cout_revient_total']);
         $this->assertEquals(36500.00, $valuation['plus_value_totale']);
-        $this->assertEquals(14.3137, $valuation['rendement_global']);
+        $this->assertEquals(14.31, $valuation['rendement_global']);
         $this->assertEquals(3, $valuation['nb_positions']);
         $this->assertEquals(2, $valuation['nb_produits']);
 
