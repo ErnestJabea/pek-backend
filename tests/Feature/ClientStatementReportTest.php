@@ -98,7 +98,7 @@ class ClientStatementReportTest extends TestCase
         $data = $service->getStatementData($this->client, '2026-02-01', '2026-02-28', $this->product->id);
 
         // Vérifications de base
-        $this->assertEquals('Amadou Bello', $data['client']['nom_complet']);
+        $this->assertEquals('Bello Amadou', $data['client']['nom_complet']);
         $this->assertEquals('15/01/2026', $data['client']['first_subscription_date']);
         $this->assertCount(1, $data['fund_statements']);
 
@@ -149,7 +149,7 @@ class ClientStatementReportTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Relevé de compte mensuel - FCP');
-        $response->assertSee('Amadou Bello');
+        $response->assertSee('Bello Amadou');
     }
 
     public function test_admin_can_download_statement_pdf(): void

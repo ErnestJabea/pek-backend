@@ -30,26 +30,43 @@ class ClientStatementService
 
         // 2. Fiche signalétique du client
         $onboarding = $client->onboardingSession;
-        $payload = $onboarding ? $onboarding->getSubmittedPayload() : [];
-
-        $nom = $payload['nom'] ?? $client->last_name ?? '';
-        $prenom = $payload['prenom'] ?? $client->first_name ?? '';
-        $nomComplet = $payload['nom_complet'] ?? trim("{$prenom} {$nom}");
-        if (empty($nomComplet)) {
-            $nomComplet = trim("{$nom} {$prenom}");
+        $payload = [];
+        if ($onboarding) {
+            $submitted = $onboarding->getSubmittedPayload();
+            $rawPayload = is_array($onboarding->payload) ? $onboarding->payload : (json_decode($onboarding->payload ?? '', true) ?: []);
+            $payload = !empty($submitted) ? array_merge($rawPayload, $submitted) : $rawPayload;
         }
-        if (empty($nomComplet)) {
+
+        $nom = trim($payload['nom'] ?? $client->last_name ?? '');
+        $prenom = trim($payload['prenom'] ?? $client->first_name ?? '');
+
+        if (!empty($payload['nom_complet'])) {
+            $nomComplet = trim($payload['nom_complet']);
+        } elseif (!empty($nom) && !empty($prenom)) {
+            $nomComplet = trim("{$nom} {$prenom}");
+        } elseif (!empty($nom)) {
+            $nomComplet = $nom;
+        } elseif (!empty($prenom)) {
+            $nomComplet = $prenom;
+        } else {
             $nomComplet = $client->name ?? 'Client KORI';
         }
 
         $email = $payload['email'] ?? $client->email ?? '';
         $telephone = $payload['tel'] ?? $client->phone ?? '';
-        $adresse = $payload['adresse'] ?? $client->city ?? '';
-        $ville = $payload['ville'] ?? $client->city ?? 'Yaoundé';
-        $pays = $payload['pays_residence'] ?? $client->country ?? 'Cameroun';
-        $adresseComplete = trim("{$adresse}, {$ville}");
-        if (empty(trim($adresseComplete, ', '))) {
-            $adresseComplete = $pays;
+        $adresse = trim($payload['adresse'] ?? '');
+        $ville = trim($payload['ville'] ?? $client->city ?? '');
+        $pays = trim($payload['pays_residence'] ?? $client->country ?? 'Cameroun');
+
+        // Normalisation de l'adresse pour éviter les doublons du type "Douala, Douala"
+        if (!empty($adresse) && !empty($ville) && strcasecmp($adresse, $ville) !== 0) {
+            $adresseComplete = "{$adresse}, {$ville}";
+        } elseif (!empty($adresse)) {
+            $adresseComplete = !empty($pays) && strcasecmp($adresse, $pays) !== 0 ? "{$adresse}, {$pays}" : $adresse;
+        } elseif (!empty($ville)) {
+            $adresseComplete = !empty($pays) && strcasecmp($ville, $pays) !== 0 ? "{$ville}, {$pays}" : $ville;
+        } else {
+            $adresseComplete = $pays ?: 'Cameroun';
         }
 
         // Date de 1ère souscription historique
