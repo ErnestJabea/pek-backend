@@ -168,7 +168,7 @@ class ClientStatementService
 
             $fundStatements[] = [
                 'product' => $product,
-                'fcp_nom' => strtoupper($product->libelle ?: 'FCP KORI SERENITE'),
+                'fcp_nom' => mb_strtoupper($product->libelle ?: 'FCP KORI SERENITE', 'UTF-8'),
                 'synthetique' => [
                     'date_valorisation' => $endDate->format('d/m/Y'),
                     'date_vl_effective' => $dateVlEffectuee,

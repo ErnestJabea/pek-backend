@@ -25,6 +25,8 @@ class ViewClientPortfolioReport extends Page
 
     public ?int $productId = null;
 
+    public string $activeFilter = 'current_month';
+
     public function mount(int | string $record): void
     {
         $this->record = $this->resolveRecord($record);
@@ -33,6 +35,7 @@ class ViewClientPortfolioReport extends Page
         $this->endDate = $now->format('Y-m-d');
         $this->startDate = $now->copy()->startOfMonth()->format('Y-m-d');
         $this->productId = null;
+        $this->activeFilter = 'current_month';
     }
 
     public function getTitle(): string
@@ -40,7 +43,7 @@ class ViewClientPortfolioReport extends Page
         /** @var Client $client */
         $client = $this->record;
         $name = trim("{$client->first_name} {$client->last_name}");
-        return "Analyse du Portefeuille & Relevé &bull; " . ($name ?: 'Client #' . $client->id);
+        return "Portefeuille & Relevé • " . ($name ?: 'Client #' . $client->id);
     }
 
     public function getSubheading(): ?string
@@ -66,7 +69,7 @@ class ViewClientPortfolioReport extends Page
             Action::make('preview_statement')
                 ->label('Aperçu / Imprimer')
                 ->icon('heroicon-o-printer')
-                ->color('gray')
+                ->color('primary')
                 ->url(fn (): string => route('client.statement.preview', [
                     'client' => $this->record->id,
                     'start_date' => $this->startDate,
@@ -101,18 +104,41 @@ class ViewClientPortfolioReport extends Page
         );
     }
 
+    public function getBreadcrumbs(): array
+    {
+        /** @var Client $client */
+        $client = $this->record;
+        $name = trim("{$client->first_name} {$client->last_name}");
+        return [
+            ClientResource::getUrl('index') => 'Clients',
+            '#' => 'Portefeuille • ' . ($name ?: '#' . $client->id),
+        ];
+    }
+
+    public function updatedStartDate(): void
+    {
+        $this->activeFilter = 'custom';
+    }
+
+    public function updatedEndDate(): void
+    {
+        $this->activeFilter = 'custom';
+    }
+
     public function resetFilters(): void
     {
         $now = now();
         $this->endDate = $now->format('Y-m-d');
         $this->startDate = $now->copy()->startOfMonth()->format('Y-m-d');
         $this->productId = null;
+        $this->activeFilter = 'current_month';
     }
 
     public function setPeriodCurrentMonth(): void
     {
         $this->startDate = now()->startOfMonth()->format('Y-m-d');
         $this->endDate = now()->format('Y-m-d');
+        $this->activeFilter = 'current_month';
     }
 
     public function setPeriodLastMonth(): void
@@ -120,12 +146,14 @@ class ViewClientPortfolioReport extends Page
         $lastMonth = now()->subMonth();
         $this->startDate = $lastMonth->copy()->startOfMonth()->format('Y-m-d');
         $this->endDate = $lastMonth->copy()->endOfMonth()->format('Y-m-d');
+        $this->activeFilter = 'last_month';
     }
 
     public function setPeriodYearToDate(): void
     {
         $this->startDate = now()->startOfYear()->format('Y-m-d');
         $this->endDate = now()->format('Y-m-d');
+        $this->activeFilter = 'ytd';
     }
 
     public function setPeriodAllHistory(): void
@@ -138,5 +166,6 @@ class ViewClientPortfolioReport extends Page
             $this->startDate = now()->subYears(5)->format('Y-m-d');
         }
         $this->endDate = now()->format('Y-m-d');
+        $this->activeFilter = 'all';
     }
 }
