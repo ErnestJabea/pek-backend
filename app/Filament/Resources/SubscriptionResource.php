@@ -578,39 +578,19 @@ class SubscriptionResource extends Resource
                             ->send();
                     }),
 
-                // 2. Visa Comptabilité
+                // 2. Visa Comptabilité & Attribution des parts
                 Tables\Actions\Action::make('reviewAccounting')
                     ->label('Visa Comptabilité')
                     ->icon('heroicon-o-check-badge')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('Apposer le visa Comptable')
-                    ->modalDescription('Confirmez-vous que les fonds ont bien été reçus sur le compte séquestre du FCP ?')
-                    ->visible(fn (Subscription $record) => ! $record->accounting_reviewed_at)
-                    ->action(function (Subscription $record) {
-                        $record->update([
-                            'accounting_reviewed_at' => now(),
-                            'accounting_reviewed_by_user_id' => auth()->id(),
-                            'funds_received_at' => $record->funds_received_at ?: now(),
-                        ]);
-
-                        Notification::make()
-                            ->title('Visa Comptable apposé ✅')
-                            ->success()
-                            ->send();
-                    }),
-
-                // 3. Visa Gérant & Émission des Parts
-                Tables\Actions\Action::make('reviewManager')
-                    ->label('Visa Gérant / Émettre')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Visa Gérant & Émission officielle des parts')
-                    ->modalDescription(fn (Subscription $record) => "Valider l'attribution de {$record->nb_parts} parts du fonds {$record->product?->libelle} pour le client {$record->user?->first_name} {$record->user?->last_name}." . ($record->is_historical ? ' (Mode historique : Aucun mail ne sera envoyé au client)' : ''))
+                    ->modalHeading('Confirmation des fonds & Attribution des parts')
+                    ->modalDescription(fn (Subscription $record) => "Confirmez-vous que les fonds ont bien été reçus sur le compte séquestre du FCP ? Cela validera immédiatement l'attribution de {$record->nb_parts} parts du fonds {$record->product?->libelle} pour le client {$record->user?->first_name} {$record->user?->last_name}." . ($record->is_historical ? ' (Mode historique : Aucun mail ne sera envoyé au client)' : ''))
                     ->visible(fn (Subscription $record) => $record->statut !== 'Succès')
                     ->action(function (Subscription $record) {
                         $record->forceFill([
+                            'accounting_reviewed_at' => now(),
+                            'accounting_reviewed_by_user_id' => auth()->id(),
                             'manager_reviewed_at' => now(),
                             'manager_reviewed_by_user_id' => auth()->id(),
                             'statut' => 'Succès',
@@ -620,11 +600,18 @@ class SubscriptionResource extends Resource
                         ])->save();
 
                         Notification::make()
-                            ->title('Parts émises avec succès ! ✅')
-                            ->body("La souscription {$record->reference_transaction} est validée. Les parts sont disponibles sur le compte du client.")
+                            ->title('Fonds confirmés & Parts attribuées ! ✅')
+                            ->body("La souscription {$record->reference_transaction} est validée. Les {$record->nb_parts} parts sont désormais disponibles sur le compte du client.")
                             ->success()
                             ->send();
                     }),
+
+                // 3. Visa Gérant & Émission des Parts (Masqué suite à attribution directe par la comptabilité)
+                Tables\Actions\Action::make('reviewManager')
+                    ->label('Visa Gérant / Émettre')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(false),
 
                 // 4. Visa Global Historique (Raccourci Super Admin / Gérant pour reprises massives sans goulot d'étranglement)
                 Tables\Actions\Action::make('globalHistoricalValidation')

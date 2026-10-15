@@ -51,12 +51,6 @@ class ListSubscriptions extends ListRecords
                 ->badge(static::getResource()::getEloquentQuery()->where('statut', 'Succès')->whereNull('accounting_reviewed_at')->count())
                 ->badgeColor('danger'),
 
-            'manager_pending' => Tab::make('À valider Gérant')
-                ->icon('heroicon-o-check-circle')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('statut', 'Succès')->whereNull('manager_reviewed_at'))
-                ->badge(static::getResource()::getEloquentQuery()->where('statut', 'Succès')->whereNull('manager_reviewed_at')->count())
-                ->badgeColor('warning'),
-
             'historical' => Tab::make('Historiques / Antériorités')
                 ->icon('heroicon-o-archive-box')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('is_historical', true))
