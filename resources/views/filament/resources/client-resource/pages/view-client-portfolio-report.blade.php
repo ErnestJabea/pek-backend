@@ -109,15 +109,18 @@
             justify-content: center;
         }
 
-        /* Boutons de périodes rapides */
+        /* Boutons de périodes rapides avec bon padding */
         .kori-pill-btn {
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.2s ease;
+            padding: 8px 16px !important;
+            border-radius: 10px !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            cursor: pointer !important;
+            border: 1px solid transparent !important;
+            transition: all 0.2s ease !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
         .kori-pill-btn.active {
             background-color: var(--kori-green) !important;
@@ -273,23 +276,23 @@
             </div>
         </div>
 
-        {{-- 2. Barre de Filtrage & Période d'Analyse (Ergonomique et intuitive) --}}
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 space-y-4">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100 dark:border-gray-700">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-[#C67C00] flex items-center justify-center font-bold">
+        {{-- 2. Barre de Filtrage & Période d'Analyse (Ergonomique et intuitive avec padding généreux) --}}
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 md:p-8 space-y-6">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-[#C67C00] flex items-center justify-center font-bold">
                         <x-heroicon-m-adjustments-horizontal class="w-5 h-5 text-[#E5A812]" />
                     </div>
                     <div>
                         <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Période du relevé</span>
-                        <div class="text-sm font-black text-gray-900 dark:text-white">
+                        <div class="text-sm sm:text-base font-black text-gray-900 dark:text-white">
                             {{ $period['label'] }}
                         </div>
                     </div>
                 </div>
 
-                {{-- Boutons d'accès rapide avec surbrillance de l'état actif --}}
-                <div class="flex flex-wrap items-center gap-1.5">
+                {{-- Boutons d'accès rapide avec surbrillance de l'état actif et padding confortable --}}
+                <div class="flex flex-wrap items-center gap-2">
                     <button type="button" wire:click="setPeriodCurrentMonth"
                             class="kori-pill-btn {{ $activeFilter === 'current_month' ? 'active' : 'inactive' }}">
                         Ce mois
@@ -307,39 +310,39 @@
                         Tout l'historique
                     </button>
                     @if($activeFilter === 'custom')
-                        <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <span class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                             Période personnalisée
                         </span>
                     @endif
                 </div>
             </div>
 
-            {{-- Champs de sélection de dates et de fonds --}}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+            {{-- Champs de sélection de dates et de fonds avec padding généreux et aéré --}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-3">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    <label class="block text-xs font-bold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2">
                         Date de début
                     </label>
                     <div class="relative">
                         <input type="date" wire:model.live="startDate"
-                               class="w-full text-sm font-semibold rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-[#009A4D] focus:ring-[#009A4D]">
+                               class="w-full text-sm font-semibold rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-[#009A4D] focus:ring-[#009A4D] py-2.5 px-3.5">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    <label class="block text-xs font-bold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2">
                         Date de fin (Date de Valorisation)
                     </label>
                     <div class="relative">
                         <input type="date" wire:model.live="endDate"
-                               class="w-full text-sm font-semibold rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-[#009A4D] focus:ring-[#009A4D]">
+                               class="w-full text-sm font-semibold rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-[#009A4D] focus:ring-[#009A4D] py-2.5 px-3.5">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    <label class="block text-xs font-bold uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-2">
                         Fonds / FCP concerné
                     </label>
                     <select wire:model.live="productId"
-                            class="w-full text-sm font-semibold rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-[#009A4D] focus:ring-[#009A4D]">
+                            class="w-full text-sm font-semibold rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-[#009A4D] focus:ring-[#009A4D] py-2.5 px-3.5">
                         <option value="">Tous les fonds (Consolidé multi-pages)</option>
                         @foreach($this->products as $p)
                             <option value="{{ $p->id }}">{{ $p->libelle }}</option>

@@ -60,35 +60,32 @@
         @endif
     </div>
 
-    {{-- Boutons d'action présentés en vertical sur 2 lignes (Retour aux clients en premier) --}}
-    <div class="flex flex-col gap-2.5 pt-1">
-        {{-- Ligne 1 : Retour aux clients en premier --}}
-        <div>
-            <a href="{{ \App\Filament\Resources\ClientResource::getUrl('index') }}"
-               class="kori-header-btn-back inline-flex items-center gap-2 px-3.5 py-2 text-xs rounded-xl transition"
-               style="background-color: #FFFFFF !important; color: #1F2937 !important; border: 1px solid #D1D5DB !important; font-weight: 700 !important;">
-                <x-heroicon-m-arrow-left class="w-4 h-4 text-gray-500" />
-                Retour aux clients
-            </a>
-        </div>
+    {{-- Boutons d'action sur UNE SEULE LIGNE (Retour aux clients en premier) --}}
+    <div class="flex flex-wrap items-center gap-3 pt-2">
+        {{-- 1. Retour aux clients en premier --}}
+        <a href="{{ \App\Filament\Resources\ClientResource::getUrl('index') }}"
+           class="kori-header-btn-back inline-flex items-center gap-2 px-4 py-2.5 text-xs rounded-xl transition"
+           style="background-color: #FFFFFF !important; color: #1F2937 !important; border: 1px solid #D1D5DB !important; font-weight: 700 !important;">
+            <x-heroicon-m-arrow-left class="w-4 h-4 text-gray-500" />
+            Retour aux clients
+        </a>
 
-        {{-- Ligne 2 : Télécharger le Relevé PDF & Aperçu / Imprimer avec couleurs garanties --}}
-        <div class="flex flex-wrap items-center gap-3">
-            <a href="{{ route('client.statement.pdf', ['client' => $record->id, 'start_date' => $startDate, 'end_date' => $endDate, 'product_id' => $productId]) }}"
-               target="_blank"
-               class="kori-header-btn-pdf inline-flex items-center gap-2 px-4 py-2.5 text-xs rounded-xl transition"
-               style="background-color: #E5A812 !important; color: #000000 !important; border: 1px solid #C67C00 !important; font-weight: 800 !important;">
-                <x-heroicon-m-arrow-down-tray class="w-4 h-4 text-black" />
-                Télécharger le Relevé PDF
-            </a>
+        {{-- 2. Télécharger le Relevé PDF --}}
+        <a href="{{ route('client.statement.pdf', ['client' => $record->id, 'start_date' => $startDate, 'end_date' => $endDate, 'product_id' => $productId]) }}"
+           target="_blank"
+           class="kori-header-btn-pdf inline-flex items-center gap-2 px-4 py-2.5 text-xs rounded-xl transition"
+           style="background-color: #E5A812 !important; color: #000000 !important; border: 1px solid #C67C00 !important; font-weight: 800 !important;">
+            <x-heroicon-m-arrow-down-tray class="w-4 h-4 text-black" />
+            Télécharger le Relevé PDF
+        </a>
 
-            <a href="{{ route('client.statement.preview', ['client' => $record->id, 'start_date' => $startDate, 'end_date' => $endDate, 'product_id' => $productId]) }}"
-               target="_blank"
-               class="kori-header-btn-print inline-flex items-center gap-2 px-4 py-2.5 text-xs rounded-xl transition"
-               style="background-color: #009A4D !important; color: #FFFFFF !important; border: 1px solid #007A3D !important; font-weight: 800 !important;">
-                <x-heroicon-m-printer class="w-4 h-4 text-white" />
-                Aperçu / Imprimer
-            </a>
-        </div>
+        {{-- 3. Aperçu / Imprimer --}}
+        <a href="{{ route('client.statement.preview', ['client' => $record->id, 'start_date' => $startDate, 'end_date' => $endDate, 'product_id' => $productId]) }}"
+           target="_blank"
+           class="kori-header-btn-print inline-flex items-center gap-2 px-4 py-2.5 text-xs rounded-xl transition"
+           style="background-color: #009A4D !important; color: #FFFFFF !important; border: 1px solid #007A3D !important; font-weight: 800 !important;">
+            <x-heroicon-m-printer class="w-4 h-4 text-white" />
+            Aperçu / Imprimer
+        </a>
     </div>
 </div>
