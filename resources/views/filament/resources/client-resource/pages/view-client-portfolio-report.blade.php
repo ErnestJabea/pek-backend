@@ -455,8 +455,9 @@
                     <div>
                         <a href="{{ route('client.statement.pdf', ['client' => $this->record->id, 'start_date' => $this->startDate, 'end_date' => $this->endDate, 'product_id' => $fs['product']->id]) }}"
                            target="_blank"
-                           class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-black rounded-xl bg-[#E5A812] hover:bg-[#D4950A] text-black shadow-sm transition">
-                            <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                           class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-black rounded-xl shadow-sm transition"
+                           style="background-color: #E5A812 !important; color: #000000 !important; border: 1px solid #C67C00 !important; font-weight: 800 !important;">
+                            <x-heroicon-m-arrow-down-tray class="w-4 h-4 text-black" />
                             Télécharger PDF de ce fonds
                         </a>
                     </div>
