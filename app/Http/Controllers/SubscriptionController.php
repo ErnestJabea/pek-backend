@@ -50,7 +50,7 @@ class SubscriptionController extends Controller
         $validated = $request->validate([
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'nb_parts' => ['required_without:investment_amount', 'numeric', 'min:0.0001', 'max:99999999'],
-            'investment_amount' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.config('payments.max_investment')],
+            'investment_amount' => ['sometimes', 'required', 'numeric', 'min:1', 'max:'.config('payments.max_investment')],
             'bank_detail_id' => ['sometimes', 'nullable', 'integer', Rule::exists('bank_details', 'id')->where('is_active', true)],
             'moyen_paiement' => ['required', Rule::in(['card', 'mobile_money', 'orange_money', 'mtn_momo', 'bank_transfer'])],
             'payment_phone' => ['required_if:moyen_paiement,orange_money,mtn_momo', 'nullable', 'string', 'regex:/^2376[0-9]{8}$/'],
@@ -91,7 +91,7 @@ class SubscriptionController extends Controller
             ->count();
 
         if ($validatedSubscriptionsCount === 0) {
-            if (isset($validated['investment_amount']) && (int) $validated['investment_amount'] > 250000) {
+            if (isset($validated['investment_amount']) && (float) $validated['investment_amount'] > 250000) {
                 return response()->json([
                     'message' => 'Pour votre première souscription avant la validation de votre onboarding, le montant est plafonné à 250 000 FCFA.',
                 ], 422);
@@ -118,7 +118,7 @@ class SubscriptionController extends Controller
                 if ($existing) {
                     $sameRequest = $existing->product_id === (int) $validated['product_id']
                         && (isset($validated['investment_amount'])
-                            ? (int) $existing->investment_amount === (int) $validated['investment_amount']
+                            ? (int) round((float) $existing->investment_amount) === (int) round((float) $validated['investment_amount'])
                             : abs((float) $existing->nb_parts - round((float) $validated['nb_parts'], 8)) < 0.00000001)
                         && $existing->moyen_paiement === $validated['moyen_paiement']
                         && ($existing->payment_phone ?? null) === ($validated['payment_phone'] ?? null)
@@ -142,7 +142,7 @@ class SubscriptionController extends Controller
                     ? (float) BigDecimal::of((string) $validated['investment_amount'])->dividedBy((string) $product->vl, 8, RoundingMode::DOWN)->__toString()
                     : round((float) $validated['nb_parts'], 8);
                 // XAF is a zero-decimal currency: every payable amount must be a whole FCFA.
-                $subtotal = isset($validated['investment_amount']) ? (int) $validated['investment_amount'] : (int) round($parts * $unitPrice);
+                $subtotal = isset($validated['investment_amount']) ? (int) round((float) $validated['investment_amount']) : (int) round($parts * $unitPrice);
                 if ($validatedSubscriptionsCount === 0 && $user->onboarding_status !== 'validated' && $subtotal > 250000) {
                     abort(422, 'Pour votre première souscription avant la validation de votre onboarding, le montant est plafonné à 250 000 FCFA.');
                 }
