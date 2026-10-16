@@ -37,6 +37,7 @@ class AuthController extends Controller
             'doc_piece_identite' => 'nullable|string',
             'piece_verso' => 'nullable|string',
             'doc_piece_verso' => 'nullable|string',
+            'consent_data_retention' => 'nullable|boolean',
         ], [
             'type_piece.required' => 'Le type d\'identification (Carte de séjour, CNI ou Passeport) est obligatoire.',
             'num_piece.required' => 'Le numéro de la pièce d\'identification est obligatoire.',
@@ -87,6 +88,8 @@ class AuthController extends Controller
                 'piece_recto' => $rectoDoc,
                 'doc_piece_verso' => $versoDoc,
                 'piece_verso' => $versoDoc,
+                'consent_data_retention' => (bool) $request->boolean('consent_data_retention', true),
+                'consent_data_retention_at' => now()->toIso8601String(),
             ],
         ]);
 

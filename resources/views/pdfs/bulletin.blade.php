@@ -297,6 +297,13 @@
       margin-top: 3px;
       font-weight: bold;
     }
+    .signature-date {
+      font-size: 7.2pt;
+      color: #5E3208;
+      text-align: center;
+      margin-top: 1px;
+      font-weight: 500;
+    }
     .badge-kam-visa {
       display: inline-block;
       border: 1.5px solid #8E5E0A;
@@ -516,19 +523,14 @@
   <table class="table-signatures">
     <tr>
       <td class="signature-cadre">
-        <div class="signature-titre">Signature &amp; cachet client&nbsp;:</div>
+        <div class="signature-titre">Signature et nom du client&nbsp;:</div>
         <div class="signature-zone">
           @if (!empty($data['signature_client']))
             <img src="{{ $data['signature_client'] }}" alt="Signature Client">
-          @else
-            <div class="badge-sig-elec">
-              <strong>SIGNATURE ÉLECTRONIQUE CERTIFIÉE</strong><br>
-              {{ $data['nom_complet'] }}<br>
-              Réf : {{ $data['reference_transaction'] }} · Date : {{ $data['date_valeur'] }}
-            </div>
           @endif
         </div>
         <div class="signature-nom">{{ $data['nom_complet'] }}</div>
+        <div class="signature-date">Date : {{ $data['date_valeur'] }}</div>
       </td>
       <td style="width: 4%;"></td>
       <td class="signature-cadre">
