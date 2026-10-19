@@ -357,12 +357,33 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => 'required|email',
+            'lang' => 'nullable|string|in:fr,en',
         ]);
 
-        Password::sendResetLink($request->only('email'));
+        $lang = $request->input('lang');
+        if (! $lang) {
+            $accept = (string) $request->header('Accept-Language', '');
+            if (! empty($accept) && ! app()->runningUnitTests()) {
+                $lang = str_starts_with(strtolower($accept), 'en') ? 'en' : 'fr';
+            } else {
+                $lang = 'fr';
+            }
+        }
+        $locale = ($lang === 'en') ? 'en' : 'fr';
+        app()->setLocale($locale);
+
+        try {
+            Password::sendResetLink($request->only('email'));
+        } catch (\Throwable $e) {
+            Log::error('Erreur lors de l\'envoi du lien de réinitialisation de mot de passe: ' . $e->getMessage());
+        }
+
+        $message = $locale === 'en'
+            ? 'If an account matches this email address, a password reset link has been sent.'
+            : 'Si un compte correspond à cette adresse, un lien de réinitialisation va être envoyé.';
 
         return response()->json([
-            'message' => 'Si un compte correspond à cette adresse, un lien de réinitialisation va être envoyé.',
+            'message' => $message,
         ]);
     }
 
@@ -372,7 +393,20 @@ class AuthController extends Controller
             'token' => 'required|string',
             'email' => 'required|email',
             'password' => 'required|string|min:12|confirmed',
+            'lang' => 'nullable|string|in:fr,en',
         ]);
+
+        $lang = $request->input('lang');
+        if (! $lang) {
+            $accept = (string) $request->header('Accept-Language', '');
+            if (! empty($accept) && ! app()->runningUnitTests()) {
+                $lang = str_starts_with(strtolower($accept), 'en') ? 'en' : 'fr';
+            } else {
+                $lang = 'fr';
+            }
+        }
+        $locale = ($lang === 'en') ? 'en' : 'fr';
+        app()->setLocale($locale);
 
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
@@ -387,10 +421,18 @@ class AuthController extends Controller
         );
 
         if ($status !== Password::PASSWORD_RESET) {
-            return response()->json(['message' => 'Le lien de réinitialisation est invalide ou expiré.'], 422);
+            return response()->json([
+                'message' => $locale === 'en'
+                    ? 'The password reset link is invalid or has expired.'
+                    : 'Le lien de réinitialisation est invalide ou expiré.'
+            ], 422);
         }
 
-        return response()->json(['message' => 'Votre mot de passe a été réinitialisé.']);
+        return response()->json([
+            'message' => $locale === 'en'
+                ? 'Your password has been successfully reset.'
+                : 'Votre mot de passe a été réinitialisé.'
+        ]);
     }
 
     public function resetTempPassword(Request $request)

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Mail\OnboardingReminderMail;
 use App\Models\Notification;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -18,21 +19,28 @@ class SendOnboardingReminders extends Command
      *
      * @var string
      */
-    protected $signature = 'onboarding:send-reminders';
+    protected $signature = 'onboarding:send-reminders {--force : Forcer l\'envoi même si désactivé dans les réglages}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Envoie une alerte par email et notification push tous les 2 jours aux clients ayant souscrit 1 fois sans onboarding validé.';
+    protected $description = 'Envoie une alerte par email et notification push aux clients ayant souscrit 1 fois sans onboarding validé.';
 
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        $twoDaysAgo = Carbon::now()->subDays(2);
+        $enabled = (bool) SystemSetting::get('onboarding_reminders_enabled', true);
+        if (! $enabled && ! $this->option('force')) {
+            $this->info("Les rappels automatiques d'onboarding sont désactivés dans les réglages.");
+            return Command::SUCCESS;
+        }
+
+        $intervalDays = max(1, (int) SystemSetting::get('onboarding_reminder_interval_days', 2));
+        $threshold = Carbon::now()->subDays($intervalDays);
 
         $users = User::query()
             ->whereHas('subscriptions', function ($query) {
@@ -44,9 +52,9 @@ class SendOnboardingReminders extends Command
                       $sub->where('status', '!=', 'validated');
                   });
             })
-            ->where(function ($q) use ($twoDaysAgo) {
+            ->where(function ($q) use ($threshold) {
                 $q->whereNull('last_onboarding_reminder_at')
-                  ->orWhere('last_onboarding_reminder_at', '<=', $twoDaysAgo);
+                  ->orWhere('last_onboarding_reminder_at', '<=', $threshold);
             })
             ->get();
 

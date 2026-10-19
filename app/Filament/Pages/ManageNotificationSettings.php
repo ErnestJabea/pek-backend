@@ -55,6 +55,10 @@ class ManageNotificationSettings extends Page
             'id_expiry_notice_days' => SystemSetting::get('id_expiry_notice_days', 30),
             'id_expiry_throttle_days' => SystemSetting::get('id_expiry_throttle_days', 7),
 
+            // Rappels d'Onboarding
+            'onboarding_reminders_enabled' => SystemSetting::get('onboarding_reminders_enabled', true),
+            'onboarding_reminder_interval_days' => SystemSetting::get('onboarding_reminder_interval_days', 2),
+
             // Anniversaires
             'birthday_wishes_enabled' => SystemSetting::get('birthday_wishes_enabled', true),
             'birthday_notice_days' => SystemSetting::get('birthday_notice_days', 0),
@@ -127,6 +131,25 @@ class ManageNotificationSettings extends Page
                             ->maxValue(30)
                             ->suffix('jours')
                             ->helperText('Délai anti-spam pour ne pas saturer la messagerie du client (ex: 7 jours).'),
+                    ]),
+
+                Section::make('Rappels d\'Onboarding — Dossiers KYC Non Finalisés')
+                    ->description('Paramétrez les relances automatiques adressées par e-mail et notification push aux clients ayant réalisé une 1ère souscription sans avoir validé leur dossier d\'onboarding.')
+                    ->schema([
+                        Toggle::make('onboarding_reminders_enabled')
+                            ->label('Activer les rappels automatiques d\'onboarding KYC aux clients (Email + Push)')
+                            ->helperText('Désactivez cet interrupteur pour suspendre l\'envoi de tout rappel automatique d\'onboarding.')
+                            ->default(true),
+
+                        TextInput::make('onboarding_reminder_interval_days')
+                            ->label('Intervalle minimum entre deux relances')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->maxValue(30)
+                            ->suffix('jours')
+                            ->helperText('Délai d\'attente avant de relancer le même client (par défaut : 2 jours).')
+                            ->visible(fn (\Filament\Forms\Get $get) => (bool) $get('onboarding_reminders_enabled')),
                     ]),
 
                 Section::make('Relation Client (CRM) — Dates de Naissance & Anniversaires')
@@ -218,6 +241,10 @@ class ManageNotificationSettings extends Page
         SystemSetting::set('id_expiry_reminders_enabled', (bool) $state['id_expiry_reminders_enabled'], 'bool');
         SystemSetting::set('id_expiry_notice_days', (int) $state['id_expiry_notice_days'], 'int');
         SystemSetting::set('id_expiry_throttle_days', (int) $state['id_expiry_throttle_days'], 'int');
+
+        // Rappels d'onboarding
+        SystemSetting::set('onboarding_reminders_enabled', (bool) ($state['onboarding_reminders_enabled'] ?? true), 'bool');
+        SystemSetting::set('onboarding_reminder_interval_days', (int) ($state['onboarding_reminder_interval_days'] ?? 2), 'int');
 
         // Anniversaires
         SystemSetting::set('birthday_wishes_enabled', (bool) $state['birthday_wishes_enabled'], 'bool');

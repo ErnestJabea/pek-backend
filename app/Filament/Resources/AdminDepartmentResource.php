@@ -104,7 +104,7 @@ class AdminDepartmentResource extends Resource
                     'view_any_subscription' => 'Consulter la liste des souscriptions',
                     'view_subscription' => 'Consulter le détail d\'une souscription',
                     'create_subscription' => 'Créer une souscription',
-                    'update_subscription' => 'Modifier une souscription',
+                    'update_subscription' => 'Modifier une souscription (Montants, Frais en sus/déduits, Parts, Date de valeur, Statut)',
                     'replicate_subscription' => 'Dupliquer une souscription',
                     'delete_subscription' => 'Supprimer une souscription',
                     'delete_any_subscription' => 'Supprimer des souscriptions en masse',

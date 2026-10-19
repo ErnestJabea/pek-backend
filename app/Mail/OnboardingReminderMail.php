@@ -28,7 +28,7 @@ class OnboardingReminderMail extends Mailable
                         Afin de pouvoir effectuer votre seconde souscription et profiter de tous nos services sans plafond de montant, nous vous invitons à finaliser et soumettre votre dossier d'onboarding (KYC).
                     </p>
                     <div style='text-align: center; margin: 30px 0;'>
-                        <a href='" . config('app.frontend_url', 'http://localhost:5173') . "/onboarding' 
+                        <a href='" . \App\Providers\AuthServiceProvider::resolveFrontendUrl() . "/onboarding' 
                            style='background-color: #8E5E0A; color: white; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;'>
                             Compléter mon Onboarding
                         </a>

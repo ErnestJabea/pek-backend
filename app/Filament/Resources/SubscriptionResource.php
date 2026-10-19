@@ -24,17 +24,32 @@ class SubscriptionResource extends Resource
 {
     public static function canCreate(): bool
     {
-        return true;
+        return auth()->user()?->hasRole('super_admin') || auth()->user()?->can('create_subscription');
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_subscription');
     }
 
     public static function canDelete(Model $record): bool
     {
-        return true;
+        return auth()->user()?->hasRole('super_admin') || auth()->user()?->can('delete_subscription');
     }
 
     public static function canDeleteAny(): bool
     {
-        return true;
+        return auth()->user()?->hasRole('super_admin') || auth()->user()?->can('delete_any_subscription');
+    }
+
+    public static function canView(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_subscription') || auth()->user()?->can('view_any_subscription');
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_any_subscription');
     }
 
     protected static ?string $model = Subscription::class;
@@ -143,6 +158,10 @@ class SubscriptionResource extends Resource
             }
         }
 
+        if ($vl <= 0 && (float) $get('prix_unitaire') > 0) {
+            $vl = (float) $get('prix_unitaire');
+        }
+
         $baseCalcul = $montantPlacement > 0 ? $montantPlacement : $montantTotal;
         if ($baseCalcul > 0 && $vl > 0) {
             $set('nb_parts', (string) round($baseCalcul / $vl, 4));
@@ -151,270 +170,210 @@ class SubscriptionResource extends Resource
 
     public static function form(Form $form): Form
     {
-        $isCreate = $form->getOperation() === 'create';
+        $canEdit = auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_subscription');
 
-        if ($isCreate) {
-            return $form->schema([
-                Forms\Components\Section::make('1. Client & Fonds Souscrit')
-                    ->schema([
-                        Forms\Components\Select::make('user_id')
-                            ->label(__('messages.client'))
-                            ->relationship(
-                                'user',
-                                'last_name',
-                                fn (Builder $query) => $query->onlyClients()
-                            )
-                            ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} ({$record->email} - {$record->phone})")
-                            ->searchable(['first_name', 'last_name', 'email', 'phone'])
-                            ->preload()
-                            ->required(),
+        return $form->schema([
+            Forms\Components\Section::make('Rapprochement Maviance S3P')
+                ->visible(fn (?Subscription $record) => (bool) $record?->mobile_provider)
+                ->schema([
+                    Forms\Components\TextInput::make('s3p_reference')->label('Référence PEK transmise')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('s3p_ptn')->label('PTN unique du prestataire')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('s3p_receipt_number')->label('Numéro du reçu opérateur (non unique)')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('mobile_state')->label('État fournisseur')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('s3p_error_code')->label('Code de retour')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('s3p_provider_timestamp')->label('Horodatage de vérification fournisseur')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('value_date')->label('Date de valeur retenue')->disabled()->dehydrated(false),
+                    Forms\Components\TextInput::make('valuation_status')->label('État de valorisation')->disabled()->dehydrated(false),
+                ])->columns(2),
 
-                        Forms\Components\Select::make('product_id')
-                            ->label(__('messages.product'))
-                            ->relationship('product', 'libelle')
-                            ->default(1)
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
+            Forms\Components\Section::make('1. Client & Fonds Souscrit')
+                ->schema([
+                    Forms\Components\Select::make('user_id')
+                        ->label(__('messages.client'))
+                        ->relationship(
+                            'user',
+                            'last_name',
+                            fn (Builder $query) => $query->onlyClients()
+                        )
+                        ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} ({$record->email} - {$record->phone})")
+                        ->searchable(['first_name', 'last_name', 'email', 'phone'])
+                        ->preload()
+                        ->required()
+                        ->disabled(fn ($operation) => !$canEdit || ($operation === 'edit' && !auth()->user()?->hasRole('super_admin'))),
 
-                        Forms\Components\Toggle::make('is_historical')
-                            ->label('Opération historique / Reprise d\'antériorité')
-                            ->default(true)
-                            ->helperText('En mode historique, aucun email ni notification automatique ne sera envoyé au client.')
-                            ->columnSpanFull(),
-                    ])->columns(2),
+                    Forms\Components\Select::make('product_id')
+                        ->label(__('messages.product'))
+                        ->relationship('product', 'libelle')
+                        ->default(1)
+                        ->required()
+                        ->disabled(!$canEdit)
+                        ->live()
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
 
-                Forms\Components\Section::make('2. Date de Valeur & Valeur Liquidative (Non Modifiable)')
-                    ->schema([
-                        Forms\Components\DatePicker::make('value_date')
-                            ->label('Date de valeur (date de souscription)')
-                            ->default(now()->toDateString())
-                            ->maxDate(now())
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
+                    Forms\Components\Toggle::make('is_historical')
+                        ->label('Opération historique / Reprise d\'antériorité')
+                        ->default(true)
+                        ->disabled(!$canEdit)
+                        ->helperText('En mode historique, aucun email ni notification automatique ne sera envoyé au client.')
+                        ->columnSpanFull(),
+                ])->columns(2),
 
-                        Forms\Components\TextInput::make('prix_unitaire')
-                            ->label('Valeur Liquidative retenue (FCFA)')
-                            ->numeric()
-                            ->step('any')
-                            ->disabled(fn (Forms\Get $get) => $get('mode_calcul_frais') !== 'manuel')
-                            ->dehydrated()
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->default(fn () => (float) (ProductVl::where('product_id', 1)->where('date_vl', '<=', now()->toDateString())->orderByDesc('date_vl')->value('vl') ?? 10000.0))
-                            ->helperText(fn (Forms\Get $get) => $get('mode_calcul_frais') === 'manuel'
-                                ? 'Déverrouillé en mode manuel (ajustable librement)'
-                                : 'Calculée automatiquement : dernière VL officielle <= Date de valeur'),
+            Forms\Components\Section::make('2. Date de Valeur & Valeur Liquidative')
+                ->schema([
+                    Forms\Components\DatePicker::make('value_date')
+                        ->label('Date de valeur (date de souscription)')
+                        ->default(now()->toDateString())
+                        ->maxDate(now())
+                        ->required()
+                        ->disabled(!$canEdit)
+                        ->live()
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
 
-                        Forms\Components\TextInput::make('nav_date')
-                            ->label('Date officielle de la VL')
-                            ->disabled()
-                            ->dehydrated()
-                            ->placeholder('Auto-détectée'),
-                    ])->columns(3),
+                    Forms\Components\TextInput::make('prix_unitaire')
+                        ->label('Valeur Liquidative retenue (FCFA)')
+                        ->numeric()
+                        ->step('any')
+                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->dehydrated()
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                        ->default(fn () => (float) (ProductVl::where('product_id', 1)->where('date_vl', '<=', now()->toDateString())->orderByDesc('date_vl')->value('vl') ?? 10000.0))
+                        ->helperText(fn (Forms\Get $get) => $get('mode_calcul_frais') === 'manuel'
+                            ? 'Déverrouillé en mode manuel (ajustable librement)'
+                            : 'Calculée automatiquement : dernière VL officielle <= Date de valeur'),
 
-                Forms\Components\Section::make('3. Montant, Frais & Attribution des Parts')
-                    ->schema([
-                        Forms\Components\Radio::make('mode_calcul_frais')
-                            ->label('Modalité de prise en compte des frais')
-                            ->options([
-                                'en_sus' => 'Frais en sus / Net rond (Ex: 50 500 versés → 50 000 net + 500 frais)',
-                                'deduit' => 'Frais déduits du total (Ex: 50 000 versés → 49 500 net + 500 frais)',
-                                'manuel' => 'Saisie manuelle personnalisée (Déverrouillage des montants)',
-                            ])
-                            ->descriptions([
-                                'en_sus' => 'Le client a versé le capital désiré + 1% de commission (ex: 50 500 pour 50 000 net, 101 000 pour 100 000 net).',
-                                'deduit' => 'Le client a versé une enveloppe forfaitaire dont la commission de 1% est retranchée.',
-                                'manuel' => 'Déverrouille le montant net placé et les frais pour un ajustement sur mesure au franc près.',
-                            ])
-                            ->default('en_sus')
-                            ->dehydrated()
-                            ->live()
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->columnSpanFull(),
+                    Forms\Components\TextInput::make('nav_date')
+                        ->label('Date officielle de la VL')
+                        ->disabled()
+                        ->dehydrated()
+                        ->placeholder('Auto-détectée'),
+                ])->columns(3),
 
-                        Forms\Components\TextInput::make('montant_total')
-                            ->label('Montant total versé (FCFA)')
-                            ->numeric()
-                            ->required()
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->helperText(fn (Forms\Get $get) => $get('mode_calcul_frais') === 'en_sus'
-                                ? 'Exemple : 50 500 FCFA (pour 50 000 FCFA net) ou 101 000 FCFA'
-                                : 'Exemple : 50 000 FCFA (pour 49 500 FCFA net) ou 100 000 FCFA'),
+            Forms\Components\Section::make('3. Montant, Frais & Attribution des Parts')
+                ->schema([
+                    Forms\Components\Radio::make('mode_calcul_frais')
+                        ->label('Modalité de prise en compte des frais')
+                        ->options([
+                            'en_sus' => 'Frais en sus / Net rond (Ex: 50 500 versés → 50 000 net + 500 frais)',
+                            'deduit' => 'Frais déduits du total (Ex: 50 000 versés → 49 500 net + 500 frais)',
+                            'manuel' => 'Saisie manuelle personnalisée (Déverrouillage des montants)',
+                        ])
+                        ->descriptions([
+                            'en_sus' => 'Le client a versé le capital désiré + 1% de commission (ex: 50 500 pour 50 000 net, 101 000 pour 100 000 net).',
+                            'deduit' => 'Le client a versé une enveloppe forfaitaire dont la commission de 1% est retranchée.',
+                            'manuel' => 'Déverrouille le montant net placé et les frais pour un ajustement sur mesure au franc près.',
+                        ])
+                        ->default('deduit')
+                        ->dehydrated()
+                        ->disabled(!$canEdit)
+                        ->live()
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                        ->columnSpanFull(),
 
-                        Forms\Components\Select::make('taux_frais')
-                            ->label('Barème des frais d\'entrée')
-                            ->options([
-                                '1' => '1,00 % (Standard KORI)',
-                                '0' => '0,00 % (Exonéré / Sans frais)',
-                                '0.5' => '0,50 % (Tarif réduit)',
-                                '1.5' => '1,50 %',
-                                '2' => '2,00 %',
-                            ])
-                            ->default('1')
-                            ->live()
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->dehydrated(false)
-                            ->helperText('Clé de répartition entre placement net et commission'),
+                    Forms\Components\TextInput::make('montant_total')
+                        ->label('Montant total versé (FCFA)')
+                        ->numeric()
+                        ->required()
+                        ->disabled(!$canEdit)
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                        ->helperText(fn (Forms\Get $get) => $get('mode_calcul_frais') === 'en_sus'
+                            ? 'Exemple : 50 500 FCFA (pour 50 000 FCFA net) ou 101 000 FCFA'
+                            : 'Exemple : 50 000 FCFA (pour 49 500 FCFA net) ou 100 000 FCFA'),
 
-                        Forms\Components\TextInput::make('investment_amount')
-                            ->label('Montant de placement net (FCFA)')
-                            ->numeric()
-                            ->disabled(fn (Forms\Get $get) => $get('mode_calcul_frais') !== 'manuel')
-                            ->dehydrated()
-                            ->default('0')
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->helperText('Montant affecté à l\'achat de parts (génère la valeur liquidative du portefeuille)'),
+                    Forms\Components\Select::make('taux_frais')
+                        ->label('Barème des frais d\'entrée')
+                        ->options([
+                            '1' => '1,00 % (Standard KORI)',
+                            '0' => '0,00 % (Exonéré / Sans frais)',
+                            '0.5' => '0,50 % (Tarif réduit)',
+                            '1.5' => '1,50 %',
+                            '2' => '2,00 %',
+                        ])
+                        ->default('1')
+                        ->disabled(!$canEdit)
+                        ->live()
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                        ->dehydrated(false)
+                        ->helperText('Clé de répartition entre placement net et commission'),
 
-                        Forms\Components\TextInput::make('subscription_fee')
-                            ->label('Frais d\'entrée prélevés (FCFA)')
-                            ->numeric()
-                            ->disabled(fn (Forms\Get $get) => $get('mode_calcul_frais') !== 'manuel')
-                            ->dehydrated()
-                            ->required()
-                            ->default('0')
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
-                            ->helperText('Commission prélevée par la société de gestion'),
+                    Forms\Components\TextInput::make('investment_amount')
+                        ->label('Montant de placement net (FCFA)')
+                        ->numeric()
+                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->dehydrated()
+                        ->required()
+                        ->default('0')
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                        ->helperText('Montant affecté à l\'achat de parts (génère la valeur liquidative du portefeuille)'),
 
-                        Forms\Components\TextInput::make('nb_parts')
-                            ->label('Nombre de parts calculées')
-                            ->disabled()
-                            ->dehydrated()
-                            ->default('0')
-                            ->helperText('Calculé automatiquement : Montant de placement net ÷ VL'),
+                    Forms\Components\TextInput::make('subscription_fee')
+                        ->label('Frais d\'entrée prélevés (FCFA)')
+                        ->numeric()
+                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->dehydrated()
+                        ->required()
+                        ->default('0')
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
+                        ->helperText('Commission prélevée par la société de gestion'),
 
-                        Forms\Components\Select::make('moyen_paiement')
-                            ->label('Moyen de paiement')
-                            ->options([
-                                'bank_transfer' => 'Virement bancaire',
-                                'cheque' => 'Chèque',
-                                'cash_deposit' => 'Dépôt d\'espèces / Bordereau',
-                                'apport_titres' => 'Apport de titres',
-                                'orange_money' => 'Orange Money (Régularisation)',
-                                'mtn_momo' => 'MTN Mobile Money (Régularisation)',
-                                'autre' => 'Autre',
-                            ])
-                            ->default('bank_transfer')
-                            ->required(),
+                    Forms\Components\TextInput::make('nb_parts')
+                        ->label('Nombre de parts calculées')
+                        ->numeric()
+                        ->step('any')
+                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->dehydrated()
+                        ->default('0')
+                        ->required()
+                        ->helperText('Calculé automatiquement : Montant de placement net ÷ VL'),
 
-                        Forms\Components\TextInput::make('bank_reference')
-                            ->label('Référence bordereau / virement')
-                            ->placeholder('Ex: VIR-2025-001'),
+                    Forms\Components\Select::make('moyen_paiement')
+                        ->label('Moyen de paiement')
+                        ->options([
+                            'bank_transfer' => 'Virement bancaire',
+                            'cheque' => 'Chèque',
+                            'cash_deposit' => 'Dépôt d\'espèces / Bordereau',
+                            'apport_titres' => 'Apport de titres',
+                            'orange_money' => 'Orange Money',
+                            'mtn_momo' => 'MTN Mobile Money',
+                            'card' => 'Carte bancaire',
+                            'autre' => 'Autre',
+                        ])
+                        ->default('bank_transfer')
+                        ->disabled(!$canEdit)
+                        ->required(),
 
-                        Forms\Components\TextInput::make('reference_transaction')
-                            ->label('Référence de la transaction')
-                            ->default(fn () => 'HIST-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6)))
-                            ->required(),
+                    Forms\Components\TextInput::make('bank_reference')
+                        ->label('Référence bordereau / virement')
+                        ->disabled(!$canEdit)
+                        ->placeholder('Ex: VIR-2025-001'),
 
-                        Forms\Components\Select::make('statut')
-                            ->label('Statut initial de l\'opération')
-                            ->options([
-                                'En attente' => 'En attente de validation (Recommandé)',
-                                'Succès' => 'Validée / Succès immédiat (Émission directe)',
-                            ])
-                            ->default('En attente')
-                            ->required(),
-                    ])->columns(3),
-            ]);
-        }
+                    Forms\Components\TextInput::make('reference_transaction')
+                        ->label('Référence de la transaction')
+                        ->default(fn () => 'HIST-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6)))
+                        ->disabled(fn ($operation) => !$canEdit || ($operation === 'edit' && !auth()->user()?->hasRole('super_admin')))
+                        ->required(),
 
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Rapprochement Maviance S3P')
-                    ->visible(fn (?Subscription $record) => (bool) $record?->mobile_provider)
-                    ->schema([
-                        Forms\Components\TextInput::make('s3p_reference')->label('Référence PEK transmise')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('s3p_ptn')->label('PTN unique du prestataire')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('s3p_receipt_number')->label('Numéro du reçu opérateur (non unique)')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('mobile_state')->label('État fournisseur')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('s3p_error_code')->label('Code de retour')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('s3p_provider_timestamp')->label('Horodatage de vérification fournisseur')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('value_date')->label('Date de valeur retenue')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('valuation_status')->label('État de valorisation')->disabled()->dehydrated(false),
-                    ])->columns(2),
+                    Forms\Components\Select::make('statut')
+                        ->label('Statut de l\'opération')
+                        ->options([
+                            'En attente' => 'En attente',
+                            'Succès' => 'Succès (Validée)',
+                            'Échec' => 'Échec',
+                            'À vérifier' => 'À vérifier',
+                        ])
+                        ->default('En attente')
+                        ->disabled(!$canEdit)
+                        ->required(),
 
-                Forms\Components\Section::make('Détails de la Souscription')
-                    ->schema([
-                        Forms\Components\Select::make('user_id')
-                            ->disabled()->dehydrated(false)
-                            ->label(__('messages.client'))
-                            ->relationship('user', 'last_name')
-                            ->getOptionLabelFromRecordUsing(fn (User $record) => "{$record->first_name} {$record->last_name} - {$record->email}")
-                            ->searchable(['first_name', 'last_name', 'email'])
-                            ->required(),
-                        Forms\Components\Select::make('product_id')
-                            ->disabled()->dehydrated(false)
-                            ->label(__('messages.product'))
-                            ->relationship('product', 'libelle')
-                            ->required(),
-                        Forms\Components\TextInput::make('montant_total')
-                            ->disabled()->dehydrated(false)
-                            ->label('Montant total versé')
-                            ->required()
-                            ->numeric(),
-                        Forms\Components\TextInput::make('investment_amount')
-                            ->disabled()->dehydrated(false)
-                            ->label('Montant de placement net')
-                            ->numeric(),
-                        Forms\Components\TextInput::make('subscription_fee')
-                            ->disabled()->dehydrated(false)
-                            ->label('Frais d\'entrée')
-                            ->numeric(),
-                        Forms\Components\TextInput::make('prix_unitaire')
-                            ->disabled()->dehydrated(false)
-                            ->label('VL souscription')
-                            ->required()
-                            ->numeric()
-                            ->step('any'),
-                        Forms\Components\TextInput::make('nb_parts')
-                            ->disabled()->dehydrated(false)
-                            ->label('Nombre de parts')
-                            ->required()
-                            ->numeric(),
-                        Forms\Components\Select::make('moyen_paiement')
-                            ->disabled()->dehydrated(false)
-                            ->label('Moyen de Paiement')
-                            ->options([
-                                'stripe' => 'Stripe',
-                                'card' => 'Carte',
-                                'bank_transfer' => 'Virement bancaire',
-                                'maviance' => 'Maviance',
-                                'mobile_money' => 'Mobile Money (e-nkap)',
-                                'orange_money' => 'Orange Money',
-                                'mtn_momo' => 'MTN MoMo',
-                                'virement' => 'Virement Bancaire',
-                                'cheque' => 'Chèque',
-                                'cash_deposit' => 'Dépôt bancaire',
-                                'apport_titres' => 'Apport de titres',
-                                'manuel' => 'Demande de souscription',
-                            ])
-                            ->required(),
-                        Forms\Components\Select::make('statut')
-                            ->label(__('messages.status'))
-                            ->options([
-                                'En attente' => 'En attente',
-                                'Succès' => 'Succès',
-                                'Échec' => 'Échec',
-                                'À vérifier' => 'À vérifier',
-                            ])
-                            ->required(),
-                        Forms\Components\TextInput::make('reference_transaction')
-                            ->disabled()->dehydrated(false)
-                            ->label('Réf. Transaction'),
-                        Forms\Components\TextInput::make('value_date')->label('Date de valeur')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('nav_date')->label('Date de VL')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('valuation_status')->label('Valorisation')->disabled()->dehydrated(false),
-                        Forms\Components\TextInput::make('mobile_state')->label('État S3P')->disabled()->dehydrated(false),
-                        Forms\Components\Toggle::make('is_historical')
-                            ->label('Opération Historique')
-                            ->disabled()->dehydrated(false),
-                        Forms\Components\Textarea::make('internal_notes')->label('Notes internes')->maxLength(5000)->columnSpanFull(),
-                    ])->columns(3),
-            ]);
+                    Forms\Components\Textarea::make('internal_notes')
+                        ->label('Notes internes & motifs de modification')
+                        ->maxLength(5000)
+                        ->columnSpanFull(),
+                ])->columns(3),
+        ]);
     }
 
     public static function table(Table $table): Table

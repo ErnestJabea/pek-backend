@@ -75,7 +75,7 @@ class SubscriptionController extends Controller
                 abort(422, 'Le numéro renseigné n’est pas un numéro Orange Cameroun valide (préfixes autorisés : 69x, 64x ou 655-659).');
             }
         } elseif ($validated['moyen_paiement'] === 'mtn_momo') {
-            if (! preg_match('/^2376(7[0-9]|8[0-3]|5[0-4])[0-9]{6}$/', (string) ($validated['payment_phone'] ?? ''))) {
+            if (! preg_match('/^2376(7[0-9]|8[0-9]|5[0-4])[0-9]{6}$/', (string) ($validated['payment_phone'] ?? ''))) {
                 abort(422, 'Le numéro renseigné n’est pas un numéro MTN Cameroun valide (préfixes autorisés : 67x, 68x ou 650-654).');
             }
         }
