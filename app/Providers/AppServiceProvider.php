@@ -51,5 +51,33 @@ class AppServiceProvider extends ServiceProvider
         app()->booted(function () {
             Filament::getPanel('admin')->boot();
         });
+
+        $this->configureDynamicMailSettings();
+    }
+
+    /**
+     * Configure dynamically mail sender and reply-to from SystemSetting.
+     */
+    protected function configureDynamicMailSettings(): void
+    {
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                $fromAddress = \App\Models\SystemSetting::get('mail_from_address');
+                $fromName = \App\Models\SystemSetting::get('mail_from_name', config('mail.from.name', 'PEK - KORI Asset Management'));
+                if (! empty($fromAddress) && filter_var($fromAddress, FILTER_VALIDATE_EMAIL)) {
+                    config(['mail.from.address' => $fromAddress, 'mail.from.name' => $fromName]);
+                    \Illuminate\Support\Facades\Mail::alwaysFrom($fromAddress, $fromName);
+                }
+
+                $replyToAddress = \App\Models\SystemSetting::get('mail_reply_to_email', config('mail.reply_to.address', 'contact@koriassetmanagement.com'));
+                $replyToName = \App\Models\SystemSetting::get('mail_reply_to_name', config('mail.reply_to.name', 'Support Client PEK - KORI Asset Management'));
+                if (! empty($replyToAddress) && filter_var($replyToAddress, FILTER_VALIDATE_EMAIL)) {
+                    config(['mail.reply_to.address' => $replyToAddress, 'mail.reply_to.name' => $replyToName]);
+                    \Illuminate\Support\Facades\Mail::alwaysReplyTo($replyToAddress, $replyToName);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore during early bootstrap, migrations, or database connection failures
+        }
     }
 }

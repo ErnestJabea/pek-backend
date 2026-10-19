@@ -89,7 +89,7 @@ class AuthServiceProvider extends ServiceProvider
                 ? 'Password Reset for your PEK Account'
                 : 'Réinitialisation de votre mot de passe PEK';
 
-            return (new MailMessage)
+            $mail = (new MailMessage)
                 ->subject($subject)
                 ->action($isEn ? 'Reset my password' : 'Réinitialiser mon mot de passe', $url)
                 ->view('emails.password_reset', [
@@ -97,6 +97,18 @@ class AuthServiceProvider extends ServiceProvider
                     'name' => $name,
                     'isEn' => $isEn,
                 ]);
+
+            try {
+                $replyToEmail = \App\Models\SystemSetting::get('mail_reply_to_email', config('mail.reply_to.address', 'contact@koriassetmanagement.com'));
+                $replyToName = \App\Models\SystemSetting::get('mail_reply_to_name', config('mail.reply_to.name', 'Support Client PEK - KORI Asset Management'));
+                if (! empty($replyToEmail) && filter_var($replyToEmail, FILTER_VALIDATE_EMAIL)) {
+                    $mail->replyTo($replyToEmail, $replyToName ?: null);
+                }
+            } catch (\Throwable $e) {
+                // Ignore during early bootstrap
+            }
+
+            return $mail;
         });
 
         // Implicitly grant "super_admin" role all permissions

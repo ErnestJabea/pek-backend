@@ -17,6 +17,13 @@ class OnboardingReminderMail extends Mailable
 
     public function build()
     {
+        $replyToEmail = \App\Models\SystemSetting::get('mail_reply_to_email', config('mail.reply_to.address', 'contact@koriassetmanagement.com'));
+        $replyToName = \App\Models\SystemSetting::get('mail_reply_to_name', config('mail.reply_to.name', 'Support Client PEK - KORI Asset Management'));
+
+        if (! empty($replyToEmail) && filter_var($replyToEmail, FILTER_VALIDATE_EMAIL)) {
+            $this->replyTo($replyToEmail, $replyToName);
+        }
+
         return $this->subject('Rappel : Complétez votre onboarding pour continuer vos souscriptions')
             ->html("
                 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;'>

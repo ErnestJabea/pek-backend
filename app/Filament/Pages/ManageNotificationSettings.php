@@ -40,6 +40,12 @@ class ManageNotificationSettings extends Page
             'subscription_sla_hours' => SystemSetting::get('subscription_sla_hours', 48),
             'sla_alerts_enabled' => SystemSetting::get('sla_alerts_enabled', true),
 
+            // Expéditeur Messagerie & Réponses Clients
+            'mail_from_address' => SystemSetting::get('mail_from_address', config('mail.from.address', 'noreply@koriassetmanagement.com')),
+            'mail_from_name' => SystemSetting::get('mail_from_name', config('mail.from.name', 'PEK - KORI Asset Management')),
+            'mail_reply_to_email' => SystemSetting::get('mail_reply_to_email', config('mail.reply_to.address', 'contact@koriassetmanagement.com')),
+            'mail_reply_to_name' => SystemSetting::get('mail_reply_to_name', config('mail.reply_to.name', 'Support Client PEK - KORI Asset Management')),
+
             // Notifications d'événements immédiats
             'registration_notifications_enabled' => SystemSetting::get('registration_notifications_enabled', true),
             'registration_notification_emails' => SystemSetting::get('registration_notification_emails', 'contact@koriassetmanagement.com'),
@@ -70,6 +76,37 @@ class ManageNotificationSettings extends Page
     {
         return $form
             ->schema([
+                Section::make('Expéditeur Messagerie & Réponses Clients (SMTP & Reply-To)')
+                    ->description('Définissez l\'adresse d\'expédition globale (noreply) ainsi que l\'adresse e-mail vers laquelle seront automatiquement dirigées toutes les réponses des clients.')
+                    ->schema([
+                        TextInput::make('mail_from_address')
+                            ->label('Adresse E-mail Expéditeur (De / From)')
+                            ->placeholder('noreply@koriassetmanagement.com')
+                            ->helperText('Adresse technique d\'envoi SMTP (ex: noreply@koriassetmanagement.com connectée à Microsoft 365).')
+                            ->email()
+                            ->required(),
+
+                        TextInput::make('mail_from_name')
+                            ->label('Nom d\'affichage Expéditeur')
+                            ->placeholder('PEK - KORI Asset Management')
+                            ->helperText('Nom officiel affiché dans la boîte de réception des clients.')
+                            ->required(),
+
+                        TextInput::make('mail_reply_to_email')
+                            ->label('Adresse E-mail de Réponse Client (Reply-To)')
+                            ->placeholder('contact@koriassetmanagement.com')
+                            ->helperText('Quand un client clique sur « Répondre » à un e-mail reçu de la plateforme (rappel onboarding, reçu, mot de passe oublié...), sa réponse sera envoyée à cette adresse au lieu du noreply.')
+                            ->email()
+                            ->required(),
+
+                        TextInput::make('mail_reply_to_name')
+                            ->label('Nom d\'affichage pour les Réponses (Reply-To Name)')
+                            ->placeholder('Support Client PEK - KORI Asset Management')
+                            ->helperText('Nom du service ou département réceptionnant les réponses des clients.')
+                            ->required(),
+                    ])
+                    ->columns(2),
+
                 Section::make('Notifications Immédiates d\'Événements (Alertes Équipe)')
                     ->description('Configurez les adresses e-mails spécifiques qui reçoivent immédiatement une alerte à chaque nouvel événement client.')
                     ->schema([
@@ -219,6 +256,12 @@ class ManageNotificationSettings extends Page
     public function save(): void
     {
         $state = $this->form->getState();
+
+        // Expéditeur Messagerie & Réponses Clients
+        SystemSetting::set('mail_from_address', (string) ($state['mail_from_address'] ?? 'noreply@koriassetmanagement.com'), 'string', 'Adresse e-mail expéditeur');
+        SystemSetting::set('mail_from_name', (string) ($state['mail_from_name'] ?? 'PEK - KORI Asset Management'), 'string', 'Nom expéditeur');
+        SystemSetting::set('mail_reply_to_email', (string) ($state['mail_reply_to_email'] ?? 'contact@koriassetmanagement.com'), 'string', 'Adresse de réponse client Reply-To');
+        SystemSetting::set('mail_reply_to_name', (string) ($state['mail_reply_to_name'] ?? 'Support Client PEK - KORI Asset Management'), 'string', 'Nom Reply-To');
 
         // Notifications d'événements immédiats
         SystemSetting::set('registration_notifications_enabled', (bool) ($state['registration_notifications_enabled'] ?? true), 'bool');
