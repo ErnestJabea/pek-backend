@@ -438,18 +438,63 @@ class ClientResource extends Resource
                 Tables\Actions\RestoreAction::make(),
                 Tables\Actions\ForceDeleteAction::make(),
                 Tables\Actions\Action::make('create_onboarding')
-                    ->label('Créer Onboarding')
+                    ->label('Créer / Régulariser Onboarding')
                     ->icon('heroicon-o-document-plus')
                     ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Créer la session d\'onboarding')
-                    ->modalDescription('Êtes-vous sûr de vouloir initialiser la session d\'onboarding pour ce client ? Ses informations de base seront pré-remplies.')
-                    ->modalSubmitActionLabel('Créer')
-                    ->visible(fn (Client $record) => ! $record->trashed() && ! $record->onboardingSession()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('create_onboarding::session') || auth()->user()?->can('create_onboarding_session')))
-                    ->action(function (Client $record) {
-                        $record->onboardingSession()->create([
-                            'current_step' => 'kyc',
-                            'status' => 'in_progress',
+                    ->modalHeading('Créer ou régulariser l\'onboarding du client')
+                    ->modalDescription('Définissez le statut initial du dossier. Pour un client existant déjà conforme en agence, choisissez "Validé immédiatement".')
+                    ->modalSubmitActionLabel('Enregistrer')
+                    ->form([
+                        Forms\Components\Select::make('status')
+                            ->label('Statut de l\'onboarding')
+                            ->options([
+                                'validated' => 'Validé immédiatement (Régularisation / Client existant)',
+                                'in_progress' => 'En cours / À compléter par le client',
+                            ])
+                            ->default('validated')
+                            ->required(),
+
+                        Forms\Components\Select::make('categorie_client')
+                            ->label('Catégorie du Client')
+                            ->options([
+                                'Particulier' => 'Particulier',
+                                'Personne Morale' => 'Personne Morale',
+                                'Institutionnel' => 'Institutionnel',
+                            ])
+                            ->default(fn ($record) => $record?->categorie_client ?: 'Particulier')
+                            ->required(),
+
+                        Forms\Components\Select::make('risk_profile')
+                            ->label('Profil d\'Investisseur')
+                            ->options([
+                                'Prudent' => 'Prudent (Conservateur)',
+                                'Modéré' => 'Modéré (Équilibré)',
+                                'Dynamique' => 'Dynamique (Performances)',
+                            ])
+                            ->default('Prudent')
+                            ->required(),
+
+                        Forms\Components\Toggle::make('send_email')
+                            ->label('Envoyer un e-mail au client')
+                            ->helperText('Désactivé par défaut. Laissez désactivé pour les clients existants afin de ne pas leur envoyer d\'e-mail.')
+                            ->default(false),
+
+                        Forms\Components\Toggle::make('send_in_app')
+                            ->label('Créer une notification in-app dans l\'application client')
+                            ->default(false),
+                    ])
+                    ->visible(fn ($record) => $record && ! $record->trashed() && ! $record->onboardingSession()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('create_onboarding::session') || auth()->user()?->can('create_onboarding_session')))
+                    ->action(function ($record, array $data) {
+                        $isValidated = ($data['status'] === 'validated');
+
+                        if (! empty($data['categorie_client'])) {
+                            $record->update(['categorie_client' => $data['categorie_client']]);
+                        }
+
+                        $session = $record->onboardingSession()->create([
+                            'current_step' => $isValidated ? 'completed' : 'kyc',
+                            'status' => $data['status'],
+                            'validated_at' => $isValidated ? now() : null,
                             'payload' => [
                                 'nom' => $record->last_name,
                                 'prenom' => $record->first_name,
@@ -457,18 +502,47 @@ class ClientResource extends Resource
                                 'tel' => $record->phone,
                                 'pays_residence' => $record->country,
                                 'adresse' => $record->city,
+                                'categorie_client' => $data['categorie_client'] ?? 'Particulier',
+                                'risk_profile' => $data['risk_profile'] ?? 'Prudent',
+                                'regularisation_guichet' => true,
                             ],
                         ]);
 
-                        \App\Models\Notification::create([
-                            'user_id' => $record->id,
-                            'title' => 'Session d’onboarding initialisée',
-                            'body' => 'Votre dossier d’onboarding a été créé par votre conseiller. Vous pouvez dès à présent compléter vos informations.',
-                            'type' => 'info',
+                        \App\Models\OnboardingEvent::create([
+                            'onboarding_session_id' => $session->id,
+                            'actor_user_id' => auth()->id(),
+                            'event_type' => $isValidated ? 'validated' : 'created',
+                            'from_status' => 'not_started',
+                            'to_status' => $data['status'],
+                            'metadata' => [
+                                'regularisation_guichet' => true,
+                                'email_sent' => (bool) ($data['send_email'] ?? false),
+                            ],
                         ]);
 
+                        if (! empty($data['send_in_app'])) {
+                            \App\Models\Notification::create([
+                                'user_id' => $record->id,
+                                'title' => $isValidated ? 'Compte activé !' : 'Session d’onboarding initialisée',
+                                'body' => $isValidated 
+                                    ? 'Félicitations, votre dossier d’onboarding a été validé et votre compte est maintenant activé.'
+                                    : 'Votre dossier d’onboarding a été créé par votre conseiller. Vous pouvez dès à présent compléter vos informations.',
+                                'type' => $isValidated ? 'success' : 'info',
+                            ]);
+                        }
+
+                        if (! empty($data['send_email'])) {
+                            try {
+                                if ($isValidated) {
+                                    \Illuminate\Support\Facades\Mail::to($record->email)->send(new \App\Mail\OnboardingValidatedMail($session));
+                                }
+                            } catch (\Throwable $e) {
+                                \Illuminate\Support\Facades\Log::error('Erreur envoi email onboarding régularisé: ' . $e->getMessage());
+                            }
+                        }
+
                         Notification::make()
-                            ->title('Session d\'onboarding créée avec succès')
+                            ->title($isValidated ? 'Dossier d\'onboarding validé avec succès (Régularisation client existant).' : 'Session d\'onboarding créée avec succès.')
                             ->success()
                             ->send();
                     }),

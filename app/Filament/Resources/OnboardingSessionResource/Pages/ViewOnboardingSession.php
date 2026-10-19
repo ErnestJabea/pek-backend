@@ -26,25 +26,37 @@ class ViewOnboardingSession extends ViewRecord
                 ->label('Valider le dossier')
                 ->icon('heroicon-m-check-circle')
                 ->color('success')
-                ->requiresConfirmation()
                 ->modalHeading('Valider cet onboarding')
                 ->modalDescription(function ($record): string {
                     $missingDocuments = $record?->missingRequiredDocuments() ?? [];
 
                     if ($missingDocuments !== []) {
-                        return 'Note : '.count($missingDocuments).' justificatif(s) non fourni(s) ('.implode(', ', $missingDocuments).'), mais vous pouvez valider ce dossier d\'onboarding. Le client recevra un e-mail de confirmation d\'activation de compte.';
+                        return 'Note : '.count($missingDocuments).' justificatif(s) non fourni(s) ('.implode(', ', $missingDocuments).'), mais vous pouvez valider ce dossier d\'onboarding.';
                     }
 
-                    return 'Êtes-vous sûr de vouloir valider ce dossier d\'onboarding ? Le client recevra un e-mail de confirmation d\'activation de compte.';
+                    return 'Confirmez-vous la validation de ce dossier d\'onboarding ?';
                 })
-                ->visible(fn ($record) => $record && $record->status === 'completed')
-                ->action(function ($record) {
-                    Gate::authorize('update', $record);
-                    DB::transaction(function () use ($record) {
-                        $locked = $record->newQuery()->lockForUpdate()->findOrFail($record->id);
-                        abort_unless($locked->status === 'completed', 409, 'Le statut du dossier a changé.');
+                ->visible(fn ($record) => $record && in_array($record->status, ['completed', 'in_progress']))
+                ->form([
+                    \Filament\Forms\Components\Toggle::make('send_notification_email')
+                        ->label('Notifier le client par e-mail (Activation de compte)')
+                        ->helperText('Désactivé par défaut. Laissez désactivé pour les clients existants ou régularisés en agence afin de ne pas leur envoyer d\'e-mail.')
+                        ->default(false),
 
-                        if (config('identity_verification.required')) {
+                    \Filament\Forms\Components\Toggle::make('create_in_app_notification')
+                        ->label('Créer une notification in-app dans l\'application client')
+                        ->default(fn ($record) => $record->status === 'completed'),
+                ])
+                ->action(function ($record, array $data) {
+                    Gate::authorize('update', $record);
+                    $sendEmail = (bool) ($data['send_notification_email'] ?? false);
+                    $sendInApp = (bool) ($data['create_in_app_notification'] ?? false);
+
+                    DB::transaction(function () use ($record, $sendEmail, $sendInApp) {
+                        $locked = $record->newQuery()->lockForUpdate()->findOrFail($record->id);
+                        abort_unless(in_array($locked->status, ['completed', 'in_progress']), 409, 'Le statut du dossier a changé.');
+
+                        if (config('identity_verification.required') && $locked->status === 'completed') {
                             $verification = $locked->latestIdentityVerification()->first();
                             abort_unless(
                                 $verification?->isApprovedFor($locked->getSubmittedPayload()),
@@ -53,6 +65,7 @@ class ViewOnboardingSession extends ViewRecord
                             );
                         }
 
+                        $fromStatus = $locked->status;
                         $locked->update([
                             'status' => 'validated',
                             'validated_at' => now(),
@@ -63,26 +76,39 @@ class ViewOnboardingSession extends ViewRecord
                             'onboarding_session_id' => $locked->id,
                             'actor_user_id' => auth()->id(),
                             'event_type' => 'validated',
-                            'from_status' => 'completed',
+                            'from_status' => $fromStatus,
                             'to_status' => 'validated',
+                            'metadata' => [
+                                'manual_backoffice' => true,
+                                'email_sent' => $sendEmail,
+                                'in_app_sent' => $sendInApp,
+                            ],
                         ]);
                     });
 
                     $record->refresh();
 
-                    // Create in-app notification for client
-                    UserNotification::create([
-                        'user_id' => $record->user_id,
-                        'title' => 'Compte activé !',
-                        'body' => 'Félicitations, votre dossier d’onboarding a été validé et votre compte est maintenant activé.',
-                        'type' => 'success',
-                    ]);
+                    // Create in-app notification for client if requested
+                    if ($sendInApp) {
+                        UserNotification::create([
+                            'user_id' => $record->user_id,
+                            'title' => 'Compte activé !',
+                            'body' => 'Félicitations, votre dossier d’onboarding a été validé et votre compte est maintenant activé.',
+                            'type' => 'success',
+                        ]);
+                    }
 
-                    // Send validation email
-                    Mail::to($record->user->email)->send(new OnboardingValidatedMail($record));
+                    // Send validation email ONLY if send_notification_email is true
+                    if ($sendEmail) {
+                        try {
+                            Mail::to($record->user->email)->send(new OnboardingValidatedMail($record));
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::error('Erreur envoi email validation onboarding: '.$e->getMessage());
+                        }
+                    }
 
                     Notification::make()
-                        ->title('Dossier d\'onboarding validé avec succès !')
+                        ->title($sendEmail ? 'Dossier d\'onboarding validé et e-mail envoyé.' : 'Dossier d\'onboarding validé avec succès (aucun e-mail envoyé).')
                         ->success()
                         ->send();
                 }),

@@ -42,7 +42,9 @@ class OnboardingSessionResource extends Resource
 
     public static function canCreate(): bool
     {
-        return false;
+        return auth()->user()?->hasRole('super_admin') 
+            || (auth()->user()?->can('create_onboarding::session') ?? false)
+            || (auth()->user()?->can('create_onboarding_session') ?? false);
     }
 
     public static function canDelete(Model $record): bool
@@ -57,7 +59,7 @@ class OnboardingSessionResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        return $record->status === 'completed' && parent::canEdit($record);
+        return parent::canEdit($record);
     }
 
     public static function getEloquentQuery(): Builder
@@ -72,7 +74,7 @@ class OnboardingSessionResource extends Resource
     {
         return $form
             ->schema([
-                Section::make('Création de la session')
+                Section::make('Création / Régularisation de l\'Onboarding Client')
                     ->visible(fn ($record) => $record === null || ! $record->exists)
                     ->schema([
                         Forms\Components\Select::make('user_id')
@@ -82,7 +84,27 @@ class OnboardingSessionResource extends Resource
                             ->required()
                             ->searchable()
                             ->preload(),
-                    ]),
+
+                        Forms\Components\Select::make('status')
+                            ->label('Statut Onboarding')
+                            ->options([
+                                'validated' => 'Validé immédiatement (Régularisation / Client existant)',
+                                'completed' => 'Complet (Soumis pour contrôle)',
+                                'in_progress' => 'Brouillon / En cours',
+                            ])
+                            ->default('validated')
+                            ->required(),
+
+                        Forms\Components\Toggle::make('send_notification_email')
+                            ->label('Envoyer un e-mail de notification au client')
+                            ->helperText('Désactivé par défaut. Laissez désactivé pour les clients existants déjà enregistrés.')
+                            ->default(false),
+
+                        Forms\Components\Toggle::make('create_in_app_notification')
+                            ->label('Créer une notification in-app dans l\'application client')
+                            ->default(false),
+                    ])
+                    ->columns(2),
 
                 Section::make('Statut de la session')
                     ->visible(fn ($record) => $record && $record->exists)
