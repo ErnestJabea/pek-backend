@@ -219,4 +219,82 @@ class PasswordResetWorkflowTest extends TestCase
                 'message' => 'Your password has been successfully reset.',
             ]);
     }
+
+    public function test_password_reset_mail_includes_civility_for_personne_physique(): void
+    {
+        Notification::fake();
+
+        // 1. Personne physique avec civilité M. (Français)
+        $userM = User::factory()->create([
+            'first_name' => 'Ernest',
+            'last_name' => 'ESSOME',
+            'email' => 'ernest.m@koriassetmanagement.com',
+            'civ' => 'M.',
+            'nature_client' => 'Personne Physique',
+            'role' => 'client',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->postJson('/api/forgot-password', [
+            'email' => 'ernest.m@koriassetmanagement.com',
+            'lang' => 'fr',
+        ]);
+
+        Notification::assertSentTo($userM, ResetPassword::class, function ($notification) use ($userM) {
+            $mail = $notification->toMail($userM);
+            return ($mail->viewData['name'] ?? '') === 'M. Ernest ESSOME';
+        });
+
+        // 2. Personne physique avec civilité Mme (Français)
+        $userMme = User::factory()->create([
+            'first_name' => 'Carine',
+            'last_name' => 'FOMETHE',
+            'email' => 'carine.mme@koriassetmanagement.com',
+            'civ' => 'Mme',
+            'nature_client' => 'Personne Physique',
+            'role' => 'client',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->postJson('/api/forgot-password', [
+            'email' => 'carine.mme@koriassetmanagement.com',
+            'lang' => 'fr',
+        ]);
+
+        Notification::assertSentTo($userMme, ResetPassword::class, function ($notification) use ($userMme) {
+            $mail = $notification->toMail($userMme);
+            return ($mail->viewData['name'] ?? '') === 'Mme Carine FOMETHE';
+        });
+
+        // 3. Personne physique en anglais
+        $this->postJson('/api/forgot-password', [
+            'email' => 'ernest.m@koriassetmanagement.com',
+            'lang' => 'en',
+        ]);
+
+        Notification::assertSentTo($userM, ResetPassword::class, function ($notification) use ($userM) {
+            $mail = $notification->toMail($userM);
+            return ($mail->viewData['name'] ?? '') === 'Mr. Ernest ESSOME';
+        });
+
+        // 4. Personne morale (aucune civilité)
+        $userMorale = User::factory()->create([
+            'first_name' => 'E-JABBING',
+            'last_name' => 'SARL',
+            'email' => 'contact.morale@koriassetmanagement.com',
+            'nature_client' => 'Personne Morale',
+            'role' => 'client',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->postJson('/api/forgot-password', [
+            'email' => 'contact.morale@koriassetmanagement.com',
+            'lang' => 'fr',
+        ]);
+
+        Notification::assertSentTo($userMorale, ResetPassword::class, function ($notification) use ($userMorale) {
+            $mail = $notification->toMail($userMorale);
+            return ($mail->viewData['name'] ?? '') === 'E-JABBING SARL';
+        });
+    }
 }

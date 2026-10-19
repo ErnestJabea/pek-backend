@@ -169,6 +169,7 @@ class User extends Authenticatable implements FilamentUser, HasName
     protected $fillable = [
         'first_name',
         'last_name',
+        'civ',
         'email',
         'phone',
         'password',
@@ -228,6 +229,8 @@ class User extends Authenticatable implements FilamentUser, HasName
         'age',
         'is_birthday_today',
         'days_until_next_birthday',
+        'salutation',
+        'civility',
     ];
 
     public function subscriptions()
@@ -339,6 +342,52 @@ class User extends Authenticatable implements FilamentUser, HasName
         }
 
         return (int) $today->diffInDays($nextBirthday);
+    }
+
+    public function isPersonnePhysique(): bool
+    {
+        $nature = strtolower(str_replace([' ', '_', '-'], '', (string) ($this->nature_client ?: 'Personne Physique')));
+        return ! str_contains($nature, 'morale') && ! str_contains($nature, 'institutionnel');
+    }
+
+    public function getCivilityAttribute(): ?string
+    {
+        if (! empty($this->civ)) {
+            return $this->civ;
+        }
+
+        $payload = $this->onboardingSession?->payload ?? [];
+        if (! empty($payload['civ'])) {
+            return $payload['civ'];
+        }
+
+        return $this->isPersonnePhysique() ? 'M.' : null;
+    }
+
+    public function getSalutationAttribute(?string $locale = null): string
+    {
+        $fullName = trim(($this->first_name ?? '').' '.($this->last_name ?? ''));
+        if (empty($fullName)) {
+            $fullName = $this->name ?? 'Client';
+        }
+
+        if (! $this->isPersonnePhysique()) {
+            return $fullName;
+        }
+
+        $civ = $this->civility;
+        $activeLocale = $locale ?: app()->getLocale() ?: ($this->locale ?? 'fr');
+        $isEn = ($activeLocale === 'en');
+
+        if ($civ === 'Mme' || $civ === 'Madame' || $civ === 'Mrs.' || $civ === 'Ms.') {
+            $prefix = $isEn ? 'Mrs.' : 'Mme';
+        } elseif ($civ === 'M.' || $civ === 'Monsieur' || $civ === 'Mr.') {
+            $prefix = $isEn ? 'Mr.' : 'M.';
+        } else {
+            $prefix = $isEn ? 'Mr.' : 'M.';
+        }
+
+        return trim("{$prefix} {$fullName}");
     }
 
     public function bankAccounts(): \Illuminate\Database\Eloquent\Relations\HasMany

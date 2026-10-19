@@ -127,8 +127,7 @@
                                                                                     Le {{ date('d/m/Y') }}</p>
                                                                                 <p align="left"
                                                                                     style="margin:0;font-family:arial,'helvetica neue',helvetica,sans-serif;line-height:24px;letter-spacing:0;color:#333333;font-size:16px">
-                                                                                    Bonjour {{ $user->first_name }}
-                                                                                    {{ $user->last_name }},</p>
+                                                                                    Bonjour {{ $user->salutation ?? trim($user->first_name . ' ' . $user->last_name) }},</p>
 
                                                                                 <table width="100%" cellpadding="0"
                                                                                     cellspacing="0"

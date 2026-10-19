@@ -53,6 +53,19 @@ class ClientResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Informations Personnelles & Contact')
                     ->schema([
+                        Forms\Components\Select::make('civ')
+                            ->label('Civilité')
+                            ->options([
+                                'M.' => 'M. (Monsieur)',
+                                'Mme' => 'Mme (Madame)',
+                            ])
+                            ->default(fn (?Client $record) => $record?->civ ?: 'M.')
+                            ->required(fn (Forms\Get $get, ?Client $record) => 
+                                ($record ? $record->isPersonnePhysique() : ($get('type_client') ?? 'Personne Physique') === 'Personne Physique')
+                            )
+                            ->visible(fn (Forms\Get $get, ?Client $record) => 
+                                ($record ? $record->isPersonnePhysique() : ($get('type_client') ?? 'Personne Physique') === 'Personne Physique')
+                            ),
                         Forms\Components\TextInput::make('first_name')
                             ->label(__('messages.first_name'))
                             ->required(),
@@ -198,6 +211,12 @@ class ClientResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('civ')
+                    ->label('Civilité')
+                    ->badge()
+                    ->color('gray')
+                    ->formatStateUsing(fn ($state, Client $record) => $record->isPersonnePhysique() ? ($state ?: 'M.') : '—')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('first_name')
                     ->label(__('messages.first_name'))
                     ->searchable()
@@ -464,6 +483,16 @@ class ClientResource extends Resource
                             ->default(fn ($record) => $record?->categorie_client ?: 'Particulier')
                             ->required(),
 
+                        Forms\Components\Select::make('civ')
+                            ->label('Civilité')
+                            ->options([
+                                'M.' => 'M. (Monsieur)',
+                                'Mme' => 'Mme (Madame)',
+                            ])
+                            ->default(fn ($record) => $record?->civ ?: 'M.')
+                            ->required(fn (Forms\Get $get) => in_array($get('categorie_client'), ['Particulier', 'Salarié secteur public', 'Salarié secteur privé', 'Profession libérale', 'Commerçant / entrepreneur', 'Chômeur']))
+                            ->visible(fn (Forms\Get $get) => in_array($get('categorie_client'), ['Particulier', 'Salarié secteur public', 'Salarié secteur privé', 'Profession libérale', 'Commerçant / entrepreneur', 'Chômeur'])),
+
                         Forms\Components\Select::make('risk_profile')
                             ->label('Profil d\'Investisseur')
                             ->options([
@@ -491,11 +520,16 @@ class ClientResource extends Resource
                             $record->update(['categorie_client' => $data['categorie_client']]);
                         }
 
+                        if (! empty($data['civ'])) {
+                            $record->update(['civ' => $data['civ']]);
+                        }
+
                         $session = $record->onboardingSession()->create([
                             'current_step' => $isValidated ? 'completed' : 'kyc',
                             'status' => $data['status'],
                             'validated_at' => $isValidated ? now() : null,
                             'payload' => [
+                                'civ' => $data['civ'] ?? $record->civ ?? 'M.',
                                 'nom' => $record->last_name,
                                 'prenom' => $record->first_name,
                                 'email' => $record->email,

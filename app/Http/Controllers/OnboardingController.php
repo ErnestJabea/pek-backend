@@ -278,6 +278,13 @@ class OnboardingController extends Controller
 
                 $session->current_step = $validated['step'];
                 $session->payload = array_replace($session->payload, $validated['payload']);
+                if (! empty($validated['payload']['civ'])) {
+                    $user = $request->user();
+                    if ($user && $user->civ !== $validated['payload']['civ']) {
+                        $user->civ = $validated['payload']['civ'];
+                        $user->save();
+                    }
+                }
                 $this->syncSupportingDocuments($session, $session->payload);
                 $session->save();
 

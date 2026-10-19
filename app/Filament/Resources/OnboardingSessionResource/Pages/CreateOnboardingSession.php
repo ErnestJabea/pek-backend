@@ -25,7 +25,12 @@ class CreateOnboardingSession extends CreateRecord
 
         $user = User::find($data['user_id'] ?? null);
         if ($user) {
+            $civ = $data['civ'] ?? $user->civ ?? 'M.';
+            $user->civ = $civ;
+            $user->save();
+
             $data['payload'] = array_merge([
+                'civ' => $civ,
                 'nom' => $user->last_name,
                 'prenom' => $user->first_name,
                 'email' => $user->email,

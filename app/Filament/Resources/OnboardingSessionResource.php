@@ -95,6 +95,15 @@ class OnboardingSessionResource extends Resource
                             ->default('validated')
                             ->required(),
 
+                        Forms\Components\Select::make('civ')
+                            ->label('Civilité (Obligatoire pour Personne Physique)')
+                            ->options([
+                                'M.' => 'M. (Monsieur)',
+                                'Mme' => 'Mme (Madame)',
+                            ])
+                            ->default('M.')
+                            ->required(),
+
                         Forms\Components\Toggle::make('send_notification_email')
                             ->label('Envoyer un e-mail de notification au client')
                             ->helperText('Désactivé par défaut. Laissez désactivé pour les clients existants déjà enregistrés.')
@@ -112,7 +121,7 @@ class OnboardingSessionResource extends Resource
                     ->schema([
                         Placeholder::make('user_name')
                             ->label('Client')
-                            ->content(fn ($record) => $record && $record->user ? trim($record->user->first_name.' '.$record->user->last_name) : '-'),
+                            ->content(fn ($record) => $record && $record->user ? ($record->user->salutation ?? trim($record->user->first_name.' '.$record->user->last_name)) : '-'),
                         Placeholder::make('user_email')
                             ->label('Email client')
                             ->content(fn ($record) => $record && $record->user ? $record->user->email : '-'),

@@ -80,7 +80,9 @@ class AuthServiceProvider extends ServiceProvider
 
             $locale = app()->getLocale();
             $isEn = ($locale === 'en');
-            $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+            $name = method_exists($user, 'getSalutationAttribute')
+                ? $user->getSalutationAttribute($locale)
+                : trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
             if (empty($name)) {
                 $name = $user->first_name ?: ($isEn ? 'Client' : 'Client');
             }
