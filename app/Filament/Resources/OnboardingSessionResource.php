@@ -109,14 +109,31 @@ class OnboardingSessionResource extends Resource
                         Forms\Components\Select::make('status')
                             ->label('Statut Onboarding')
                             ->options([
-                                'validated' => 'Validé (Régularisation / Activé)',
+                                'validated' => 'Validé par la Conformité (Activé)',
                                 'completed' => 'Complet (Soumis pour contrôle)',
                                 'in_progress' => 'Brouillon / En cours',
                                 'rejected' => 'Rejeté',
                             ])
                             ->default('validated')
                             ->required()
-                            ->live(),
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state === 'validated') {
+                                    if (! $get('validated_at')) {
+                                        $set('validated_at', now()->format('Y-m-d H:i:s'));
+                                    }
+                                    if (! $get('submitted_at')) {
+                                        $set('submitted_at', now()->format('Y-m-d H:i:s'));
+                                    }
+                                } elseif ($state === 'completed') {
+                                    if (! $get('submitted_at')) {
+                                        $set('submitted_at', now()->format('Y-m-d H:i:s'));
+                                    }
+                                    $set('validated_at', null);
+                                } elseif ($state === 'in_progress') {
+                                    $set('validated_at', null);
+                                }
+                            }),
 
                         Forms\Components\Select::make('risk_level')
                             ->label('Niveau de Risque Global')
@@ -627,13 +644,17 @@ class OnboardingSessionResource extends Resource
 
                                             Forms\Components\DateTimePicker::make('submitted_at')
                                                 ->label('Date & Heure de soumission')
+                                                ->default(fn () => now())
                                                 ->native(false)
-                                                ->displayFormat('d/m/Y H:i'),
+                                                ->displayFormat('d/m/Y H:i')
+                                                ->helperText('Renseigné automatiquement lors de la soumission du dossier.'),
 
                                             Forms\Components\DateTimePicker::make('validated_at')
-                                                ->label('Date & Heure de validation')
+                                                ->label('Date & Heure de validation (Conformité)')
+                                                ->default(fn (Forms\Get $get) => ($get('status') ?? 'validated') === 'validated' ? now() : null)
                                                 ->native(false)
-                                                ->displayFormat('d/m/Y H:i'),
+                                                ->displayFormat('d/m/Y H:i')
+                                                ->helperText('Validé automatiquement par la conformité à la date et heure courantes.'),
                                         ]),
                                 ]),
                             ]),

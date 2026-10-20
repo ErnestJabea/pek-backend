@@ -41,6 +41,13 @@ class EditOnboardingSession extends EditRecord
             $payload['dob'] = $payload['dob'] ?? ($user->dob ? $user->dob->format('Y-m-d') : null);
             $payload['employeur'] = $payload['employeur'] ?? $user->employer;
         }
+        if (($this->record->status === 'validated') && empty($data['validated_at'])) {
+            $data['validated_at'] = now()->format('Y-m-d H:i:s');
+        }
+        if (empty($data['submitted_at'])) {
+            $data['submitted_at'] = ($this->record->submitted_at ? $this->record->submitted_at->format('Y-m-d H:i:s') : now()->format('Y-m-d H:i:s'));
+        }
+
         $data['payload'] = $payload;
 
         return $data;
@@ -65,8 +72,11 @@ class EditOnboardingSession extends EditRecord
         $data['payload'] = $mergedPayload;
         $data['submitted_payload'] = $mergedPayload;
 
-        if (($data['status'] ?? null) === 'validated' && empty($data['validated_at'])) {
-            $data['validated_at'] = now();
+        if (($data['status'] ?? null) === 'validated') {
+            $data['validated_at'] = $data['validated_at'] ?? now();
+            if (empty($this->record->identity_verified_at)) {
+                $data['identity_verified_at'] = now();
+            }
         }
         if (in_array($data['status'] ?? null, ['completed', 'validated'], true) && empty($data['submitted_at'])) {
             $data['submitted_at'] = now();

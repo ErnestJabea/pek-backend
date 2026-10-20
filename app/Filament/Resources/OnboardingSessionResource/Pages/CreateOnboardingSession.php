@@ -20,14 +20,18 @@ class CreateOnboardingSession extends CreateRecord
     {
         $status = $data['status'] ?? 'validated';
         $data['current_step'] = in_array($status, ['validated', 'completed'], true) ? 'completed' : 'kyc';
-        if ($status === 'validated' && empty($data['validated_at'])) {
-            $data['validated_at'] = now();
+        if ($status === 'validated') {
+            $data['validated_at'] = $data['validated_at'] ?? now();
+            $data['identity_verified_at'] = $data['identity_verified_at'] ?? now();
         }
         if (in_array($status, ['validated', 'completed'], true) && empty($data['submitted_at'])) {
             $data['submitted_at'] = now();
         }
 
         $payload = $data['payload'] ?? [];
+        if ($status === 'validated') {
+            $payload['face_verified'] = true;
+        }
 
         $user = User::find($data['user_id'] ?? null);
         if ($user) {
