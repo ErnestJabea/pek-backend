@@ -231,15 +231,18 @@ class ClientResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('phone')
                     ->label(__('messages.phone'))
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('country')
                     ->label(__('messages.country') !== 'messages.country' ? __('messages.country') : 'Pays')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('city')
                     ->label(__('messages.city') !== 'messages.city' ? __('messages.city') : 'Ville')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('categorie_client')
                     ->label('Catégorie')
                     ->badge()
@@ -266,7 +269,8 @@ class ClientResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('messages.inscribed_at'))
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\TrashedFilter::make(),

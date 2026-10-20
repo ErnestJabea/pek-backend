@@ -171,7 +171,8 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('seuil_minimum')
                     ->label(__('messages.seuil_minimum'))
                     ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('risk_level')
                     ->label('Risque / Risk')
                     ->badge()
@@ -183,6 +184,7 @@ class ProductResource extends Resource
                     }),
                 Tables\Columns\IconColumn::make('depliant')
                     ->label('Brochure FR')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->boolean()
                     ->trueIcon('heroicon-o-document-text')
                     ->falseIcon('heroicon-o-minus-small')
@@ -190,6 +192,7 @@ class ProductResource extends Resource
                     ->falseColor('gray'),
                 Tables\Columns\IconColumn::make('depliant_en')
                     ->label('Brochure EN')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->boolean()
                     ->trueIcon('heroicon-o-document-text')
                     ->falseIcon('heroicon-o-minus-small')
@@ -197,6 +200,7 @@ class ProductResource extends Resource
                     ->falseColor('gray'),
                 Tables\Columns\IconColumn::make('document_information')
                     ->label('Doc. Info FR')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->boolean()
                     ->trueIcon('heroicon-o-document-text')
                     ->falseIcon('heroicon-o-minus-small')
@@ -204,6 +208,7 @@ class ProductResource extends Resource
                     ->falseColor('gray'),
                 Tables\Columns\IconColumn::make('document_information_en')
                     ->label('Doc. Info EN')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->boolean()
                     ->trueIcon('heroicon-o-document-text')
                     ->falseIcon('heroicon-o-minus-small')

@@ -194,6 +194,7 @@ class User extends Authenticatable implements FilamentUser, HasName
         'mfa_confirmed_at',
         'mfa_prompt_dismissed',
         'email_verified_at',
+        'table_preferences',
     ];
 
     protected $hidden = [
@@ -215,6 +216,7 @@ class User extends Authenticatable implements FilamentUser, HasName
         'mfa_prompt_dismissed' => 'boolean',
         'mfa_secret' => 'encrypted',
         'password' => 'hashed',
+        'table_preferences' => 'array',
     ];
 
     protected $appends = [

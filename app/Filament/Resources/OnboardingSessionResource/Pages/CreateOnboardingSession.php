@@ -52,6 +52,18 @@ class CreateOnboardingSession extends CreateRecord
             $payload['regularisation_backoffice'] = true;
         }
 
+        if (empty($payload['agent_kam'])) {
+            $admin = auth()->user();
+            $payload['agent_kam'] = $admin ? ($admin->name ?: (trim(($admin->first_name ?? '') . ' ' . ($admin->last_name ?? '')) ?: ($admin->email ?? 'Administrateur Backoffice'))) : 'Administrateur Backoffice';
+        }
+
+        if (($payload['nature_client'] ?? '') === 'personne_morale') {
+            $payload['civ'] = null;
+            $payload['situation_mat'] = null;
+            $payload['profession'] = null;
+            $payload['employeur'] = null;
+        }
+
         // Calculate risk score and profile
         $riskService = app(ProfilRiskService::class);
         $score = $riskService->calculateScore($payload);

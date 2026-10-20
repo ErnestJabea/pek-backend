@@ -52,6 +52,15 @@ class AppServiceProvider extends ServiceProvider
             Filament::getPanel('admin')->boot();
         });
 
+                // Configure all Filament table columns to be toggleable by default across the backoffice
+        \Filament\Tables\Columns\Column::configureUsing(function (\Filament\Tables\Columns\Column $column): void {
+            $column->toggleable();
+        });
+
+        \Filament\Tables\Table::configureUsing(function (\Filament\Tables\Table $table): void {
+            $table->columnToggleFormColumns(2);
+        });
+
         $this->configureDynamicMailSettings();
     }
 

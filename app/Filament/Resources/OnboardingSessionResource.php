@@ -170,91 +170,124 @@ class OnboardingSessionResource extends Resource
                         Tab::make('Informations KYC & Identité')
                             ->icon('heroicon-o-identification')
                             ->schema([
-                                Grid::make(3)->schema([
-                                    Forms\Components\Select::make('payload.civ')
-                                        ->label('Civilité')
-                                        ->options([
-                                            'M.' => 'M. (Monsieur)',
-                                            'Mme' => 'Mme (Madame)',
-                                        ])
-                                        ->default('M.')
-                                        ->required(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_physique'),
+                                Section::make('Nature & Profil du Client')
+                                    ->description('Définissez d\'abord la nature du client afin d\'adapter automatiquement les champs du formulaire.')
+                                    ->schema([
+                                        Grid::make(2)->schema([
+                                            Forms\Components\Select::make('payload.nature_client')
+                                                ->label('Nature du client')
+                                                ->options([
+                                                    'personne_physique' => 'Personne Physique',
+                                                    'personne_morale' => 'Personne Morale (Entreprise / Institution)',
+                                                ])
+                                                ->default('personne_physique')
+                                                ->required()
+                                                ->live()
+                                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                    if ($state === 'personne_morale') {
+                                                        $set('payload.civ', null);
+                                                        $set('payload.situation_mat', null);
+                                                        $set('payload.profession', null);
+                                                        $set('payload.employeur', null);
+                                                        $set('payload.categorie_client', 'Société commerciale / SARL / SA');
+                                                    } else {
+                                                        $set('payload.civ', 'M.');
+                                                        $set('payload.rccm', null);
+                                                        $set('payload.categorie_client', 'Salarié secteur privé');
+                                                    }
+                                                }),
 
-                                    Forms\Components\TextInput::make('payload.nom')
-                                        ->label('Nom de famille')
-                                        ->required(),
+                                            Forms\Components\Select::make('payload.categorie_client')
+                                                ->label('Type / Catégorie du client')
+                                                ->options(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale'
+                                                    ? \App\Services\ClientCategoryService::getCategoriesForType(\App\Services\ClientCategoryService::TYPE_MORALE)
+                                                    : \App\Services\ClientCategoryService::getCategoriesForType(\App\Services\ClientCategoryService::TYPE_PHYSIQUE))
+                                                ->searchable()
+                                                ->default('Salarié secteur privé')
+                                                ->required(),
+                                        ]),
+                                    ]),
 
-                                    Forms\Components\TextInput::make('payload.prenom')
-                                        ->label('Prénom')
-                                        ->required(),
+                                Section::make(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Informations de l\'Entreprise / Personne Morale' : 'Identité de la Personne Physique')
+                                    ->schema([
+                                        Grid::make(3)->schema([
+                                            Forms\Components\Select::make('payload.civ')
+                                                ->label('Civilité')
+                                                ->options([
+                                                    'M.' => 'M. (Monsieur)',
+                                                    'Mme' => 'Mme (Madame)',
+                                                ])
+                                                ->default('M.')
+                                                ->required(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_physique')
+                                                ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') !== 'personne_morale'),
 
-                                    Forms\Components\Select::make('payload.nature_client')
-                                        ->label('Nature du client')
-                                        ->options([
-                                            'personne_physique' => 'Personne Physique',
-                                            'personne_morale' => 'Personne Morale',
-                                        ])
-                                        ->default('personne_physique')
-                                        ->live(),
+                                            Forms\Components\TextInput::make('payload.nom')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Raison Sociale / Dénomination' : 'Nom de famille')
+                                                ->placeholder(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Ex: KORI CAPITAL SAS' : 'Ex: KAMGA')
+                                                ->required(),
 
-                                    Forms\Components\Select::make('payload.categorie_client')
-                                        ->label('Catégorie du client')
-                                        ->options(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale'
-                                            ? \App\Services\ClientCategoryService::getCategoriesForType(\App\Services\ClientCategoryService::TYPE_MORALE)
-                                            : \App\Services\ClientCategoryService::getCategoriesForType(\App\Services\ClientCategoryService::TYPE_PHYSIQUE))
-                                        ->searchable()
-                                        ->default('Salarié secteur privé'),
+                                            Forms\Components\TextInput::make('payload.prenom')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Représentant légal / Sigle' : 'Prénom')
+                                                ->placeholder(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Ex: Jean DUPONT (DG)' : 'Ex: Jean')
+                                                ->required(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_physique'),
 
-                                    Forms\Components\Select::make('payload.situation_mat')
-                                        ->label('Situation matrimoniale')
-                                        ->options([
-                                            'Célibataire' => 'Célibataire',
-                                            'Marié(e)' => 'Marié(e)',
-                                            'Divorcé(e)' => 'Divorcé(e)',
-                                            'Veuf/Veuve' => 'Veuf/Veuve',
-                                            'Autre' => 'Autre',
-                                        ])
-                                        ->default('Célibataire'),
+                                            Forms\Components\TextInput::make('payload.rccm')
+                                                ->label('N° RCCM (Entreprise)')
+                                                ->placeholder('Ex: RC/DLA/2023/B/1234')
+                                                ->required(fn (Forms\Get $get) => ($get('payload.nature_client') ?? '') === 'personne_morale')
+                                                ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? '') === 'personne_morale'),
 
-                                    Forms\Components\TextInput::make('payload.nat')
-                                        ->label('Nationalité')
-                                        ->default('Camerounaise'),
+                                            Forms\Components\Select::make('payload.situation_mat')
+                                                ->label('Situation matrimoniale')
+                                                ->options([
+                                                    'Célibataire' => 'Célibataire',
+                                                    'Marié(e)' => 'Marié(e)',
+                                                    'Divorcé(e)' => 'Divorcé(e)',
+                                                    'Veuf/Veuve' => 'Veuf/Veuve',
+                                                    'Autre' => 'Autre',
+                                                ])
+                                                ->default('Célibataire')
+                                                ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') !== 'personne_morale'),
 
-                                    Forms\Components\DatePicker::make('payload.dob')
-                                        ->label('Date de naissance')
-                                        ->native(false)
-                                        ->displayFormat('d/m/Y'),
+                                            Forms\Components\TextInput::make('payload.nat')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Pays du Siège / Nationalité' : 'Nationalité')
+                                                ->default('Camerounaise'),
 
-                                    Forms\Components\TextInput::make('payload.lieu_naiss')
-                                        ->label('Lieu de naissance'),
+                                            Forms\Components\DatePicker::make('payload.dob')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Date de création / immatriculation' : 'Date de naissance')
+                                                ->native(false)
+                                                ->displayFormat('d/m/Y'),
 
-                                    Forms\Components\TextInput::make('payload.profession')
-                                        ->label('Profession'),
+                                            Forms\Components\TextInput::make('payload.lieu_naiss')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Lieu d\'immatriculation / Ville du Siège' : 'Lieu de naissance'),
 
-                                    Forms\Components\TextInput::make('payload.employeur')
-                                        ->label('Employeur'),
+                                            Forms\Components\TextInput::make('payload.profession')
+                                                ->label('Profession / Activité')
+                                                ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') !== 'personne_morale'),
 
-                                    Forms\Components\TextInput::make('payload.tel')
-                                        ->label('Numéro de téléphone'),
+                                            Forms\Components\TextInput::make('payload.employeur')
+                                                ->label('Employeur / Entreprise')
+                                                ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') !== 'personne_morale'),
 
-                                    Forms\Components\TextInput::make('payload.email')
-                                        ->label('E-mail déclaré')
-                                        ->email(),
+                                            Forms\Components\TextInput::make('payload.tel')
+                                                ->label('Numéro de téléphone')
+                                                ->tel(),
 
-                                    Forms\Components\TextInput::make('payload.adresse')
-                                        ->label('Adresse de résidence / Ville'),
+                                            Forms\Components\TextInput::make('payload.email')
+                                                ->label('E-mail déclaré')
+                                                ->email(),
 
-                                    Forms\Components\TextInput::make('payload.pays_residence')
-                                        ->label('Pays de résidence')
-                                        ->default('Cameroun'),
+                                            Forms\Components\TextInput::make('payload.adresse')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Adresse du siège social / Ville' : 'Adresse de résidence / Ville'),
 
-                                    Forms\Components\TextInput::make('payload.agent_kam')
-                                        ->label('Agent KAM de référence'),
+                                            Forms\Components\TextInput::make('payload.pays_residence')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Pays du siège social' : 'Pays de résidence')
+                                                ->default('Cameroun'),
 
-                                    Forms\Components\TextInput::make('payload.rccm')
-                                        ->label('N° RCCM (Entreprise)')
-                                        ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? '') === 'personne_morale'),
-                                ]),
+                                            Forms\Components\Hidden::make('payload.agent_kam')
+                                                ->default(fn () => auth()->user()?->name ?: (trim((auth()->user()?->first_name ?? '') . ' ' . (auth()->user()?->last_name ?? '')) ?: (auth()->user()?->email ?: 'Administrateur Backoffice'))),
+                                        ]),
+                                    ]),
                             ]),
 
                         Tab::make('Pièce d\'Identité & Justificatifs KYC')
@@ -727,7 +760,8 @@ class OnboardingSessionResource extends Resource
                     ->formatStateUsing(fn ($state) => $state !== null && $state !== '' ? $state.'%' : '-')
                     ->badge()
                     ->color(fn ($state): string => (int) $state >= 60 ? 'success' : ((int) $state >= 40 ? 'warning' : 'gray'))
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('status')
                     ->label('Statut')
                     ->badge()
@@ -749,7 +783,8 @@ class OnboardingSessionResource extends Resource
                 TextColumn::make('updated_at')
                     ->label('Dernière activité')
                     ->dateTime('d/m/Y H:i')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 \App\Filament\Filters\DashboardFilter::make(static::class),

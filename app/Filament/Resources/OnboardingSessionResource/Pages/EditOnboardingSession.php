@@ -59,6 +59,18 @@ class EditOnboardingSession extends EditRecord
         $submittedPayload = $data['payload'] ?? [];
         $mergedPayload = array_merge($existingPayload, $submittedPayload);
 
+        if (empty($mergedPayload['agent_kam'])) {
+            $admin = auth()->user();
+            $mergedPayload['agent_kam'] = $admin ? ($admin->name ?: (trim(($admin->first_name ?? '') . ' ' . ($admin->last_name ?? '')) ?: ($admin->email ?? 'Administrateur Backoffice'))) : 'Administrateur Backoffice';
+        }
+
+        if (($mergedPayload['nature_client'] ?? '') === 'personne_morale') {
+            $mergedPayload['civ'] = null;
+            $mergedPayload['situation_mat'] = null;
+            $mergedPayload['profession'] = null;
+            $mergedPayload['employeur'] = null;
+        }
+
         // Recalculate risk score and profile if answers changed
         $riskService = app(ProfilRiskService::class);
         $score = $riskService->calculateScore($mergedPayload);

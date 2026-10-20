@@ -147,12 +147,14 @@ class PaymentMethodResource extends Resource
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('Description')
-                    ->limit(50),
+                    ->limit(50)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Dernière modif.')
                     ->dateTime('d/m/Y H:i')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('sort_order')
             ->actions([

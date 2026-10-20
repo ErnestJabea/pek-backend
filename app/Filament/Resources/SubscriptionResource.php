@@ -460,7 +460,8 @@ class SubscriptionResource extends Resource
                     ->trueColor('warning')
                     ->falseColor('info')
                     ->tooltip(fn (Subscription $record) => $record->is_historical ? 'Opération historique / reprise d\'antériorité (Mode silencieux)' : 'Opération directe PWA / Mobile')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('compliance_reviewed_at')
                     ->label('Conformité')
                     ->boolean()
@@ -469,7 +470,8 @@ class SubscriptionResource extends Resource
                     ->trueColor('success')
                     ->falseColor('warning')
                     ->tooltip(fn (Subscription $record) => $record->compliance_reviewed_at ? "Validé par {$record->complianceReviewer?->first_name} le {$record->compliance_reviewed_at->format('d/m/Y H:i')}" : 'En attente de revue conformité')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('accounting_reviewed_at')
                     ->label('Comptabilité')
                     ->boolean()
@@ -478,7 +480,8 @@ class SubscriptionResource extends Resource
                     ->trueColor('success')
                     ->falseColor('warning')
                     ->tooltip(fn (Subscription $record) => $record->accounting_reviewed_at ? "Validé par {$record->accountingReviewer?->first_name} le {$record->accounting_reviewed_at->format('d/m/Y H:i')}" : 'En attente de rapprochement comptable')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('manager_reviewed_at')
                     ->label('Gérant')
                     ->boolean()
@@ -487,7 +490,8 @@ class SubscriptionResource extends Resource
                     ->trueColor('success')
                     ->falseColor('warning')
                     ->tooltip(fn (Subscription $record) => $record->manager_reviewed_at ? "Visé par {$record->managerReviewer?->first_name} le {$record->manager_reviewed_at->format('d/m/Y H:i')}" : 'En attente du visa gérant')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('value_date')
                     ->label('Date valeur')
                     ->date('d/m/Y')
