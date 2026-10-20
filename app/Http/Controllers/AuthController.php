@@ -30,7 +30,7 @@ class AuthController extends Controller
             'country' => 'required|string|max:255',
             'employer' => 'nullable|string|max:255',
             'password' => 'required|string|min:12|confirmed',
-            'type_piece' => 'required|string|in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport',
+            'type_piece' => 'required|string|in:CNI,Passeport,Carte Résident,Carte de séjour,carte_sejour,cni,passeport,rccm,RCCM',
             'num_piece' => 'required|string|max:100',
             'expiration_piece' => 'required|date|after_or_equal:today + 1 month',
             'piece_recto' => 'nullable|string',
@@ -38,6 +38,8 @@ class AuthController extends Controller
             'piece_verso' => 'nullable|string',
             'doc_piece_verso' => 'nullable|string',
             'consent_data_retention' => 'nullable|boolean',
+            'nature_client' => 'nullable|string|in:personne_physique,personne_morale,Personne Physique,Personne Morale',
+            'rccm' => 'nullable|string|max:100',
         ], [
             'type_piece.required' => 'Le type d\'identification (Carte de séjour, CNI ou Passeport) est obligatoire.',
             'num_piece.required' => 'Le numéro de la pièce d\'identification est obligatoire.',
@@ -49,6 +51,11 @@ class AuthController extends Controller
         $rectoDoc = $request->input('doc_piece_identite') ?: $request->input('piece_recto');
         $versoDoc = $request->input('doc_piece_verso') ?: $request->input('piece_verso');
 
+        $natureClientRaw = strtolower($request->input('nature_client', 'personne_physique'));
+        $isPersonneMorale = str_contains($natureClientRaw, 'morale') || ! empty($request->input('rccm'));
+        $natureClient = $isPersonneMorale ? 'Personne Morale' : 'Personne Physique';
+        $categorieClient = $isPersonneMorale ? 'Entreprises non financières' : 'Particulier';
+
         $user = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
@@ -57,6 +64,8 @@ class AuthController extends Controller
             'city' => $request->city,
             'country' => $request->country,
             'employer' => $request->employer,
+            'nature_client' => $natureClient,
+            'categorie_client' => $categorieClient,
             'type_piece' => $request->type_piece,
             'num_piece' => $request->num_piece,
             'expiration_piece' => $request->expiration_piece,
@@ -68,18 +77,24 @@ class AuthController extends Controller
         $pieceType = match(strtolower($user->type_piece ?? 'cni')) {
             'carte_sejour', 'carte résident', 'carte de séjour' => 'Carte Résident',
             'passeport', 'passport' => 'Passeport',
+            'rccm' => 'RCCM',
             default => 'CNI',
         };
         $user->onboardingSession()->create([
             'current_step' => 'kyc',
             'status' => 'in_progress',
             'payload' => [
+                'nature_client' => $isPersonneMorale ? 'personne_morale' : 'personne_physique',
+                'categorie_client' => $categorieClient,
                 'nom' => $user->last_name,
                 'prenom' => $user->first_name,
+                'rccm' => $request->input('rccm', ''),
                 'email' => $user->email,
                 'tel' => $user->phone,
                 'pays_residence' => $user->country,
                 'adresse' => $user->city,
+                'profession' => $user->employer,
+                'secteur_activite' => $user->employer,
                 'piece' => $pieceType,
                 'type_piece' => $pieceType,
                 'num_piece' => $user->num_piece,

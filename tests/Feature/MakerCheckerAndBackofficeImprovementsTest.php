@@ -605,4 +605,73 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
         $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'justificatif_domicile']))->assertOk();
         $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'origine_fonds']))->assertOk();
     }
+
+    public function test_personne_morale_registration_initializes_session_and_bulletin_correctly(): void
+    {
+        $response = $this->postJson('/api/register', [
+            'first_name' => 'Jean Dupont (Directeur Général)',
+            'last_name' => 'ACME CORP SARL',
+            'email' => 'contact@acmecorp.cm',
+            'phone' => '+237690001122',
+            'city' => 'Douala',
+            'country' => 'Cameroun',
+            'employer' => 'Agro-industrie et Commerce',
+            'type_piece' => 'cni',
+            'num_piece' => '1029384756',
+            'expiration_piece' => now()->addYears(2)->toDateString(),
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+            'terms' => true,
+            'nature_client' => 'personne_morale',
+            'rccm' => 'RC/DLA/2024/B/999',
+        ]);
+
+        $response->assertSuccessful();
+
+        $user = User::where('email', 'contact@acmecorp.cm')->first();
+        $this->assertNotNull($user);
+        $this->assertEquals('Personne Morale', $user->nature_client);
+        $this->assertEquals('Entreprises non financières', $user->categorie_client);
+
+        $session = $user->onboardingSession;
+        $this->assertNotNull($session);
+        $this->assertEquals('personne_morale', $session->payload['nature_client'] ?? null);
+        $this->assertEquals('ACME CORP SARL', $session->payload['nom'] ?? null);
+        $this->assertEquals('Jean Dupont (Directeur Général)', $session->payload['prenom'] ?? null);
+        $this->assertEquals('RC/DLA/2024/B/999', $session->payload['rccm'] ?? null);
+        $this->assertEquals('Agro-industrie et Commerce', $session->payload['secteur_activite'] ?? null);
+
+        // Test bulletin service rendering data
+        $product = Product::firstOrCreate(
+            ['code' => 'FCP-TEST'],
+            [
+                'libelle' => 'FCP Test',
+                'vl' => 10000,
+                'seuil_minimum' => 50000,
+                'is_active' => true,
+            ]
+        );
+        $subscription = Subscription::create([
+            'user_id' => $user->id,
+            'product_id' => $product->id,
+            'montant_total' => 100000,
+            'investment_amount' => 99000,
+            'subscription_fee' => 1000,
+            'prix_unitaire' => 10000,
+            'moyen_paiement' => 'bank_transfer',
+            'statut' => 'pending',
+            'reference_transaction' => 'SUB-TEST-MORALE-001',
+            'nb_parts' => 10,
+        ]);
+
+        $bulletinService = app(\App\Services\SubscriptionBulletinService::class);
+        $bulletinData = $bulletinService->getBulletinData($subscription);
+
+        $this->assertTrue($bulletinData['is_personne_morale']);
+        $this->assertFalse($bulletinData['is_personne_physique']);
+        $this->assertEquals('ACME CORP SARL', $bulletinData['nom_complet']);
+        $this->assertEquals('Jean Dupont (Directeur Général)', $bulletinData['representant_legal']);
+        $this->assertTrue($bulletinData['is_rccm']);
+        $this->assertEquals('RC/DLA/2024/B/999', $bulletinData['num_piece']);
+    }
 }

@@ -17,12 +17,25 @@ class SubscriptionBulletinService
         $user = $subscription->user;
         $session = $user?->onboardingSession;
         $product = $subscription->product;
-        $payload = $session ? $session->getSubmittedPayload() : [];
+        $submitted = $session ? $session->getSubmittedPayload() : [];
+        $payload = ! empty($submitted) ? $submitted : ($session?->payload ?? []);
 
         // 1. Identification du Client
         $nom = $payload['nom'] ?? $user?->last_name ?? '';
         $prenom = $payload['prenom'] ?? $user?->first_name ?? '';
-        $nomComplet = $payload['nom_complet'] ?? trim("{$nom} {$prenom}");
+
+        $natureClient = strtolower($payload['nature_client'] ?? $user?->nature_client ?? 'personne_physique');
+        $isPersonneMorale = str_contains($natureClient, 'morale') || ! empty($payload['rccm']);
+        $isPersonnePhysique = ! $isPersonneMorale;
+
+        if ($isPersonneMorale) {
+            $nomComplet = $nom;
+            $representantLegal = $prenom;
+        } else {
+            $nomComplet = $payload['nom_complet'] ?? trim("{$nom} {$prenom}");
+            $representantLegal = '';
+        }
+
         if (empty($nomComplet)) {
             $nomComplet = $user?->name ?? 'Client KORI';
         }
@@ -31,23 +44,21 @@ class SubscriptionBulletinService
         $telephone = $subscription->payment_phone ?? $payload['tel'] ?? $user?->phone ?? '';
         $email = $payload['email'] ?? $user?->email ?? '';
 
-        $natureClient = strtolower($payload['nature_client'] ?? 'personne_physique');
-        $isPersonneMorale = str_contains($natureClient, 'morale') || ! empty($payload['rccm']);
-        $isPersonnePhysique = ! $isPersonneMorale;
-
         $categorieClient = $user?->categorie_client
             ?? $payload['categorie_client']
-            ?? 'Particulier';
+            ?? ($isPersonneMorale ? 'Entreprises non financières' : 'Particulier');
 
         // Type de pièce
-        $pieceRaw = strtolower($payload['piece'] ?? $payload['type_piece'] ?? 'cni');
+        $pieceRaw = strtolower($payload['piece'] ?? $payload['type_piece'] ?? ($isPersonneMorale ? 'rccm' : 'cni'));
         $isCni = str_contains($pieceRaw, 'cni') || str_contains($pieceRaw, 'identite');
         $isPasseport = str_contains($pieceRaw, 'pass');
-        $isRccm = str_contains($pieceRaw, 'rccm');
+        $isRccm = str_contains($pieceRaw, 'rccm') || ($isPersonneMorale && ! empty($payload['rccm']));
         $isAutrePiece = ! $isCni && ! $isPasseport && ! $isRccm;
         $precisionAutrePiece = $isAutrePiece ? ($payload['piece'] ?? '') : '';
 
-        $numPiece = $payload['num_piece'] ?? $payload['id_number'] ?? '—';
+        $numPiece = (! empty($payload['rccm']) && $isRccm)
+            ? $payload['rccm']
+            : ($payload['num_piece'] ?? $payload['id_number'] ?? '—');
         $compteBancaire = $payload['compte_bancaire'] ?? $payload['rib'] ?? $user?->rib ?? '—';
 
         // 2. Caractéristiques Financières de l'Opération
@@ -108,6 +119,7 @@ class SubscriptionBulletinService
             'fcp_nom' => strtoupper($product?->libelle ?? 'FCP KORI SÉRÉNITÉ'),
             'fcp_agrement' => $product?->agrement_numero ?? 'Agrément N° COSUMAF-FCP-02/2025',
             'nom_complet' => $nomComplet,
+            'representant_legal' => $representantLegal,
             'adresse' => $adresse,
             'telephone' => $telephone,
             'email' => $email,
