@@ -533,6 +533,41 @@ class OnboardingController extends Controller
                         $path = "secure_onboardings/documents/{$session->id}-{$columnName}.{$ext}";
                         $disk->put($path, $bytes);
                         $session->{$columnName} = $path;
+
+                        $user = $session->user;
+                        if ($user && \Illuminate\Support\Facades\Schema::hasColumn('users', $columnName)) {
+                            $user->{$columnName} = $path;
+                            $user->save();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Pièce d'identité (Verso - optionnel)
+        $versoData = $payload['doc_piece_verso'] ?? ($payload['piece_verso'] ?? null);
+        if (! empty($versoData) && is_string($versoData) && str_starts_with($versoData, 'data:')) {
+            if (preg_match('/^data:([a-zA-Z0-9\/\+\-\.]+);base64,(.+)$/', $versoData, $matches)) {
+                $mime = $matches[1];
+                $bytes = base64_decode($matches[2], true);
+                if ($bytes !== false) {
+                    $ext = match ($mime) {
+                        'application/pdf' => 'pdf',
+                        'image/png' => 'png',
+                        default => 'jpg',
+                    };
+                    $path = "secure_onboardings/documents/{$session->id}-doc_piece_verso.{$ext}";
+                    $disk->put($path, $bytes);
+
+                    $currentPayload = $session->payload ?? [];
+                    $currentPayload['doc_piece_verso'] = $path;
+                    $currentPayload['piece_verso'] = $path;
+                    $session->payload = $currentPayload;
+
+                    $user = $session->user;
+                    if ($user && \Illuminate\Support\Facades\Schema::hasColumn('users', 'doc_piece_verso')) {
+                        $user->doc_piece_verso = $path;
+                        $user->save();
                     }
                 }
             }

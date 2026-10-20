@@ -526,4 +526,72 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
         $this->assertSame('Non requis (Guichet)', $biometricColumn->record($guichetSession)->getState());
         $this->assertSame('Validée', $biometricColumn->record($pwaSession)->getState());
     }
+
+    public function test_pwa_onboarding_supporting_documents_are_persisted_to_private_storage_and_available_in_backoffice(): void
+    {
+        Storage::fake('kyc_private');
+
+        $client = User::create([
+            'first_name' => 'Samuel',
+            'last_name' => 'Eto',
+            'email' => 'samuel.eto@test.local',
+            'password' => bcrypt('Password123!'),
+            'role' => 'client',
+        ]);
+
+        $fakeJpg = 'data:image/jpeg;base64,' . base64_encode('FAKE_JPEG_BINARY_DATA');
+        $fakePdf = 'data:application/pdf;base64,' . base64_encode('%PDF-1.4 FAKE_PDF_DATA');
+
+        // Client posts the 5 KYC documents from PWA
+        $response = $this->actingAs($client)->postJson('/api/onboarding/save-progress', [
+            'step' => 'kyc',
+            'payload' => [
+                'civ' => 'M.',
+                'nom' => 'Eto',
+                'prenom' => 'Samuel',
+                'piece' => 'CNI',
+                'num_piece' => '123456789',
+                'doc_piece_identite' => $fakeJpg,
+                'doc_piece_verso' => $fakeJpg,
+                'doc_photo' => $fakeJpg,
+                'doc_justificatif_domicile' => $fakePdf,
+                'doc_origine_fonds' => $fakePdf,
+            ],
+        ]);
+
+        $response->assertSuccessful();
+
+        $session = $client->fresh()->onboardingSession;
+        $this->assertNotNull($session);
+
+        // Verify storage on kyc_private disk
+        $this->assertNotNull($session->doc_piece_identite);
+        $this->assertNotNull($session->payload['doc_piece_verso']);
+        $this->assertNotNull($session->doc_photo);
+        $this->assertNotNull($session->doc_justificatif_domicile);
+        $this->assertNotNull($session->doc_origine_fonds);
+
+        Storage::disk('kyc_private')->assertExists($session->doc_piece_identite);
+        Storage::disk('kyc_private')->assertExists($session->payload['doc_piece_verso']);
+        Storage::disk('kyc_private')->assertExists($session->doc_photo);
+        Storage::disk('kyc_private')->assertExists($session->doc_justificatif_domicile);
+        Storage::disk('kyc_private')->assertExists($session->doc_origine_fonds);
+
+        // Verify that Admin can download them all via the Backoffice document download routes
+        $admin = User::create([
+            'first_name' => 'Admin',
+            'last_name' => 'Compliance',
+            'email' => 'admin.kyc@test.local',
+            'password' => bcrypt('Password123!'),
+            'role' => 'admin',
+        ]);
+        $admin->assignRole('super_admin');
+
+        $this->actingAs($admin);
+        $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'piece_identite']))->assertOk();
+        $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'piece_verso']))->assertOk();
+        $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'photo']))->assertOk();
+        $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'justificatif_domicile']))->assertOk();
+        $this->get(route('admin.document.download', ['session' => $session->id, 'type' => 'origine_fonds']))->assertOk();
+    }
 }
