@@ -41,6 +41,28 @@ class ViewOnboardingSession extends ViewRecord
                     return 'Confirmez-vous la validation de ce dossier d\'onboarding ?';
                 })
                 ->visible(fn ($record) => $record && in_array($record->status, ['completed', 'in_progress']))
+                ->disabled(function ($record): bool {
+                    $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+                    $creatorId = $record?->events()->where('event_type', 'created')->value('actor_user_id')
+                        ?? ($record?->payload['created_by_user_id'] ?? null)
+                        ?? ($record?->payload['agent_kam_id'] ?? null);
+                    return ! $isSuperAdmin && $creatorId && ($creatorId == auth()->id());
+                })
+                ->tooltip(function ($record): ?string {
+                    $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+                    $isCompliance = $isSuperAdmin || (auth()->user()?->adminDepartment?->name === 'Conformité / KYC');
+                    if (! $isCompliance) {
+                        return "Seul un agent du département Conformité / KYC ou un Super Administrateur peut valider ce dossier.";
+                    }
+
+                    $creatorId = $record?->events()->where('event_type', 'created')->value('actor_user_id')
+                        ?? ($record?->payload['created_by_user_id'] ?? null)
+                        ?? ($record?->payload['agent_kam_id'] ?? null);
+                    if (! $isSuperAdmin && $creatorId && ($creatorId == auth()->id())) {
+                        return "Ségrégation des tâches (Maker-Checker) : Vous avez saisi ce dossier. La validation doit être effectuée par un autre agent de la conformité.";
+                    }
+                    return null;
+                })
                 ->form([
                     \Filament\Forms\Components\Toggle::make('send_notification_email')
                         ->label('Notifier le client par e-mail (Activation de compte)')
@@ -53,6 +75,16 @@ class ViewOnboardingSession extends ViewRecord
                 ])
                 ->action(function ($record, array $data) {
                     Gate::authorize('update', $record);
+
+                    $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+                    $isCompliance = $isSuperAdmin || (auth()->user()?->adminDepartment?->name === 'Conformité / KYC');
+                    abort_unless($isCompliance, 403, "Seul le département Conformité ou un Super Administrateur peut valider un dossier d'onboarding.");
+
+                    $creatorId = $record->events()->where('event_type', 'created')->value('actor_user_id')
+                        ?? ($record->payload['created_by_user_id'] ?? null)
+                        ?? ($record->payload['agent_kam_id'] ?? null);
+
+                    abort_if(! $isSuperAdmin && $creatorId && ($creatorId == auth()->id()), 403, "Ségrégation des tâches (Maker-Checker) : Vous ne pouvez pas valider un dossier que vous avez vous-même saisi.");
                     $sendEmail = (bool) ($data['send_notification_email'] ?? false);
                     $sendInApp = (bool) ($data['create_in_app_notification'] ?? false);
 

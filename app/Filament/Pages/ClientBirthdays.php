@@ -182,7 +182,11 @@ class ClientBirthdays extends Page implements HasTable
                         }
                     }),
             ])
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
+                \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                 BulkAction::make('bulk_send_wishes')
                     ->label('Envoyer les vœux aux anniversaires du jour')
                     ->icon('heroicon-o-gift')

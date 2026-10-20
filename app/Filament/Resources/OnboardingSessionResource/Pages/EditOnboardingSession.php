@@ -84,6 +84,19 @@ class EditOnboardingSession extends EditRecord
         $data['payload'] = $mergedPayload;
         $data['submitted_payload'] = $mergedPayload;
 
+        $status = $data['status'] ?? null;
+        if ($status === 'validated' && $this->record->status !== 'validated') {
+            $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+            $isCompliance = $isSuperAdmin || (auth()->user()?->adminDepartment?->name === 'Conformité / KYC');
+            abort_unless($isCompliance, 403, "Seul le département Conformité ou un Super Administrateur peut valider un dossier d'onboarding.");
+
+            $creatorId = $this->record->events()->where('event_type', 'created')->value('actor_user_id')
+                ?: ($this->record->payload['created_by_user_id'] ?? null)
+                ?: ($this->record->payload['agent_kam_id'] ?? null);
+
+            abort_if(! $isSuperAdmin && $creatorId && ($creatorId == auth()->id()), 403, "Ségrégation des tâches (Maker-Checker) : Vous ne pouvez pas valider un dossier que vous avez vous-même saisi.");
+        }
+
         if (($data['status'] ?? null) === 'validated') {
             $data['validated_at'] = $data['validated_at'] ?? now();
             if (empty($this->record->identity_verified_at)) {

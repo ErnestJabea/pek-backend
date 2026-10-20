@@ -28,6 +28,7 @@ class BackofficeTableColumnPreferencesAndOnboardingLayoutTest extends TestCase
             'last_name' => 'Compliance',
             'email' => 'alice.compliance@example.com',
         ]);
+        $admin->assignRole('super_admin');
 
         $client = User::factory()->create([
             'role' => 'client',
@@ -69,6 +70,7 @@ class BackofficeTableColumnPreferencesAndOnboardingLayoutTest extends TestCase
             'first_name' => 'Alice',
             'last_name' => 'Compliance',
         ]);
+        $admin->assignRole('super_admin');
 
         $client = User::factory()->create([
             'role' => 'client',

@@ -470,11 +470,20 @@ class ClientResource extends Resource
                     ->form([
                         Forms\Components\Select::make('status')
                             ->label('Statut de l\'onboarding')
-                            ->options([
-                                'validated' => 'Validé immédiatement (Régularisation / Client existant)',
-                                'in_progress' => 'En cours / À compléter par le client',
-                            ])
-                            ->default('validated')
+                            ->options(function () {
+                                if (auth()->user()?->hasRole('super_admin')) {
+                                    return [
+                                        'completed' => 'Complet (Soumis pour contrôle conformité)',
+                                        'in_progress' => 'En cours / À compléter par le client',
+                                        'validated' => 'Validé immédiatement (Régularisation Super Admin)',
+                                    ];
+                                }
+                                return [
+                                    'completed' => 'Complet (Soumis pour contrôle conformité)',
+                                    'in_progress' => 'En cours / À compléter par le client',
+                                ];
+                            })
+                            ->default('completed')
                             ->required(),
 
                         Forms\Components\Select::make('categorie_client')
@@ -519,6 +528,11 @@ class ClientResource extends Resource
                     ->visible(fn ($record) => $record && ! $record->trashed() && ! $record->onboardingSession()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('create_onboarding::session') || auth()->user()?->can('create_onboarding_session')))
                     ->action(function ($record, array $data) {
                         $isValidated = ($data['status'] === 'validated');
+                        if ($isValidated && ! auth()->user()?->hasRole('super_admin')) {
+                            abort(403, "Seul le Super Administrateur peut créer directement un onboarding en statut validé.");
+                        }
+
+                        $creatorId = auth()->id();
 
                         if (! empty($data['categorie_client'])) {
                             $record->update(['categorie_client' => $data['categorie_client']]);
@@ -533,6 +547,8 @@ class ClientResource extends Resource
                             'status' => $data['status'],
                             'validated_at' => $isValidated ? now() : null,
                             'payload' => [
+                                'created_by_user_id' => $creatorId,
+                                'agent_kam_id' => $creatorId,
                                 'civ' => $data['civ'] ?? $record->civ ?? 'M.',
                                 'nom' => $record->last_name,
                                 'prenom' => $record->first_name,
@@ -548,8 +564,8 @@ class ClientResource extends Resource
 
                         \App\Models\OnboardingEvent::create([
                             'onboarding_session_id' => $session->id,
-                            'actor_user_id' => auth()->id(),
-                            'event_type' => $isValidated ? 'validated' : 'created',
+                            'actor_user_id' => $creatorId,
+                            'event_type' => 'created',
                             'from_status' => 'not_started',
                             'to_status' => $data['status'],
                             'metadata' => [
@@ -598,8 +614,13 @@ class ClientResource extends Resource
                     ->visible(fn (Client $record) => $record->onboardingSession()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_onboarding::session') || auth()->user()?->can('view_onboarding_session')))
                     ->url(fn (Client $record) => OnboardingSessionResource::getUrl('view', ['record' => $record->onboardingSession])),
             ])
+            ->recordUrl(fn (Client $record) => (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_client') || auth()->user()?->can('view_any_client')) ? ClientResource::getUrl('portfolio-report', ['record' => $record]) : null)
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                     Tables\Actions\DeleteBulkAction::make(),
                     Tables\Actions\RestoreBulkAction::make(),
                     Tables\Actions\ForceDeleteBulkAction::make(),

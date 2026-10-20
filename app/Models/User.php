@@ -195,6 +195,7 @@ class User extends Authenticatable implements FilamentUser, HasName
         'mfa_prompt_dismissed',
         'email_verified_at',
         'table_preferences',
+        'admin_department_id',
     ];
 
     protected $hidden = [

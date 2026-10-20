@@ -639,5 +639,177 @@
             </div>
         @endforelse
 
+        {{-- SECTION MENSUELLE : HISTORIQUE COMPLET DES TRANSACTIONS GROUPÉES PAR MOIS --}}
+        @php
+            $monthlyGroups = $this->transactionsGroupedByMonth;
+            $allTransactionsCount = array_sum(array_column($monthlyGroups, 'count'));
+            $allTotalBrut = array_sum(array_column($monthlyGroups, 'total_brut'));
+            $allTotalParts = array_sum(array_column($monthlyGroups, 'total_parts'));
+        @endphp
+
+        <div class="mt-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-7">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-amber-500/10 text-[#C67C00] flex items-center justify-center font-bold">
+                            <x-heroicon-o-calendar-days class="w-5 h-5 text-[#E5A812]" />
+                        </span>
+                        <h3 class="text-base sm:text-lg font-black text-gray-900 dark:text-white">
+                            Historique des Transactions & Suivi Mensuel
+                        </h3>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Regroupement chronologique par mois de toutes les opérations du client avec sous-totaux financiers et téléchargement certifié des avis d'opéré.
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 font-bold text-gray-700 dark:text-gray-300">
+                        {{ $allTransactionsCount }} opération(s) au total
+                    </span>
+                    <span class="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 font-black text-[#009A4D] dark:text-emerald-400">
+                        {{ number_format($allTotalBrut, 0, ',', ' ') }} XAF investis
+                    </span>
+                    <span class="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 font-black text-[#8C4B18] dark:text-amber-400">
+                        {{ number_format($allTotalParts, 4, ',', ' ') }} parts cumulées
+                    </span>
+                </div>
+            </div>
+
+            @if(empty($monthlyGroups))
+                <div class="py-10 text-center text-gray-500 text-sm">
+                    <x-heroicon-o-inbox class="w-10 h-10 mx-auto text-gray-400 mb-2" />
+                    Aucune transaction enregistrée pour ce client.
+                </div>
+            @else
+                <div class="mt-5 space-y-4">
+                    @foreach($monthlyGroups as $mKey => $month)
+                        <div x-data="{ open: true }" class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-xs transition duration-150">
+                            {{-- En-tête du mois avec sous-totaux --}}
+                            <div @click="open = !open" class="cursor-pointer bg-gradient-to-r from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 p-4 sm:px-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-gray-100/70 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-[#009A4D]/10 text-[#009A4D] flex items-center justify-center font-black text-sm">
+                                        <x-heroicon-o-calendar class="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div class="text-sm sm:text-base font-black text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                                            {{ $month['label'] }}
+                                            <span class="text-[11px] font-bold normal-case px-2 py-0.5 rounded-full bg-[#E5A812]/15 text-[#8C4B18] dark:text-amber-300">
+                                                {{ $month['count'] }} opération{{ $month['count'] > 1 ? 's' : '' }}
+                                            </span>
+                                        </div>
+                                        <div class="text-[11px] text-gray-500 dark:text-gray-400">
+                                            Sous-totaux consolidés du mois
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
+                                    <div class="text-right">
+                                        <div class="text-[10px] uppercase font-bold text-gray-400">Total Brut</div>
+                                        <div class="font-black text-gray-900 dark:text-white">{{ number_format($month['total_brut'], 0, ',', ' ') }} XAF</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-[10px] uppercase font-bold text-gray-400">Frais</div>
+                                        <div class="font-bold text-gray-500">{{ number_format($month['total_frais'], 0, ',', ' ') }} XAF</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-[10px] uppercase font-bold text-gray-400">Placement Net</div>
+                                        <div class="font-black text-[#009A4D] dark:text-emerald-400">{{ number_format($month['total_net'], 0, ',', ' ') }} XAF</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-[10px] uppercase font-bold text-gray-400">Parts Acquises</div>
+                                        <div class="font-black text-[#8C4B18] dark:text-amber-400">+{{ number_format($month['total_parts'], 4, ',', ' ') }}</div>
+                                    </div>
+
+                                    <button type="button" class="p-1.5 rounded-lg bg-gray-200/60 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 ml-2">
+                                        <x-heroicon-m-chevron-down class="w-4 h-4 transition-transform duration-200" ::class="{ 'rotate-180': open }" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Tableau détaillé des transactions du mois --}}
+                            <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-x-auto">
+                                <table class="w-full text-xs text-left">
+                                    <thead>
+                                        <tr class="bg-gray-50/80 dark:bg-gray-900/60 text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 font-bold uppercase text-[10px] tracking-wider">
+                                            <th class="py-2.5 px-3">Date</th>
+                                            <th class="py-2.5 px-3">Réf. Transaction</th>
+                                            <th class="py-2.5 px-3">Fonds</th>
+                                            <th class="py-2.5 px-3 text-right">Montant Brut</th>
+                                            <th class="py-2.5 px-3 text-right">Frais</th>
+                                            <th class="py-2.5 px-3 text-right">Montant Net</th>
+                                            <th class="py-2.5 px-3 text-right">VL Retenue</th>
+                                            <th class="py-2.5 px-3 text-right">Parts</th>
+                                            <th class="py-2.5 px-3 text-center">Statut & Visas</th>
+                                            <th class="py-2.5 px-3 text-center">Avis d'Opéré</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                                        @foreach($month['transactions'] as $tx)
+                                            <tr class="hover:bg-amber-50/20 dark:hover:bg-gray-750 transition">
+                                                <td class="py-2.5 px-3 font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                                                    {{ $tx['date'] }}
+                                                </td>
+                                                <td class="py-2.5 px-3 font-mono font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                                    {{ $tx['reference'] }}
+                                                    @if($tx['is_historical'])
+                                                        <span class="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 font-sans font-bold">Hist.</span>
+                                                    @endif
+                                                </td>
+                                                <td class="py-2.5 px-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                                                    {{ $tx['product_name'] }}
+                                                </td>
+                                                <td class="py-2.5 px-3 text-right font-black text-gray-900 dark:text-white whitespace-nowrap">
+                                                    {{ number_format($tx['montant_brut'], 0, ',', ' ') }} XAF
+                                                </td>
+                                                <td class="py-2.5 px-3 text-right font-semibold text-gray-500 whitespace-nowrap">
+                                                    {{ number_format($tx['frais'], 0, ',', ' ') }} XAF
+                                                </td>
+                                                <td class="py-2.5 px-3 text-right font-bold text-[#009A4D] dark:text-emerald-400 whitespace-nowrap">
+                                                    {{ number_format($tx['montant_net'], 0, ',', ' ') }} XAF
+                                                </td>
+                                                <td class="py-2.5 px-3 text-right font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                                    {{ number_format($tx['vl'], 2, ',', ' ') }}
+                                                </td>
+                                                <td class="py-2.5 px-3 text-right font-black text-[#8C4B18] dark:text-amber-400 whitespace-nowrap">
+                                                    +{{ number_format($tx['nb_parts'], 4, ',', ' ') }}
+                                                </td>
+                                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                                    @if($tx['statut'] === 'Succès')
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#009A4D] dark:bg-emerald-950 dark:text-emerald-300">
+                                                            <x-heroicon-m-check-circle class="w-3 h-3" /> Validée
+                                                        </span>
+                                                    @elseif($tx['statut'] === 'En attente')
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                                            <x-heroicon-m-clock class="w-3 h-3" /> En attente
+                                                        </span>
+                                                    @else
+                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                                            {{ $tx['statut'] }}
+                                                        </span>
+                                                    @endif
+                                                </td>
+                                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                                    <div class="inline-flex items-center gap-1">
+                                                        <a href="{{ $tx['bulletin_show_url'] }}" target="_blank" title="Consulter l'avis d'opéré" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition">
+                                                            <x-heroicon-m-eye class="w-4 h-4 text-gray-500" />
+                                                        </a>
+                                                        <a href="{{ $tx['bulletin_download_url'] }}" title="Télécharger le PDF officiel" class="p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950 text-[#009A4D] transition">
+                                                            <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
     </div>
 </x-filament-panels::page>

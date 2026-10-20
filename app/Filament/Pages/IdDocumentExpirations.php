@@ -183,7 +183,11 @@ class IdDocumentExpirations extends Page implements HasTable
                         }
                     }),
             ])
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
+                \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                 BulkAction::make('bulk_send_reminders')
                     ->label('Envoyer un rappel aux pièces expirées sélectionnées')
                     ->icon('heroicon-o-paper-airplane')

@@ -149,8 +149,12 @@ class UserResource extends Resource
                 Tables\Actions\RestoreAction::make(),
                 Tables\Actions\ForceDeleteAction::make(),
             ])
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                     Tables\Actions\DeleteBulkAction::make(),
                     Tables\Actions\RestoreBulkAction::make(),
                     Tables\Actions\ForceDeleteBulkAction::make(),

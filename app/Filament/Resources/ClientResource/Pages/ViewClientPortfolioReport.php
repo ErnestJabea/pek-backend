@@ -94,6 +94,82 @@ class ViewClientPortfolioReport extends Page
         );
     }
 
+    /**
+     * Historique complet des opérations du client groupées par mois avec sous-totaux
+     */
+    public function getTransactionsGroupedByMonthProperty(): array
+    {
+        /** @var Client $client */
+        $client = $this->record;
+
+        $query = $client->subscriptions()
+            ->with('product')
+            ->orderByDesc('value_date')
+            ->orderByDesc('created_at');
+
+        if ($this->productId) {
+            $query->where('product_id', (int) $this->productId);
+        }
+
+        $subscriptions = $query->get();
+
+        $grouped = [];
+
+        foreach ($subscriptions as $sub) {
+            $date = $sub->value_date ?: $sub->created_at;
+            $carbon = $date ? Carbon::parse($date) : now();
+            $monthKey = $carbon->format('Y-m');
+            $monthLabel = ucfirst($carbon->translatedFormat('F Y'));
+
+            if (! isset($grouped[$monthKey])) {
+                $grouped[$monthKey] = [
+                    'key' => $monthKey,
+                    'label' => $monthLabel,
+                    'year' => $carbon->format('Y'),
+                    'count' => 0,
+                    'total_brut' => 0.0,
+                    'total_frais' => 0.0,
+                    'total_net' => 0.0,
+                    'total_parts' => 0.0,
+                    'transactions' => [],
+                ];
+            }
+
+            $montantTotal = (float) $sub->montant_total;
+            $frais = (float) ($sub->subscription_fee ?? 0);
+            $montantNet = (float) ($sub->investment_amount ?: ($montantTotal - $frais));
+            $parts = (float) ($sub->nb_parts ?? 0);
+
+            $grouped[$monthKey]['count']++;
+            $grouped[$monthKey]['total_brut'] += $montantTotal;
+            $grouped[$monthKey]['total_frais'] += $frais;
+            $grouped[$monthKey]['total_net'] += $montantNet;
+            $grouped[$monthKey]['total_parts'] += $parts;
+
+            $grouped[$monthKey]['transactions'][] = [
+                'id' => $sub->id,
+                'reference' => $sub->reference_transaction ?: ('SUB-' . $sub->id),
+                'date' => $carbon->format('d/m/Y'),
+                'product_name' => $sub->product?->libelle ?: 'FCP',
+                'product_code' => $sub->product?->code ?: '',
+                'montant_brut' => $montantTotal,
+                'frais' => $frais,
+                'montant_net' => $montantNet,
+                'vl' => (float) ($sub->prix_unitaire ?: 0),
+                'nb_parts' => $parts,
+                'statut' => $sub->statut,
+                'is_historical' => (bool) $sub->is_historical,
+                'compliance_reviewed' => (bool) $sub->compliance_reviewed_at,
+                'accounting_reviewed' => (bool) $sub->accounting_reviewed_at,
+                'moyen_paiement' => $sub->moyen_paiement,
+                'bulletin_show_url' => route('subscriptions.bulletin.show', $sub->id),
+                'bulletin_download_url' => route('subscriptions.bulletin.download', $sub->id),
+            ];
+        }
+
+        return $grouped;
+    }
+
     public function getBreadcrumbs(): array
     {
         /** @var Client $client */

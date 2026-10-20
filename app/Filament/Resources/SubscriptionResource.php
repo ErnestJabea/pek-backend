@@ -63,9 +63,8 @@ class SubscriptionResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->whereHas('user', function (Builder $query) {
-                $query->onlyClients();
-            });
+            ->with(['user' => fn ($q) => $q->withTrashed(), 'product'])
+            ->latest('id');
     }
 
     public static function getModelLabel(): string
@@ -661,8 +660,12 @@ class SubscriptionResource extends Resource
                     }),
                 Tables\Actions\DeleteAction::make(),
             ])
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                     Tables\Actions\BulkAction::make('bulkRemindTransferProof')
                         ->label('Relancer pour preuve de virement')
                         ->icon('heroicon-o-paper-airplane')

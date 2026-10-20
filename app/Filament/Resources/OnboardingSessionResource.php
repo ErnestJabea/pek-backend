@@ -128,13 +128,36 @@ class OnboardingSessionResource extends Resource
 
                         Forms\Components\Select::make('status')
                             ->label('Statut Onboarding')
-                            ->options([
-                                'validated' => 'Validé par la Conformité (Activé)',
-                                'completed' => 'Complet (Soumis pour contrôle)',
-                                'in_progress' => 'Brouillon / En cours',
-                                'rejected' => 'Rejeté',
-                            ])
-                            ->default('validated')
+                            ->options(function ($operation, $record) {
+                                $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+                                $isCompliance = $isSuperAdmin || (auth()->user()?->adminDepartment?->name === 'Conformité / KYC');
+                                $creatorId = $record?->events()->where('event_type', 'created')->value('actor_user_id')
+                                    ?? ($record?->payload['created_by_user_id'] ?? null)
+                                    ?? ($record?->payload['agent_kam_id'] ?? null);
+                                $isCreator = $creatorId && ($creatorId == auth()->id());
+
+                                if ($operation === 'create') {
+                                    $opts = [
+                                        'completed' => 'Complet (Soumis pour contrôle conformité)',
+                                        'in_progress' => 'Brouillon / En cours',
+                                    ];
+                                    if ($isSuperAdmin) {
+                                        $opts['validated'] = 'Validé par la Conformité (Régularisation Super Admin)';
+                                    }
+                                    return $opts;
+                                }
+
+                                $opts = [
+                                    'completed' => 'Complet (Soumis pour contrôle)',
+                                    'in_progress' => 'Brouillon / En cours',
+                                    'rejected' => 'Rejeté',
+                                ];
+                                if ($isCompliance && ($isSuperAdmin || ! $isCreator)) {
+                                    $opts['validated'] = 'Validé par la Conformité (Activé)';
+                                }
+                                return $opts;
+                            })
+                            ->default('completed')
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
@@ -922,8 +945,12 @@ class OnboardingSessionResource extends Resource
                     Tables\Actions\DeleteAction::make(),
                 ]),
             ])
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])

@@ -18,7 +18,10 @@ class CreateOnboardingSession extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $status = $data['status'] ?? 'validated';
+        $status = $data['status'] ?? 'completed';
+        if ($status === 'validated' && ! auth()->user()?->hasRole('super_admin')) {
+            abort(403, "Seul le Super Administrateur peut créer directement un onboarding en statut validé.");
+        }
         $data['current_step'] = in_array($status, ['validated', 'completed'], true) ? 'completed' : 'kyc';
         if ($status === 'validated') {
             $data['validated_at'] = $data['validated_at'] ?? now();
@@ -52,8 +55,10 @@ class CreateOnboardingSession extends CreateRecord
             $payload['regularisation_backoffice'] = true;
         }
 
+        $admin = auth()->user();
+        $payload['created_by_user_id'] = auth()->id();
+        $payload['agent_kam_id'] = auth()->id();
         if (empty($payload['agent_kam'])) {
-            $admin = auth()->user();
             $payload['agent_kam'] = $admin ? ($admin->name ?: (trim(($admin->first_name ?? '') . ' ' . ($admin->last_name ?? '')) ?: ($admin->email ?? 'Administrateur Backoffice'))) : 'Administrateur Backoffice';
         }
 
@@ -136,7 +141,7 @@ class CreateOnboardingSession extends CreateRecord
         OnboardingEvent::create([
             'onboarding_session_id' => $record->id,
             'actor_user_id' => auth()->id(),
-            'event_type' => ($record->status === 'validated') ? 'validated' : 'created',
+            'event_type' => 'created',
             'from_status' => 'not_started',
             'to_status' => $record->status,
             'metadata' => [
@@ -145,6 +150,20 @@ class CreateOnboardingSession extends CreateRecord
                 'in_app_sent' => $sendInApp,
             ],
         ]);
+
+        if ($record->status === 'validated') {
+            OnboardingEvent::create([
+                'onboarding_session_id' => $record->id,
+                'actor_user_id' => auth()->id(),
+                'event_type' => 'validated',
+                'from_status' => 'completed',
+                'to_status' => 'validated',
+                'metadata' => [
+                    'manual_backoffice' => true,
+                    'super_admin_direct' => true,
+                ],
+            ]);
+        }
 
         if ($record->status === 'validated' && $user) {
             if ($sendInApp) {

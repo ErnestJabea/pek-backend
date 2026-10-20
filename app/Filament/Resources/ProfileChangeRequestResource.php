@@ -209,7 +209,14 @@ class ProfileChangeRequestResource extends Resource
                             ->send();
                     }),
             ])
-            ->bulkActions([]);
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

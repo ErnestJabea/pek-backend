@@ -311,8 +311,12 @@ class ProductResource extends Resource
                     Tables\Actions\DeleteAction::make(),
                 ]),
             ])
+            ->headerActions([
+                \App\Filament\Actions\TableExcelExportAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
