@@ -439,4 +439,91 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
         $this->assertSame(100000.0, $monthlyGroups['2026-09']['total_net']);
         $this->assertSame(10.0, $monthlyGroups['2026-09']['total_parts']);
     }
+
+    public function test_pwa_biometric_section_only_visible_for_pwa_and_displays_only_result_not_score_inputs(): void
+    {
+        $admin = User::create([
+            'first_name' => 'Super',
+            'last_name' => 'PWA',
+            'email' => 'super.pwa@test.local',
+            'password' => bcrypt('Password123!'),
+            'role' => 'admin',
+        ]);
+        $admin->assignRole('super_admin');
+
+        $clientGuichet = User::create([
+            'first_name' => 'Paul',
+            'last_name' => 'Kamga',
+            'email' => 'paul.kamga@test.local',
+            'password' => bcrypt('Password123!'),
+            'role' => 'client',
+        ]);
+
+        $guichetSession = $clientGuichet->onboardingSession()->create([
+            'status' => 'completed',
+            'current_step' => 'completed',
+            'payload' => [
+                'nom' => 'Kamga',
+                'prenom' => 'Paul',
+                'regularisation_backoffice' => true,
+                'created_by_user_id' => $admin->id,
+            ],
+        ]);
+
+        $clientPwa = User::create([
+            'first_name' => 'Alain',
+            'last_name' => 'Fotso',
+            'email' => 'alain.fotso@test.local',
+            'password' => bcrypt('Password123!'),
+            'role' => 'client',
+        ]);
+
+        $pwaSession = $clientPwa->onboardingSession()->create([
+            'status' => 'completed',
+            'current_step' => 'completed',
+            'payload' => [
+                'nom' => 'Fotso',
+                'prenom' => 'Alain',
+                'face_verified' => true,
+                'face_match_score' => 88,
+                'ocr_score' => 92,
+                'ocr_nom_match' => true,
+                'ocr_prenom_match' => true,
+                'ocr_dob_match' => true,
+                'ocr_num_piece_match' => true,
+                'verification_timestamp' => now()->toIso8601String(),
+                'identity_audit_status' => 'auto_verified',
+            ],
+        ]);
+
+        // When viewing Guichet session: PWA section is hidden
+        Livewire::actingAs($admin)
+            ->test(ViewOnboardingSession::class, ['record' => $guichetSession->getRouteKey()])
+            ->assertSuccessful()
+            ->assertDontSee('Résultats du Contrôle Biométrique & OCR (PWA)')
+            ->assertDontSee('Score de correspondance faciale')
+            ->assertDontSee('Score de concordance OCR');
+
+        // When viewing PWA session: Results are displayed, but NO score inputs
+        Livewire::actingAs($admin)
+            ->test(ViewOnboardingSession::class, ['record' => $pwaSession->getRouteKey()])
+            ->assertSuccessful()
+            ->assertSee('Résultats du Contrôle Biométrique & OCR (PWA)')
+            ->assertSee('Reconnaissance faciale validée (Conforme)')
+            ->assertSee('Données de la pièce conformes aux informations saisies')
+            ->assertSee('Nom')
+            ->assertSee('Prénom')
+            ->assertDontSee('Score de correspondance faciale (%)')
+            ->assertDontSee('Score de concordance OCR (%)');
+
+        // Test table column state for both records
+        $livewire = new \App\Filament\Resources\OnboardingSessionResource\Pages\ListOnboardingSessions();
+        $table = new Table($livewire);
+        $configuredTable = \App\Filament\Resources\OnboardingSessionResource::table($table);
+        $biometricColumn = $configuredTable->getColumn('pwa_biometrics');
+
+        $this->assertNotNull($biometricColumn);
+        $this->assertSame('Non requis (Guichet)', $biometricColumn->record($guichetSession)->getState());
+        $this->assertSame('Validée', $biometricColumn->record($pwaSession)->getState());
+    }
 }

@@ -418,28 +418,148 @@ class OnboardingSessionResource extends Resource
                                                 : 'Aucun document téléversé.'),
                                     ]),
 
-                                Section::make('Vérification Biométrique & OCR (Optionnels)')
+                                Section::make('Résultats du Contrôle Biométrique & OCR (PWA)')
+                                    ->icon('heroicon-o-shield-check')
                                     ->collapsible()
-                                    ->collapsed(fn ($record) => $record && empty($record->payload['face_match_score']))
-                                    ->columns(3)
+                                    ->visible(function ($record, $operation): bool {
+                                        if ($operation === 'create' || ! $record) {
+                                            return false;
+                                        }
+
+                                        $payload = $record->payload ?? [];
+                                        $hasPwaPayload = ! empty($payload['verification_timestamp'])
+                                            || ! empty($payload['identity_audit_status'])
+                                            || ! empty($payload['ocr_snippet'])
+                                            || array_key_exists('ocr_nom_match', $payload)
+                                            || array_key_exists('ocr_score', $payload)
+                                            || (empty($payload['regularisation_backoffice']) && (
+                                                array_key_exists('face_verified', $payload) || array_key_exists('face_match_score', $payload)
+                                            ));
+
+                                        if ($hasPwaPayload) {
+                                            return true;
+                                        }
+
+                                        if ($record->relationLoaded('latestIdentityVerification')) {
+                                            return (bool) $record->latestIdentityVerification;
+                                        }
+
+                                        return $record->latestIdentityVerification()->exists();
+                                    })
+                                    ->columns(2)
                                     ->schema([
-                                        Forms\Components\TextInput::make('payload.face_match_score')
-                                            ->label('Score de correspondance faciale (%)')
-                                            ->numeric()
-                                            ->minValue(0)
-                                            ->maxValue(100)
-                                            ->placeholder('ex: 85'),
+                                        Forms\Components\Placeholder::make('pwa_face_verification_result')
+                                            ->label('Reconnaissance faciale (Selfie vs Pièce d\'identité)')
+                                            ->content(function ($record): HtmlString {
+                                                $payload = $record?->payload ?? [];
+                                                $verification = $record?->relationLoaded('latestIdentityVerification')
+                                                    ? $record->latestIdentityVerification
+                                                    : $record?->latestIdentityVerification()->first();
 
-                                        Forms\Components\Toggle::make('payload.face_verified')
-                                            ->label('Vérification faciale validée')
-                                            ->default(false),
+                                                $isValidated = false;
+                                                $isPending = false;
 
-                                        Forms\Components\TextInput::make('payload.ocr_score')
-                                            ->label('Score de concordance OCR (%)')
-                                            ->numeric()
-                                            ->minValue(0)
-                                            ->maxValue(100)
-                                            ->placeholder('ex: 90'),
+                                                if ($verification) {
+                                                    if ($verification->status === 'approved' || $verification->face_matched) {
+                                                        $isValidated = true;
+                                                    } elseif (in_array($verification->status, ['pending', 'initiated'], true)) {
+                                                        $isPending = true;
+                                                    }
+                                                } elseif (isset($payload['face_verified'])) {
+                                                    $isValidated = (bool) $payload['face_verified'];
+                                                } elseif (! empty($payload['identity_audit_status'])) {
+                                                    $isValidated = ($payload['identity_audit_status'] === 'auto_verified');
+                                                }
+
+                                                if ($isValidated) {
+                                                    return new HtmlString('
+                                                        <div class="flex items-center gap-3 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                                                            <span class="text-2xl">✅</span>
+                                                            <div>
+                                                                <div class="font-bold text-sm text-emerald-900 dark:text-emerald-200">Reconnaissance faciale validée (Conforme)</div>
+                                                                <div class="text-xs text-emerald-700 dark:text-emerald-400">Le selfie en direct correspond au visage présent sur la pièce d\'identité officielle transmise via la PWA.</div>
+                                                            </div>
+                                                        </div>
+                                                    ');
+                                                }
+
+                                                if ($isPending) {
+                                                    return new HtmlString('
+                                                        <div class="flex items-center gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
+                                                            <span class="text-2xl">⏳</span>
+                                                            <div>
+                                                                <div class="font-bold text-sm text-amber-900 dark:text-amber-200">Contrôle biométrique en cours</div>
+                                                                <div class="text-xs text-amber-700 dark:text-amber-400">La vérification faciale temps réel est en cours de traitement.</div>
+                                                            </div>
+                                                        </div>
+                                                    ');
+                                                }
+
+                                                return new HtmlString('
+                                                    <div class="flex items-center gap-3 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl">
+                                                        <span class="text-2xl">❌</span>
+                                                        <div>
+                                                            <div class="font-bold text-sm text-rose-900 dark:text-rose-200">Reconnaissance faciale non validée (Échec / Non conforme)</div>
+                                                            <div class="text-xs text-rose-700 dark:text-rose-400">Une discordance a été détectée entre le selfie et la pièce d\'identité. Examen manuel requis par l\'agent de conformité.</div>
+                                                        </div>
+                                                    </div>
+                                                ');
+                                            }),
+
+                                        Forms\Components\Placeholder::make('pwa_ocr_verification_result')
+                                            ->label('Contrôle documentaire OCR (Pièce d\'identité)')
+                                            ->content(function ($record): HtmlString {
+                                                $payload = $record?->payload ?? [];
+                                                $verification = $record?->relationLoaded('latestIdentityVerification')
+                                                    ? $record->latestIdentityVerification
+                                                    : $record?->latestIdentityVerification()->first();
+
+                                                $nomMatch = $payload['ocr_nom_match'] ?? null;
+                                                $prenomMatch = $payload['ocr_prenom_match'] ?? null;
+                                                $dobMatch = $payload['ocr_dob_match'] ?? null;
+                                                $numPieceMatch = $payload['ocr_num_piece_match'] ?? null;
+                                                $auditStatus = $payload['identity_audit_status'] ?? null;
+                                                $isDocValidated = $verification?->document_validated ?? ($auditStatus === 'auto_verified');
+
+                                                $items = [];
+                                                if ($nomMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($nomMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Nom '.($nomMatch ? '✅' : '❌').'</span>';
+                                                }
+                                                if ($prenomMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($prenomMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Prénom '.($prenomMatch ? '✅' : '❌').'</span>';
+                                                }
+                                                if ($dobMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($dobMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Date Naissance '.($dobMatch ? '✅' : '❌').'</span>';
+                                                }
+                                                if ($numPieceMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($numPieceMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">N° Pièce '.($numPieceMatch ? '✅' : '❌').'</span>';
+                                                }
+
+                                                $badgeHtml = $isDocValidated
+                                                    ? '<div class="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 mb-2"><span>✅</span> <span>Données de la pièce conformes aux informations saisies</span></div>'
+                                                    : '<div class="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-300 mb-2"><span>⚠️</span> <span>Revue documentaire manuelle conseillée</span></div>';
+
+                                                $fieldsHtml = ! empty($items)
+                                                    ? '<div class="flex flex-wrap gap-2 pt-1">'.implode('', $items).'</div>'
+                                                    : '<div class="text-xs text-gray-500 italic">Contrôle de conformité OCR transmis par l\'application mobile.</div>';
+
+                                                return new HtmlString('
+                                                    <div class="p-3.5 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-xl">
+                                                        '.$badgeHtml.'
+                                                        '.$fieldsHtml.'
+                                                    </div>
+                                                ');
+                                            }),
+
+                                        Forms\Components\Hidden::make('payload.face_match_score'),
+                                        Forms\Components\Hidden::make('payload.face_verified'),
+                                        Forms\Components\Hidden::make('payload.ocr_score'),
+                                        Forms\Components\Hidden::make('payload.ocr_nom_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_prenom_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_dob_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_num_piece_match'),
+                                        Forms\Components\Hidden::make('payload.identity_audit_status'),
+                                        Forms\Components\Hidden::make('payload.verification_timestamp'),
                                     ]),
                             ]),
 
@@ -798,12 +918,47 @@ class OnboardingSessionResource extends Resource
                 TextColumn::make('payload.risk_profile')
                     ->label('Profil Investisseur')
                     ->sortable(),
-                TextColumn::make('payload.face_match_score')
-                    ->label('Score Faciale')
-                    ->formatStateUsing(fn ($state) => $state !== null && $state !== '' ? $state.'%' : '-')
+                TextColumn::make('pwa_biometrics')
+                    ->label('Biométrie PWA')
+                    ->state(function ($record): string {
+                        $payload = $record->payload ?? [];
+                        $verification = $record->relationLoaded('latestIdentityVerification')
+                            ? $record->latestIdentityVerification
+                            : $record->latestIdentityVerification()->first();
+
+                        if ($verification) {
+                            if ($verification->status === 'approved' || $verification->face_matched) {
+                                return 'Validée';
+                            }
+                            if ($verification->status === 'declined' || ($verification->status === 'completed' && ! $verification->face_matched)) {
+                                return 'Échec';
+                            }
+                            if (in_array($verification->status, ['pending', 'initiated'], true)) {
+                                return 'En cours';
+                            }
+                        }
+
+                        if (isset($payload['face_verified'])) {
+                            return $payload['face_verified'] ? 'Validée' : 'Échec';
+                        }
+
+                        if (! empty($payload['identity_audit_status'])) {
+                            return $payload['identity_audit_status'] === 'auto_verified' ? 'Validée' : 'À vérifier';
+                        }
+
+                        if (! empty($payload['face_match_score'])) {
+                            return ((int) $payload['face_match_score'] >= 60) ? 'Validée' : 'Échec';
+                        }
+
+                        return 'Non requis (Guichet)';
+                    })
                     ->badge()
-                    ->color(fn ($state): string => (int) $state >= 60 ? 'success' : ((int) $state >= 40 ? 'warning' : 'gray'))
-                    ->sortable()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Validée' => 'success',
+                        'Échec' => 'danger',
+                        'En cours', 'À vérifier' => 'warning',
+                        default => 'gray',
+                    })
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('status')
                     ->label('Statut')
