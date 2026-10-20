@@ -22,6 +22,10 @@ class ViewOnboardingSession extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            \Filament\Actions\EditAction::make()
+                ->label('Modifier / Compléter')
+                ->icon('heroicon-m-pencil-square'),
+
             Action::make('validate')
                 ->label('Valider le dossier')
                 ->icon('heroicon-m-check-circle')
@@ -40,8 +44,8 @@ class ViewOnboardingSession extends ViewRecord
                 ->form([
                     \Filament\Forms\Components\Toggle::make('send_notification_email')
                         ->label('Notifier le client par e-mail (Activation de compte)')
-                        ->helperText('Désactivé par défaut. Laissez désactivé pour les clients existants ou régularisés en agence afin de ne pas leur envoyer d\'e-mail.')
-                        ->default(false),
+                        ->helperText('Laissez désactivé pour les clients existants ou régularisés en agence afin de ne pas leur envoyer d\'e-mail.')
+                        ->default(fn ($record) => $record?->status === 'completed'),
 
                     \Filament\Forms\Components\Toggle::make('create_in_app_notification')
                         ->label('Créer une notification in-app dans l\'application client')
@@ -108,7 +112,8 @@ class ViewOnboardingSession extends ViewRecord
                     }
 
                     Notification::make()
-                        ->title($sendEmail ? 'Dossier d\'onboarding validé et e-mail envoyé.' : 'Dossier d\'onboarding validé avec succès (aucun e-mail envoyé).')
+                        ->title('Dossier d\'onboarding validé avec succès !')
+                        ->body($sendEmail ? 'E-mail de confirmation envoyé au client.' : 'Aucun e-mail envoyé.')
                         ->success()
                         ->send();
                 }),

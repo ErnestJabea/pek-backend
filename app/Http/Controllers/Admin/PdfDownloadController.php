@@ -62,20 +62,28 @@ class PdfDownloadController extends Controller
         $this->authorize('view', $session);
         $session->loadMissing('user');
 
-        $allowedTypes = ['piece_identite', 'justificatif_domicile', 'photo', 'origine_fonds'];
+        $allowedTypes = ['piece_identite', 'piece_verso', 'signature', 'justificatif_domicile', 'photo', 'origine_fonds'];
         if (! in_array($type, $allowedTypes)) {
             abort(404);
         }
 
-        $columnName = 'doc_'.$type;
-        $storagePath = $session->$columnName;
-
         $disk = Storage::disk('kyc_private');
+        $storagePath = null;
+
+        if ($type === 'piece_verso') {
+            $storagePath = $session->payload['doc_piece_verso'] ?? ($session->payload['piece_verso'] ?? ($session->user?->doc_piece_verso ?? null));
+        } elseif ($type === 'signature') {
+            $storagePath = $session->signature_path;
+        } else {
+            $columnName = 'doc_'.$type;
+            $storagePath = $session->$columnName;
+        }
+
         if (! $storagePath || ! $disk->exists($storagePath)) {
             abort(404);
         }
 
-        $ext = pathinfo($storagePath, PATHINFO_EXTENSION);
+        $ext = pathinfo($storagePath, PATHINFO_EXTENSION) ?: 'jpg';
         $lastName = $session->user->last_name ?? 'client';
         $firstName = $session->user->first_name ?? '';
         $filename = $type.'_'.$lastName.'_'.$firstName.'.'.$ext;
@@ -147,6 +155,12 @@ class PdfDownloadController extends Controller
                 $ext = pathinfo($storagePath, PATHINFO_EXTENSION);
                 $zip->addFromString($label.'.'.$ext, $disk->get($storagePath));
             }
+        }
+
+        $versoPath = $session->payload['doc_piece_verso'] ?? ($session->payload['piece_verso'] ?? ($session->user?->doc_piece_verso ?? null));
+        if ($versoPath && $disk->exists($versoPath)) {
+            $ext = pathinfo($versoPath, PATHINFO_EXTENSION) ?: 'jpg';
+            $zip->addFromString('piece_verso.'.$ext, $disk->get($versoPath));
         }
 
         $zip->close();

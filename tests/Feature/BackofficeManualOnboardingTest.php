@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\ClientResource;
+use App\Filament\Resources\OnboardingSessionResource\Pages\CreateOnboardingSession;
+use App\Filament\Resources\OnboardingSessionResource\Pages\EditOnboardingSession;
 use App\Filament\Resources\OnboardingSessionResource\Pages\ViewOnboardingSession;
 use App\Mail\OnboardingValidatedMail;
 use App\Models\OnboardingSession;
@@ -10,6 +12,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -156,5 +159,214 @@ class BackofficeManualOnboardingTest extends TestCase
 
         // Zéro e-mail envoyé
         Mail::assertNothingSent();
+    }
+
+    public function test_admin_can_create_onboarding_session_with_full_kyc_risk_labft_and_signature(): void
+    {
+        Storage::fake('kyc_private');
+
+        $admin = User::factory()->create([
+            'email' => 'admin.create@koriassetmanagement.com',
+            'role' => 'super_admin',
+        ]);
+        $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+
+        $client = User::factory()->create([
+            'email' => 'client.complet@koriassetmanagement.com',
+            'first_name' => 'Roger',
+            'last_name' => 'Tchinda',
+            'role' => 'client',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(CreateOnboardingSession::class)
+            ->fillForm([
+                'user_id' => $client->id,
+                'status' => 'validated',
+                'risk_level' => 'LOW',
+                'payload' => [
+                    'civ' => 'M.',
+                    'nom' => 'Tchinda',
+                    'prenom' => 'Roger',
+                    'nature_client' => 'personne_physique',
+                    'categorie_client' => 'Salarié secteur privé',
+                    'situation_mat' => 'Marié(e)',
+                    'nat' => 'Camerounaise',
+                    'dob' => '1985-05-15',
+                    'lieu_naiss' => 'Douala',
+                    'profession' => 'Ingénieur Télécom',
+                    'employeur' => 'Orange Cameroun',
+                    'tel' => '+237699001122',
+                    'email' => 'client.complet@koriassetmanagement.com',
+                    'adresse' => 'Bonanjo Rue Hydrocarbures',
+                    'pays_residence' => 'Cameroun',
+                    'agent_kam' => 'KAM-007',
+                    'piece' => 'CNI',
+                    'num_piece' => '1122334455',
+                    'expiration_piece' => '2030-12-31',
+                    // Profil Investisseur
+                    'tranche_revenus' => 'plus_1_5m',
+                    'epargne_possible' => 'Oui',
+                    'niveau_risque' => 'max',
+                    'conscience_risque' => 'Oui',
+                    'objectif_invest' => 'croissance',
+                    'horizon_terme' => 'long_terme',
+                    'niveau_perf' => 'elevee',
+                    'connaissance_marche' => 'excellente',
+                    'invest_anterieurs' => 'Oui',
+                    // Questionnaire LAB-FT
+                    'secteur' => 'Télécommunications',
+                    'revenus_annuels' => 'plus_15m',
+                    'origine_fonds' => 'Épargne salariale',
+                    'src_salaire' => true,
+                    'banque' => 'Afriland First Bank',
+                    'num_compte' => '1000500123456789',
+                    'pays_compte' => 'Cameroun',
+                    'pays_risque' => 'Non',
+                    'secteur_sensible' => 'Non',
+                    'ppe' => 'Non',
+                    'condamnation' => 'Non',
+                    'ack_lecture' => true,
+                    'ack_donnees' => true,
+                ],
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $session = OnboardingSession::where('user_id', $client->id)->first();
+        $this->assertNotNull($session);
+        $this->assertEquals('validated', $session->status);
+        $this->assertEquals('LOW', $session->risk_level);
+        $this->assertEquals('Dynamique', $session->payload['risk_profile']);
+        $this->assertGreaterThanOrEqual(15, (int) $session->payload['risk_score']);
+
+        $client->refresh();
+        $this->assertEquals('M.', $client->civ);
+        $this->assertEquals('Orange Cameroun', $client->employer);
+        $this->assertEquals('1122334455', $client->num_piece);
+        $this->assertEquals('1985-05-15', $client->dob ? $client->dob->format('Y-m-d') : null);
+        $this->assertTrue($client->onboarding_completed);
+    }
+
+    public function test_admin_can_edit_onboarding_session_in_backoffice(): void
+    {
+        $admin = User::factory()->create([
+            'email' => 'admin.edit@koriassetmanagement.com',
+            'role' => 'super_admin',
+        ]);
+        $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+
+        $client = User::factory()->create([
+            'email' => 'client.edit@koriassetmanagement.com',
+            'first_name' => 'Jeanne',
+            'last_name' => 'Mballa',
+            'role' => 'client',
+        ]);
+
+        $session = OnboardingSession::create([
+            'user_id' => $client->id,
+            'current_step' => 'completed',
+            'status' => 'completed',
+            'risk_level' => 'LOW',
+            'payload' => [
+                'civ' => 'Mme',
+                'nom' => 'Mballa',
+                'prenom' => 'Jeanne',
+                'nature_client' => 'personne_physique',
+                'tranche_revenus' => '500k_1_5m',
+                'epargne_possible' => 'Oui',
+                'niveau_risque' => 'moyen',
+                'conscience_risque' => 'Oui',
+                'objectif_invest' => 'equilibre',
+                'horizon_terme' => 'moyen_terme',
+                'niveau_perf' => 'moderee',
+                'connaissance_marche' => 'moyenne',
+                'invest_anterieurs' => 'Non',
+                'pays_risque' => 'Non',
+                'secteur_sensible' => 'Non',
+                'ppe' => 'Non',
+                'condamnation' => 'Non',
+            ],
+        ]);
+
+        // Admin édite la session et déclare un statut PPE = Oui
+        Livewire::actingAs($admin)
+            ->test(EditOnboardingSession::class, ['record' => $session->getRouteKey()])
+            ->fillForm([
+                'status' => 'validated',
+                'payload.employeur' => 'Ministère des Finances',
+                'payload.ppe' => 'Oui',
+                'payload.ppe_detail' => 'Directeur de cabinet',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $session->refresh();
+        $this->assertEquals('validated', $session->status);
+        $this->assertEquals('HIGH', $session->risk_level, 'Le niveau de risque doit basculer en HIGH suite au statut PPE');
+        $this->assertEquals('Oui', $session->payload['ppe']);
+        $this->assertEquals('Directeur de cabinet', $session->payload['ppe_detail']);
+
+        $client->refresh();
+        $this->assertEquals('Ministère des Finances', $client->employer);
+    }
+
+    public function test_admin_can_download_uploaded_documents_and_signature(): void
+    {
+        Storage::fake('kyc_private');
+
+        $admin = User::factory()->create([
+            'email' => 'admin.download@koriassetmanagement.com',
+            'role' => 'super_admin',
+        ]);
+        $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+
+        $client = User::factory()->create([
+            'email' => 'client.doc@koriassetmanagement.com',
+            'first_name' => 'Samuel',
+            'last_name' => 'Eto’o',
+            'role' => 'client',
+        ]);
+
+        $cniPath = 'secure_onboardings/documents/test_cni.png';
+        $sigPath = 'signatures/test_sig.png';
+        $versoPath = 'secure_onboardings/documents/test_verso.png';
+
+        Storage::disk('kyc_private')->put($cniPath, 'fake-cni-content');
+        Storage::disk('kyc_private')->put($sigPath, 'fake-sig-content');
+        Storage::disk('kyc_private')->put($versoPath, 'fake-verso-content');
+
+        $session = OnboardingSession::create([
+            'user_id' => $client->id,
+            'status' => 'validated',
+            'doc_piece_identite' => $cniPath,
+            'signature_path' => $sigPath,
+            'payload' => [
+                'nom' => 'Eto’o',
+                'prenom' => 'Samuel',
+                'doc_piece_verso' => $versoPath,
+            ],
+        ]);
+
+        // Test CNI download
+        $response = $this->actingAs($admin)->get(route('admin.document.download', [
+            'session' => $session->id,
+            'type' => 'piece_identite',
+        ]));
+        $response->assertStatus(200);
+
+        // Test Signature download
+        $sigResponse = $this->actingAs($admin)->get(route('admin.document.download', [
+            'session' => $session->id,
+            'type' => 'signature',
+        ]));
+        $sigResponse->assertStatus(200);
+
+        // Test Verso download
+        $versoResponse = $this->actingAs($admin)->get(route('admin.document.download', [
+            'session' => $session->id,
+            'type' => 'piece_verso',
+        ]));
+        $versoResponse->assertStatus(200);
     }
 }

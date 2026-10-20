@@ -86,7 +86,7 @@ Route::middleware(['web', 'auth'])
     ->group(function () {
         Route::get('/onboarding/{session}/{type}', [PdfDownloadController::class, 'downloadDocument'])
             ->name('download')
-            ->where('type', 'piece_identite|justificatif_domicile|photo|origine_fonds');
+            ->where('type', 'piece_identite|piece_verso|signature|justificatif_domicile|photo|origine_fonds');
     });
 
 // Téléchargement du dossier complet (ZIP) (protégé par l'authentification Filament)
