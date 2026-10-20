@@ -2,8 +2,12 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Actions\TableExcelExportAction;
+use App\Filament\Filters\DashboardFilter;
 use App\Filament\Resources\OnboardingSessionResource\Pages;
 use App\Models\OnboardingSession;
+use App\Models\User;
+use App\Services\ClientCategoryService;
 use Filament\Forms;
 use Filament\Forms\Components\Actions;
 use Filament\Forms\Components\Actions\Action as FormAction;
@@ -13,6 +17,7 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Components\Tabs\Tab;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action as TableAction;
@@ -42,14 +47,14 @@ class OnboardingSessionResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') 
+        return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('view_any_onboarding::session') ?? false)
             || (auth()->user()?->can('view_any_onboarding_session') ?? false);
     }
 
     public static function canView(Model $record): bool
     {
-        return auth()->user()?->hasRole('super_admin') 
+        return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('view_onboarding::session') ?? false)
             || (auth()->user()?->can('view_onboarding_session') ?? false)
             || static::canViewAny();
@@ -57,28 +62,28 @@ class OnboardingSessionResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasRole('super_admin') 
+        return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('create_onboarding::session') ?? false)
             || (auth()->user()?->can('create_onboarding_session') ?? false);
     }
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()?->hasRole('super_admin') 
+        return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('update_onboarding::session') ?? false)
             || (auth()->user()?->can('update_onboarding_session') ?? false);
     }
 
     public static function canDelete(Model $record): bool
     {
-        return auth()->user()?->hasRole('super_admin') 
+        return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('delete_onboarding::session') ?? false)
             || (auth()->user()?->can('delete_onboarding_session') ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') 
+        return auth()->user()?->hasRole('super_admin')
             || (auth()->user()?->can('delete_any_onboarding::session') ?? false)
             || (auth()->user()?->can('delete_any_onboarding_session') ?? false);
     }
@@ -107,9 +112,13 @@ class OnboardingSessionResource extends Resource
                             ->disabled(fn ($record) => $record && $record->exists)
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                if (! $state) return;
-                                $user = \App\Models\User::find($state);
-                                if (! $user) return;
+                                if (! $state) {
+                                    return;
+                                }
+                                $user = User::find($state);
+                                if (! $user) {
+                                    return;
+                                }
                                 $set('payload.civ', $user->civ ?? 'M.');
                                 $set('payload.nom', $user->last_name);
                                 $set('payload.prenom', $user->first_name);
@@ -144,6 +153,7 @@ class OnboardingSessionResource extends Resource
                                     if ($isSuperAdmin) {
                                         $opts['validated'] = 'Validé par la Conformité (Régularisation Super Admin)';
                                     }
+
                                     return $opts;
                                 }
 
@@ -155,6 +165,7 @@ class OnboardingSessionResource extends Resource
                                 if ($isCompliance && ($isSuperAdmin || ! $isCreator)) {
                                     $opts['validated'] = 'Validé par la Conformité (Activé)';
                                 }
+
                                 return $opts;
                             })
                             ->default('completed')
@@ -243,8 +254,8 @@ class OnboardingSessionResource extends Resource
                                             Forms\Components\Select::make('payload.categorie_client')
                                                 ->label('Type / Catégorie du client')
                                                 ->options(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale'
-                                                    ? \App\Services\ClientCategoryService::getCategoriesForType(\App\Services\ClientCategoryService::TYPE_MORALE)
-                                                    : \App\Services\ClientCategoryService::getCategoriesForType(\App\Services\ClientCategoryService::TYPE_PHYSIQUE))
+                                                    ? ClientCategoryService::getCategoriesForType(ClientCategoryService::TYPE_MORALE)
+                                                    : ClientCategoryService::getCategoriesForType(ClientCategoryService::TYPE_PHYSIQUE))
                                                 ->searchable()
                                                 ->default('Salarié secteur privé')
                                                 ->required(),
@@ -328,7 +339,7 @@ class OnboardingSessionResource extends Resource
                                                 ->default('Cameroun'),
 
                                             Forms\Components\Hidden::make('payload.agent_kam')
-                                                ->default(fn () => auth()->user()?->name ?: (trim((auth()->user()?->first_name ?? '') . ' ' . (auth()->user()?->last_name ?? '')) ?: (auth()->user()?->email ?: 'Administrateur Backoffice'))),
+                                                ->default(fn () => auth()->user()?->name ?: (trim((auth()->user()?->first_name ?? '').' '.(auth()->user()?->last_name ?? '')) ?: (auth()->user()?->email ?: 'Administrateur Backoffice'))),
                                         ]),
                                     ]),
                             ]),
@@ -358,7 +369,7 @@ class OnboardingSessionResource extends Resource
                                             ->displayFormat('d/m/Y'),
                                     ]),
 
-                                Section::make('Fichiers & Pièces justificatives téléversées')
+                                Section::make('Fichiers & Pièces justificatives fournies')
                                     ->description('Documents stockés sur le disque sécurisé privé KYC.')
                                     ->columns(2)
                                     ->schema([
@@ -371,7 +382,7 @@ class OnboardingSessionResource extends Resource
                                             ->maxSize(10240)
                                             ->helperText(fn ($record) => $record && $record->doc_piece_identite
                                                 ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'piece_identite']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le document actuel</a>')
-                                                : 'Aucun document téléversé.'),
+                                                : 'Aucun document fourni.'),
 
                                         Forms\Components\FileUpload::make('payload.doc_piece_verso')
                                             ->label('2. Pièce d\'identité (Verso - optionnel)')
@@ -382,7 +393,7 @@ class OnboardingSessionResource extends Resource
                                             ->maxSize(10240)
                                             ->helperText(fn ($record) => $record && (! empty($record->payload['doc_piece_verso']) || ! empty($record->payload['piece_verso']))
                                                 ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'piece_verso']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le verso actuel</a>')
-                                                : 'Aucun verso téléversé.'),
+                                                : 'Aucun verso fourni.'),
 
                                         Forms\Components\FileUpload::make('doc_photo')
                                             ->label('3. Photo d\'identité récente')
@@ -393,7 +404,7 @@ class OnboardingSessionResource extends Resource
                                             ->maxSize(10240)
                                             ->helperText(fn ($record) => $record && $record->doc_photo
                                                 ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'photo']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger la photo actuelle</a>')
-                                                : 'Aucune photo téléversée.'),
+                                                : 'Aucune photo fournie.'),
 
                                         Forms\Components\FileUpload::make('doc_justificatif_domicile')
                                             ->label('4. Justificatif de domicile (< 3 mois)')
@@ -404,7 +415,7 @@ class OnboardingSessionResource extends Resource
                                             ->maxSize(10240)
                                             ->helperText(fn ($record) => $record && $record->doc_justificatif_domicile
                                                 ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'justificatif_domicile']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le justificatif actuel</a>')
-                                                : 'Aucun justificatif téléversé.'),
+                                                : 'Aucun justificatif fourni.'),
 
                                         Forms\Components\FileUpload::make('doc_origine_fonds')
                                             ->label('5. Justificatif d\'origine des fonds')
@@ -415,7 +426,7 @@ class OnboardingSessionResource extends Resource
                                             ->maxSize(10240)
                                             ->helperText(fn ($record) => $record && $record->doc_origine_fonds
                                                 ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'origine_fonds']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le justificatif actuel</a>')
-                                                : 'Aucun document téléversé.'),
+                                                : 'Aucun document fourni.'),
                                     ]),
 
                                 Section::make('Résultats du Contrôle Biométrique & OCR (PWA)')
@@ -448,7 +459,7 @@ class OnboardingSessionResource extends Resource
                                     })
                                     ->columns(2)
                                     ->schema([
-                                        Forms\Components\Placeholder::make('pwa_face_verification_result')
+                                        Placeholder::make('pwa_face_verification_result')
                                             ->label('Reconnaissance faciale (Selfie vs Pièce d\'identité)')
                                             ->content(function ($record): HtmlString {
                                                 $payload = $record?->payload ?? [];
@@ -477,7 +488,7 @@ class OnboardingSessionResource extends Resource
                                                             <span class="text-2xl">✅</span>
                                                             <div>
                                                                 <div class="font-bold text-sm text-emerald-900 dark:text-emerald-200">Reconnaissance faciale validée (Conforme)</div>
-                                                                <div class="text-xs text-emerald-700 dark:text-emerald-400">Le selfie en direct correspond au visage présent sur la pièce d\'identité officielle transmise via la PWA.</div>
+                                                                <div class="text-xs text-emerald-700 dark:text-emerald-400">Le selfie en direct correspond au visage présent sur la pièce d\'identité officielle fournie via la PWA.</div>
                                                             </div>
                                                         </div>
                                                     ');
@@ -500,14 +511,14 @@ class OnboardingSessionResource extends Resource
                                                         <span class="text-2xl">❌</span>
                                                         <div>
                                                             <div class="font-bold text-sm text-rose-900 dark:text-rose-200">Reconnaissance faciale non validée (Échec / Non conforme)</div>
-                                                            <div class="text-xs text-rose-700 dark:text-rose-400">Une discordance a été détectée entre le selfie et la pièce d\'identité. Examen manuel requis par l\'agent de conformité.</div>
+                                                            <div class="text-xs text-rose-700 dark:text-rose-400">Une discordance a été détectée entre le selfie et la pièce d\'identité fournie. Examen manuel requis par l\'agent de conformité.</div>
                                                         </div>
                                                     </div>
                                                 ');
                                             }),
 
-                                        Forms\Components\Placeholder::make('pwa_ocr_verification_result')
-                                            ->label('Contrôle documentaire OCR (Pièce d\'identité)')
+                                        Placeholder::make('pwa_ocr_verification_result')
+                                            ->label('Matrice d\'audit de concordance documentaire (Fichiers fournis)')
                                             ->content(function ($record): HtmlString {
                                                 $payload = $record?->payload ?? [];
                                                 $verification = $record?->relationLoaded('latestIdentityVerification')
@@ -518,22 +529,43 @@ class OnboardingSessionResource extends Resource
                                                 $prenomMatch = $payload['ocr_prenom_match'] ?? null;
                                                 $dobMatch = $payload['ocr_dob_match'] ?? null;
                                                 $numPieceMatch = $payload['ocr_num_piece_match'] ?? null;
+                                                $expMatch = $payload['ocr_expiration_match'] ?? null;
+                                                $docTypeMatch = $payload['ocr_doc_type_match'] ?? null;
+                                                $domicileMatch = $payload['ocr_domicile_match'] ?? null;
+                                                $fondsMatch = $payload['ocr_fonds_match'] ?? null;
+                                                $mrzDetected = ! empty($payload['ocr_mrz_detected']);
                                                 $auditStatus = $payload['identity_audit_status'] ?? null;
                                                 $isDocValidated = $verification?->document_validated ?? ($auditStatus === 'auto_verified');
 
                                                 $items = [];
+                                                if ($docTypeMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($docTypeMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Type Document '.($docTypeMatch ? '✅' : '❌').'</span>';
+                                                }
                                                 if ($nomMatch !== null) {
                                                     $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($nomMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Nom '.($nomMatch ? '✅' : '❌').'</span>';
                                                 }
                                                 if ($prenomMatch !== null) {
                                                     $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($prenomMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Prénom '.($prenomMatch ? '✅' : '❌').'</span>';
                                                 }
-                                                if ($dobMatch !== null) {
-                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($dobMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Date Naissance '.($dobMatch ? '✅' : '❌').'</span>';
-                                                }
                                                 if ($numPieceMatch !== null) {
                                                     $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($numPieceMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">N° Pièce '.($numPieceMatch ? '✅' : '❌').'</span>';
                                                 }
+                                                if ($dobMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($dobMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Date Naissance '.($dobMatch ? '✅' : '❌').'</span>';
+                                                }
+                                                if ($expMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($expMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300').'">Expiration & Validité '.($expMatch ? '✅' : '❌').'</span>';
+                                                }
+                                                if ($domicileMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($domicileMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300').'">Domicile '.($domicileMatch ? '✅' : '⚠️').'</span>';
+                                                }
+                                                if ($fondsMatch !== null) {
+                                                    $items[] = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold '.($fondsMatch ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300').'">Origine Fonds '.($fondsMatch ? '✅' : '⚠️').'</span>';
+                                                }
+
+                                                $mrzHtml = $mrzDetected
+                                                    ? '<div class="flex items-center gap-1.5 text-[11px] font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 px-2.5 py-1 rounded-lg"><span>🛡️</span> <span>Bande MRZ certifiée ICAO 9303 détectée sur le document</span></div>'
+                                                    : '';
 
                                                 $badgeHtml = $isDocValidated
                                                     ? '<div class="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 mb-2"><span>✅</span> <span>Données de la pièce conformes aux informations saisies</span></div>'
@@ -541,11 +573,12 @@ class OnboardingSessionResource extends Resource
 
                                                 $fieldsHtml = ! empty($items)
                                                     ? '<div class="flex flex-wrap gap-2 pt-1">'.implode('', $items).'</div>'
-                                                    : '<div class="text-xs text-gray-500 italic">Contrôle de conformité OCR transmis par l\'application mobile.</div>';
+                                                    : '<div class="text-xs text-gray-500 italic">Contrôle de conformité documentaire transmis par l\'application mobile.</div>';
 
                                                 return new HtmlString('
-                                                    <div class="p-3.5 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-xl">
+                                                    <div class="p-3.5 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-xl space-y-2">
                                                         '.$badgeHtml.'
+                                                        '.$mrzHtml.'
                                                         '.$fieldsHtml.'
                                                     </div>
                                                 ');
@@ -558,6 +591,11 @@ class OnboardingSessionResource extends Resource
                                         Forms\Components\Hidden::make('payload.ocr_prenom_match'),
                                         Forms\Components\Hidden::make('payload.ocr_dob_match'),
                                         Forms\Components\Hidden::make('payload.ocr_num_piece_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_expiration_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_doc_type_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_domicile_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_fonds_match'),
+                                        Forms\Components\Hidden::make('payload.ocr_mrz_detected'),
                                         Forms\Components\Hidden::make('payload.identity_audit_status'),
                                         Forms\Components\Hidden::make('payload.verification_timestamp'),
                                     ]),
@@ -810,7 +848,7 @@ class OnboardingSessionResource extends Resource
                                                 ->maxSize(2048)
                                                 ->helperText(fn ($record) => $record && $record->signature_path
                                                     ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'signature']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger la signature actuelle</a>')
-                                                    : 'Aucune signature téléversée.'),
+                                                    : 'Aucune signature fournie.'),
 
                                             Placeholder::make('signature_preview')
                                                 ->label('Aperçu de la signature')
@@ -985,7 +1023,7 @@ class OnboardingSessionResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                \App\Filament\Filters\DashboardFilter::make(static::class),
+                DashboardFilter::make(static::class),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Statut')
                     ->options([
@@ -1014,11 +1052,11 @@ class OnboardingSessionResource extends Resource
                         ->modalDescription('Modifie le type et la catégorie du client pour ses futurs bulletins officiels.')
                         ->fillForm(function (OnboardingSession $record): array {
                             $currentCategory = $record->payload['categorie_client'] ?? ($record->user?->categorie_client ?? null);
-                            $type = \App\Services\ClientCategoryService::getTypeForCategory($currentCategory);
+                            $type = ClientCategoryService::getTypeForCategory($currentCategory);
 
                             $nature = strtolower($record->payload['nature_client'] ?? '');
                             if (str_contains($nature, 'morale') || ! empty($record->payload['rccm'])) {
-                                $type = \App\Services\ClientCategoryService::TYPE_MORALE;
+                                $type = ClientCategoryService::TYPE_MORALE;
                             }
 
                             return [
@@ -1029,21 +1067,21 @@ class OnboardingSessionResource extends Resource
                         ->form([
                             Forms\Components\Select::make('type_client')
                                 ->label('Type de client')
-                                ->options(\App\Services\ClientCategoryService::getTypes())
+                                ->options(ClientCategoryService::getTypes())
                                 ->required()
                                 ->live()
                                 ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
 
                             Forms\Components\Select::make('categorie_client')
                                 ->label('Catégorie du client')
-                                ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
+                                ->options(fn (Forms\Get $get): array => ClientCategoryService::getCategoriesForType($get('type_client')))
                                 ->searchable()
                                 ->required(),
                         ])
                         ->action(function (OnboardingSession $record, array $data) {
                             $payload = $record->payload ?? [];
                             $payload['categorie_client'] = $data['categorie_client'];
-                            $payload['nature_client'] = $data['type_client'] === \App\Services\ClientCategoryService::TYPE_MORALE ? 'personne_morale' : 'personne_physique';
+                            $payload['nature_client'] = $data['type_client'] === ClientCategoryService::TYPE_MORALE ? 'personne_morale' : 'personne_physique';
                             $record->payload = $payload;
 
                             $submitted = $record->submitted_payload ?? [];
@@ -1056,7 +1094,7 @@ class OnboardingSessionResource extends Resource
                                 $record->user->update(['categorie_client' => $data['categorie_client']]);
                             }
 
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title('Catégorie client mise à jour')
                                 ->body("La catégorie a été enregistrée : {$data['categorie_client']}")
                                 ->success()
@@ -1101,11 +1139,11 @@ class OnboardingSessionResource extends Resource
                 ]),
             ])
             ->headerActions([
-                \App\Filament\Actions\TableExcelExportAction::make(),
+                TableExcelExportAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
+                    TableExcelExportAction::makeBulk(),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])

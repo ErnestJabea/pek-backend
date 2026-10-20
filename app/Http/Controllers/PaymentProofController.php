@@ -72,26 +72,26 @@ class PaymentProofController extends Controller
     {
         abort_unless($request->user()->id === $proof->user_id || $request->user()->can('view_payment_proof'), 404);
         abort_if($proof->scan_status === 'infected', 423, 'Document bloqué par le contrôle de sécurité.');
-abort_unless($proof->scan_status === 'clean' || ($proof->scan_status === 'quarantined' && $request->user()->can('view_payment_proof')), 423, 'Document en quarantaine ou rejeté par le contrôle de sécurité.');
+        abort_unless($proof->scan_status === 'clean' || ($proof->scan_status === 'quarantined' && $request->user()->can('view_payment_proof')), 423, 'Document en quarantaine ou rejeté par le contrôle de sécurité.');
 
         $disk = Storage::disk('payment_private');
-        abort_unless($proof->path && $disk->exists($proof->path), 404, 'Ce justificatif n\'existe pas ou n\'a pas été téléversé.');
+        abort_unless($proof->path && $disk->exists($proof->path), 404, 'Ce justificatif n\'existe pas ou n\'a pas été fourni.');
 
         $path = $disk->path($proof->path);
-        abort_unless(is_file($path), 404, 'Ce justificatif n\'existe pas ou n\'a pas été téléversé.');
+        abort_unless(is_file($path), 404, 'Ce justificatif n\'existe pas ou n\'a pas été fourni.');
 
         abort_unless(hash_equals($proof->sha256, hash_file('sha256', $path)), 423, 'Intégrité du justificatif non vérifiée.');
         PaymentAudit::record($proof->subscription_id, 'proof_downloaded', ['proof_id' => $proof->id], $request->user()->id);
         $extension = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'][$proof->mime] ?? 'pdf';
         $user = $proof->user ?? $proof->subscription?->user;
-        $clientName = $user ? trim($user->first_name . ' ' . $user->last_name) : 'client';
+        $clientName = $user ? trim($user->first_name.' '.$user->last_name) : 'client';
         $clientSlug = Str::slug($clientName) ?: 'client';
         $dateTime = ($proof->created_at ?? now())->format('Y-m-d-His');
         $filename = "justificatif-paiement-{$clientSlug}-{$dateTime}.{$extension}";
 
         return response()->file($path, [
             'Content-Type' => $proof->mime,
-            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store, private',
         ]);

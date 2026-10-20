@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Mail\NewSubscriptionAdminMail;
 use App\Models\BankDetail;
 use App\Models\Notification;
+use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\SystemSetting;
 use App\Services\Payments\BankPaymentService;
+use App\Services\Payments\BankTransferProofReminderService;
 use App\Services\Payments\LocalPaymentGateway;
 use App\Services\Payments\MobilePaymentService;
 use App\Services\Payments\PaymentCheckoutGateway;
@@ -20,9 +22,9 @@ use Brick\Math\RoundingMode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
@@ -57,12 +59,12 @@ class SubscriptionController extends Controller
             'idempotency_key' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
         ]);
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('payment_methods')) {
+        if (Schema::hasTable('payment_methods')) {
             $methodKey = match ($validated['moyen_paiement']) {
                 'mobile_money' => 'orange_money',
                 default => $validated['moyen_paiement'],
             };
-            $paymentMethodModel = \App\Models\PaymentMethod::where('code', $methodKey)->first();
+            $paymentMethodModel = PaymentMethod::where('code', $methodKey)->first();
             if ($paymentMethodModel && ! $paymentMethodModel->is_active) {
                 return response()->json([
                     'message' => 'Ce moyen de paiement est actuellement désactivé.',
@@ -205,16 +207,16 @@ class SubscriptionController extends Controller
                             Mail::to($adminEmails)->send(new NewSubscriptionAdminMail($subscription->loadMissing(['user', 'product'])));
                         }
                     }
-                } catch (\Throwable $e) {
-                    Log::error('Erreur envoi notification admin nouvelle souscription: ' . $e->getMessage());
+                } catch (Throwable $e) {
+                    Log::error('Erreur envoi notification admin nouvelle souscription: '.$e->getMessage());
                 }
 
-                // Pour les virements bancaires : envoi immédiat des coordonnées bancaires et rappel de téléversement de la preuve
+                // Pour les virements bancaires : envoi immédiat des coordonnées bancaires et rappel de fourniture de la preuve
                 if (in_array($subscription->moyen_paiement, ['bank_transfer', 'virement'], true)) {
                     try {
-                        \App\Services\Payments\BankTransferProofReminderService::sendReminder($subscription);
-                    } catch (\Throwable $e) {
-                        Log::error('Erreur envoi rappel preuve virement client: ' . $e->getMessage());
+                        BankTransferProofReminderService::sendReminder($subscription);
+                    } catch (Throwable $e) {
+                        Log::error('Erreur envoi rappel preuve virement client: '.$e->getMessage());
                     }
                 }
             }

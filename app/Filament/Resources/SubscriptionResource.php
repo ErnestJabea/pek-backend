@@ -3,14 +3,16 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Actions\BankSubscriptionActions;
+use App\Filament\Actions\TableExcelExportAction;
+use App\Filament\Filters\DashboardFilter;
 use App\Filament\Resources\SubscriptionResource\Pages;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentEventsRelationManager;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentProofsRelationManager;
-use App\Jobs\ProcessSubscriptionReceipt;
 use App\Models\Product;
 use App\Models\ProductVl;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Payments\BankTransferProofReminderService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -18,7 +20,9 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class SubscriptionResource extends Resource
 {
@@ -198,21 +202,21 @@ class SubscriptionResource extends Resource
                         ->searchable(['first_name', 'last_name', 'email', 'phone'])
                         ->preload()
                         ->required()
-                        ->disabled(fn ($operation) => !$canEdit || ($operation === 'edit' && !auth()->user()?->hasRole('super_admin'))),
+                        ->disabled(fn ($operation) => ! $canEdit || ($operation === 'edit' && ! auth()->user()?->hasRole('super_admin'))),
 
                     Forms\Components\Select::make('product_id')
                         ->label(__('messages.product'))
                         ->relationship('product', 'libelle')
                         ->default(1)
                         ->required()
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->live()
                         ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
 
                     Forms\Components\Toggle::make('is_historical')
                         ->label('Opération historique / Reprise d\'antériorité')
                         ->default(true)
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->helperText('En mode historique, aucun email ni notification automatique ne sera envoyé au client.')
                         ->columnSpanFull(),
                 ])->columns(2),
@@ -224,7 +228,7 @@ class SubscriptionResource extends Resource
                         ->default(now()->toDateString())
                         ->maxDate(now())
                         ->required()
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->live()
                         ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set)),
 
@@ -232,7 +236,7 @@ class SubscriptionResource extends Resource
                         ->label('Valeur Liquidative retenue (FCFA)')
                         ->numeric()
                         ->step('any')
-                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->disabled(fn (Forms\Get $get) => ! $canEdit || $get('mode_calcul_frais') !== 'manuel')
                         ->dehydrated()
                         ->live(onBlur: true)
                         ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
@@ -264,7 +268,7 @@ class SubscriptionResource extends Resource
                         ])
                         ->default('deduit')
                         ->dehydrated()
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->live()
                         ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
                         ->columnSpanFull(),
@@ -273,7 +277,7 @@ class SubscriptionResource extends Resource
                         ->label('Montant total versé (FCFA)')
                         ->numeric()
                         ->required()
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->live(onBlur: true)
                         ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
                         ->helperText(fn (Forms\Get $get) => $get('mode_calcul_frais') === 'en_sus'
@@ -290,7 +294,7 @@ class SubscriptionResource extends Resource
                             '2' => '2,00 %',
                         ])
                         ->default('1')
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->live()
                         ->afterStateUpdated(fn ($state, Forms\Set $set, Forms\Get $get) => self::calculateVlAndParts($get, $set))
                         ->dehydrated(false)
@@ -299,7 +303,7 @@ class SubscriptionResource extends Resource
                     Forms\Components\TextInput::make('investment_amount')
                         ->label('Montant de placement net (FCFA)')
                         ->numeric()
-                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->disabled(fn (Forms\Get $get) => ! $canEdit || $get('mode_calcul_frais') !== 'manuel')
                         ->dehydrated()
                         ->required()
                         ->default('0')
@@ -310,7 +314,7 @@ class SubscriptionResource extends Resource
                     Forms\Components\TextInput::make('subscription_fee')
                         ->label('Frais d\'entrée prélevés (FCFA)')
                         ->numeric()
-                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->disabled(fn (Forms\Get $get) => ! $canEdit || $get('mode_calcul_frais') !== 'manuel')
                         ->dehydrated()
                         ->required()
                         ->default('0')
@@ -322,7 +326,7 @@ class SubscriptionResource extends Resource
                         ->label('Nombre de parts calculées')
                         ->numeric()
                         ->step('any')
-                        ->disabled(fn (Forms\Get $get) => !$canEdit || $get('mode_calcul_frais') !== 'manuel')
+                        ->disabled(fn (Forms\Get $get) => ! $canEdit || $get('mode_calcul_frais') !== 'manuel')
                         ->dehydrated()
                         ->default('0')
                         ->required()
@@ -341,18 +345,18 @@ class SubscriptionResource extends Resource
                             'autre' => 'Autre',
                         ])
                         ->default('bank_transfer')
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->required(),
 
                     Forms\Components\TextInput::make('bank_reference')
                         ->label('Référence bordereau / virement')
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->placeholder('Ex: VIR-2025-001'),
 
                     Forms\Components\TextInput::make('reference_transaction')
                         ->label('Référence de la transaction')
-                        ->default(fn () => 'HIST-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6)))
-                        ->disabled(fn ($operation) => !$canEdit || ($operation === 'edit' && !auth()->user()?->hasRole('super_admin')))
+                        ->default(fn () => 'HIST-'.date('Ymd').'-'.strtoupper(substr(uniqid(), -6)))
+                        ->disabled(fn ($operation) => ! $canEdit || ($operation === 'edit' && ! auth()->user()?->hasRole('super_admin')))
                         ->required(),
 
                     Forms\Components\Select::make('statut')
@@ -364,7 +368,7 @@ class SubscriptionResource extends Resource
                             'À vérifier' => 'À vérifier',
                         ])
                         ->default('En attente')
-                        ->disabled(!$canEdit)
+                        ->disabled(! $canEdit)
                         ->required(),
 
                     Forms\Components\Textarea::make('internal_notes')
@@ -396,13 +400,13 @@ class SubscriptionResource extends Resource
                     ->label('Placement net')
                     ->numeric(decimalPlaces: 0)
                     ->suffix(' FCFA')
-                    ->placeholder(fn ($record) => number_format((float) ($record->montant_net ?? $record->montant_total), 0, ',', ' ') . ' FCFA')
+                    ->placeholder(fn ($record) => number_format((float) ($record->montant_net ?? $record->montant_total), 0, ',', ' ').' FCFA')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('subscription_fee')
                     ->label('Frais')
                     ->numeric(decimalPlaces: 0)
                     ->suffix(' FCFA')
-                    ->placeholder(fn ($record) => number_format((float) ($record->frais_gestion ?? 0), 0, ',', ' ') . ' FCFA')
+                    ->placeholder(fn ($record) => number_format((float) ($record->frais_gestion ?? 0), 0, ',', ' ').' FCFA')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('prix_unitaire')
@@ -410,13 +414,17 @@ class SubscriptionResource extends Resource
                     ->numeric(decimalPlaces: 2)
                     ->suffix(' FCFA')
                     ->description(function (Subscription $record): ?string {
-                        if (!$record->prix_unitaire) return null;
+                        if (! $record->prix_unitaire) {
+                            return null;
+                        }
                         $str = rtrim(rtrim((string) $record->prix_unitaire, '0'), '.');
                         $parts = explode('.', $str);
                         if (isset($parts[1]) && strlen($parts[1]) > 2) {
                             $intPart = number_format((float) ($parts[0] ?? 0), 0, '', ' ');
-                            return 'Exacte : ' . $intPart . ',' . $parts[1] . ' FCFA';
+
+                            return 'Exacte : '.$intPart.','.$parts[1].' FCFA';
                         }
+
                         return null;
                     })
                     ->sortable(),
@@ -509,7 +517,7 @@ class SubscriptionResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                \App\Filament\Filters\DashboardFilter::make(static::class),
+                DashboardFilter::make(static::class),
                 Tables\Filters\TernaryFilter::make('is_historical')
                     ->label('Type d\'opération')
                     ->placeholder('Toutes les opérations')
@@ -547,7 +555,7 @@ class SubscriptionResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Confirmation des fonds & Attribution des parts')
-                    ->modalDescription(fn (Subscription $record) => "Confirmez-vous que les fonds ont bien été reçus sur le compte séquestre du FCP ? Cela validera immédiatement l'attribution de {$record->nb_parts} parts du fonds {$record->product?->libelle} pour le client {$record->user?->first_name} {$record->user?->last_name}." . ($record->is_historical ? ' (Mode historique : Aucun mail ne sera envoyé au client)' : ''))
+                    ->modalDescription(fn (Subscription $record) => "Confirmez-vous que les fonds ont bien été reçus sur le compte séquestre du FCP ? Cela validera immédiatement l'attribution de {$record->nb_parts} parts du fonds {$record->product?->libelle} pour le client {$record->user?->first_name} {$record->user?->last_name}.".($record->is_historical ? ' (Mode historique : Aucun mail ne sera envoyé au client)' : ''))
                     ->visible(fn (Subscription $record) => $record->statut !== 'Succès' && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('confirm_bank_payment')))
                     ->action(function (Subscription $record) {
                         $record->forceFill([
@@ -600,7 +608,7 @@ class SubscriptionResource extends Resource
 
                         Notification::make()
                             ->title('Opération historique certifiée et validée ! ✅')
-                            ->body("Les visas Conformité, Comptabilité et Gérant ont été apposés. Parts créditées au client.")
+                            ->body('Les visas Conformité, Comptabilité et Gérant ont été apposés. Parts créditées au client.')
                             ->success()
                             ->send();
                     }),
@@ -611,13 +619,13 @@ class SubscriptionResource extends Resource
                     ->label('Relancer preuve virement')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
-                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && !$record->funds_received_at && !$record->paymentProofs()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('confirm_bank_payment') || auth()->user()?->can('review_subscription_compliance') || auth()->user()?->can('update_subscription')))
+                    ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && ! $record->funds_received_at && ! $record->paymentProofs()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('confirm_bank_payment') || auth()->user()?->can('review_subscription_compliance') || auth()->user()?->can('update_subscription')))
                     ->requiresConfirmation()
                     ->modalHeading('Relancer le client pour la preuve de virement')
-                    ->modalDescription(fn (Subscription $record) => 'Envoyer immédiatement un email de rappel avec les coordonnées bancaires et une notification In-App à ' . ($record->user ? ($record->user->first_name . ' ' . $record->user->last_name . ' (' . $record->user->email . ')') : 'ce client') . ' pour la souscription ' . $record->reference_transaction . ' ?')
+                    ->modalDescription(fn (Subscription $record) => 'Envoyer immédiatement un email de rappel avec les coordonnées bancaires et une notification In-App à '.($record->user ? ($record->user->first_name.' '.$record->user->last_name.' ('.$record->user->email.')') : 'ce client').' pour la souscription '.$record->reference_transaction.' ?')
                     ->modalSubmitActionLabel('Envoyer le rappel')
                     ->action(function (Subscription $record) {
-                        $sent = \App\Services\Payments\BankTransferProofReminderService::sendReminder($record, auth()->id());
+                        $sent = BankTransferProofReminderService::sendReminder($record, auth()->id());
                         if ($sent) {
                             Notification::make()
                                 ->title('Rappel envoyé avec succès')
@@ -646,10 +654,10 @@ class SubscriptionResource extends Resource
                     ->visible(fn (Subscription $record) => in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->paymentProofs()->exists() && (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_payment_proof') || auth()->user()?->can('review_payment_proof')))
                     ->action(function (Subscription $record) {
                         $proof = $record->paymentProofs()->latest()->first();
-                        if (!$proof || !$proof->path || !\Illuminate\Support\Facades\Storage::disk('payment_private')->exists($proof->path)) {
+                        if (! $proof || ! $proof->path || ! Storage::disk('payment_private')->exists($proof->path)) {
                             Notification::make()
                                 ->title('Justificatif non disponible')
-                                ->body('Ce justificatif n\'existe pas sur le serveur ou n\'a pas été téléversé par le client.')
+                                ->body('Ce justificatif n\'existe pas sur le serveur ou n\'a pas été fourni par le client.')
                                 ->warning()
                                 ->send();
 
@@ -661,11 +669,11 @@ class SubscriptionResource extends Resource
                 Tables\Actions\DeleteAction::make(),
             ])
             ->headerActions([
-                \App\Filament\Actions\TableExcelExportAction::make(),
+                TableExcelExportAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    \App\Filament\Actions\TableExcelExportAction::makeBulk(),
+                    TableExcelExportAction::makeBulk(),
                     Tables\Actions\BulkAction::make('bulkRemindTransferProof')
                         ->label('Relancer pour preuve de virement')
                         ->icon('heroicon-o-paper-airplane')
@@ -674,11 +682,11 @@ class SubscriptionResource extends Resource
                         ->modalHeading('Relancer les clients sélectionnés pour leur preuve de virement')
                         ->modalDescription('Un email et une notification in-app seront envoyés aux clients dont les souscriptions par virement sont en attente de justificatif.')
                         ->modalSubmitActionLabel('Envoyer les rappels')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                        ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
-                                if (in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && !$record->funds_received_at && !$record->paymentProofs()->exists()) {
-                                    if (\App\Services\Payments\BankTransferProofReminderService::sendReminder($record, auth()->id())) {
+                                if (in_array($record->moyen_paiement, ['bank_transfer', 'virement'], true) && $record->statut === 'En attente' && ! $record->funds_received_at && ! $record->paymentProofs()->exists()) {
+                                    if (BankTransferProofReminderService::sendReminder($record, auth()->id())) {
                                         $count++;
                                     }
                                 }

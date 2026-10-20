@@ -3,14 +3,15 @@
 namespace Tests\Feature;
 
 use App\Filament\Actions\TableExcelExportAction;
-use App\Filament\Resources\ClientResource;
 use App\Filament\Resources\ClientResource\Pages\ViewClientPortfolioReport;
+use App\Filament\Resources\OnboardingSessionResource;
+use App\Filament\Resources\OnboardingSessionResource\Pages\ListOnboardingSessions;
 use App\Filament\Resources\OnboardingSessionResource\Pages\ViewOnboardingSession;
 use App\Filament\Resources\SubscriptionResource;
+use App\Filament\Resources\SubscriptionResource\Pages\ListSubscriptions;
 use App\Models\AdminDepartment;
 use App\Models\Client;
 use App\Models\OnboardingEvent;
-use App\Models\OnboardingSession;
 use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\User;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 
 class MakerCheckerAndBackofficeImprovementsTest extends TestCase
@@ -156,7 +158,7 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
             'nb_parts' => 25,
         ]);
 
-        $livewire = new \App\Filament\Resources\SubscriptionResource\Pages\ListSubscriptions();
+        $livewire = new ListSubscriptions;
         $table = new Table($livewire);
         $configuredTable = SubscriptionResource::table($table);
 
@@ -175,7 +177,7 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
             'filename' => 'test-export-souscriptions',
         ], $configuredTable, $livewire);
 
-        $this->assertInstanceOf(\Symfony\Component\HttpFoundation\BinaryFileResponse::class, $response);
+        $this->assertInstanceOf(BinaryFileResponse::class, $response);
         $this->assertFileExists($response->getFile()->getPathname());
         $this->assertGreaterThan(1000, filesize($response->getFile()->getPathname()));
     }
@@ -491,6 +493,11 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
                 'ocr_prenom_match' => true,
                 'ocr_dob_match' => true,
                 'ocr_num_piece_match' => true,
+                'ocr_expiration_match' => true,
+                'ocr_doc_type_match' => true,
+                'ocr_domicile_match' => true,
+                'ocr_fonds_match' => true,
+                'ocr_mrz_detected' => true,
                 'verification_timestamp' => now()->toIso8601String(),
                 'identity_audit_status' => 'auto_verified',
             ],
@@ -513,13 +520,17 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
             ->assertSee('Données de la pièce conformes aux informations saisies')
             ->assertSee('Nom')
             ->assertSee('Prénom')
+            ->assertSee('Bande MRZ certifiée ICAO 9303')
+            ->assertSee('Validité')
+            ->assertSee('Domicile')
+            ->assertSee('Origine Fonds')
             ->assertDontSee('Score de correspondance faciale (%)')
             ->assertDontSee('Score de concordance OCR (%)');
 
         // Test table column state for both records
-        $livewire = new \App\Filament\Resources\OnboardingSessionResource\Pages\ListOnboardingSessions();
+        $livewire = new ListOnboardingSessions;
         $table = new Table($livewire);
-        $configuredTable = \App\Filament\Resources\OnboardingSessionResource::table($table);
+        $configuredTable = OnboardingSessionResource::table($table);
         $biometricColumn = $configuredTable->getColumn('pwa_biometrics');
 
         $this->assertNotNull($biometricColumn);
@@ -539,8 +550,8 @@ class MakerCheckerAndBackofficeImprovementsTest extends TestCase
             'role' => 'client',
         ]);
 
-        $fakeJpg = 'data:image/jpeg;base64,' . base64_encode('FAKE_JPEG_BINARY_DATA');
-        $fakePdf = 'data:application/pdf;base64,' . base64_encode('%PDF-1.4 FAKE_PDF_DATA');
+        $fakeJpg = 'data:image/jpeg;base64,'.base64_encode('FAKE_JPEG_BINARY_DATA');
+        $fakePdf = 'data:application/pdf;base64,'.base64_encode('%PDF-1.4 FAKE_PDF_DATA');
 
         // Client posts the 5 KYC documents from PWA
         $response = $this->actingAs($client)->postJson('/api/onboarding/save-progress', [

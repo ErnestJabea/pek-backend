@@ -18,7 +18,7 @@ class BankTransferProofReminderService
     {
         $subscription->loadMissing(['user', 'product']);
 
-        if (!in_array($subscription->moyen_paiement, ['bank_transfer', 'virement'], true)) {
+        if (! in_array($subscription->moyen_paiement, ['bank_transfer', 'virement'], true)) {
             return false;
         }
 
@@ -27,7 +27,7 @@ class BankTransferProofReminderService
         }
 
         $user = $subscription->user;
-        if (!$user || empty($user->email)) {
+        if (! $user || empty($user->email)) {
             return false;
         }
 
@@ -40,7 +40,7 @@ class BankTransferProofReminderService
             Notification::create([
                 'user_id' => $user->id,
                 'title' => 'Rappel : Justificatif de virement requis 📄',
-                'body' => "Veuillez téléverser la preuve de votre virement pour la souscription {$subscription->reference_transaction} ({$formattedAmount} FCFA) afin de valider l'attribution de vos parts.",
+                'body' => "Veuillez fournir la preuve de votre virement pour la souscription {$subscription->reference_transaction} ({$formattedAmount} FCFA) afin de valider l'attribution de vos parts.",
                 'type' => 'subscription',
             ]);
 
@@ -58,7 +58,7 @@ class BankTransferProofReminderService
 
             return true;
         } catch (Throwable $e) {
-            Log::error("Erreur lors de l'envoi du rappel de virement pour la souscription #{$subscription->id}: " . $e->getMessage(), [
+            Log::error("Erreur lors de l'envoi du rappel de virement pour la souscription #{$subscription->id}: ".$e->getMessage(), [
                 'exception' => $e,
             ]);
 

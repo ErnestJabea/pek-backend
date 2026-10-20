@@ -23,7 +23,7 @@ class SendBankTransferProofReminders extends Command
      *
      * @var string
      */
-    protected $description = 'Envoie un rappel par email et notification in-app aux clients ayant initié un virement bancaire sans justificatif téléversé.';
+    protected $description = 'Envoie un rappel par email et notification in-app aux clients ayant initié un virement bancaire sans justificatif fourni.';
 
     /**
      * Execute the console command.
@@ -43,7 +43,7 @@ class SendBankTransferProofReminders extends Command
             ->whereDoesntHave('paymentProofs')
             ->where(function ($q) use ($twoDaysAgo) {
                 $q->whereNull('last_proof_reminder_at')
-                  ->orWhere('last_proof_reminder_at', '<=', $twoDaysAgo);
+                    ->orWhere('last_proof_reminder_at', '<=', $twoDaysAgo);
             })
             ->get();
 
@@ -55,7 +55,7 @@ class SendBankTransferProofReminders extends Command
                     $count++;
                 }
             } catch (Throwable $e) {
-                Log::error("Erreur lors de la relance pour preuve de virement (Souscription #{$subscription->id}): " . $e->getMessage(), [
+                Log::error("Erreur lors de la relance pour preuve de virement (Souscription #{$subscription->id}): ".$e->getMessage(), [
                     'exception' => $e,
                 ]);
             }

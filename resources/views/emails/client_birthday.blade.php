@@ -83,7 +83,8 @@
                                                                                 style="padding:0;margin:0">
                                                                                 <h1
                                                                                     style="margin:0;font-family:arial,'helvetica neue',helvetica,sans-serif;letter-spacing:0;font-size:26px;font-style:normal;font-weight:bold;line-height:34px!important;color:#ffffff">
-                                                                                    🎂 Joyeux Anniversaire {{ $user->first_name }} !</h1>
+                                                                                    🎂 Joyeux Anniversaire
+                                                                                    {{ $user->first_name }} !</h1>
                                                                             </td>
                                                                         </tr>
                                                                     </tbody>
@@ -137,7 +138,13 @@
                                                                                         <tr>
                                                                                             <td align="left"
                                                                                                 style="font-size:16px;color:#333333;padding-bottom:15px;line-height:24px;font-family:arial,'helvetica neue',helvetica,sans-serif;">
-                                                                                                En ce jour si spécial, toute l'équipe de <strong>KORI Asset Management</strong> tient à vous souhaiter un très heureux anniversaire !
+                                                                                                En ce jour si spécial,
+                                                                                                toute l'équipe de
+                                                                                                <strong>KORI Asset
+                                                                                                    Management</strong>
+                                                                                                tient à vous souhaiter
+                                                                                                un très heureux
+                                                                                                anniversaire !
                                                                                             </td>
                                                                                         </tr>
                                                                                         <tr>
@@ -150,7 +157,10 @@
                                                                                                         <tr>
                                                                                                             <td
                                                                                                                 style="font-size:16px;font-weight:bold;color:#92400e;padding:16px 28px;text-align:center;letter-spacing:1px;font-family:arial,'helvetica neue',helvetica,sans-serif;">
-                                                                                                                🎉 JOYEUX ANNIVERSAIRE !
+                                                                                                                🎉
+                                                                                                                JOYEUX
+                                                                                                                ANNIVERSAIRE
+                                                                                                                !
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                     </tbody>
@@ -169,17 +179,13 @@
                                                                                                         <td>
                                                                                                             <p
                                                                                                                 style="margin:0;font-size:14px;color:#491d00;line-height:1.6;font-style:italic">
-                                                                                                                « {{ $customMessage }} »
+                                                                                                                «
+                                                                                                                {{ $customMessage }}
+                                                                                                                »
                                                                                                             </p>
                                                                                                         </td>
                                                                                                     </tr>
                                                                                                 </table>
-                                                                                            </td>
-                                                                                        </tr>
-                                                                                        <tr>
-                                                                                            <td align="left"
-                                                                                                style="font-size:14px;color:#475569;padding:15px 0;line-height:22px;font-family:arial,'helvetica neue',helvetica,sans-serif;">
-                                                                                                Nous profitons de cette occasion pour vous remercier chaleureusement de votre confiance au sein du <strong>Portefeuille Épargne Kori (PEK)</strong>. C'est un privilège de vous accompagner chaque jour dans la concrétisation de vos projets patrimoniaux.
                                                                                             </td>
                                                                                         </tr>
                                                                                         <tr>
@@ -194,10 +200,13 @@
                                                                                                             <td align="center"
                                                                                                                 bgcolor="#491d00"
                                                                                                                 style="border-radius:10px;background-color:#491d00">
-                                                                                                                <a href="{{ $frontendUrl ?? (rtrim(config('app.frontend_url', 'https://pek.koriassetmanagement.com'), '/') . '/login') }}"
+                                                                                                                <a href="{{ $frontendUrl ?? rtrim(config('app.frontend_url', 'https://pek.koriassetmanagement.com'), '/') . '/login' }}"
                                                                                                                     target="_blank"
                                                                                                                     style="display:inline-block;padding:16px 36px;font-family:arial,'helvetica neue',helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.5px">
-                                                                                                                    Accéder à mon espace PEK →
+                                                                                                                    Accéder
+                                                                                                                    à
+                                                                                                                    votre
+                                                                                                                    espace
                                                                                                                 </a>
                                                                                                             </td>
                                                                                                         </tr>
@@ -212,7 +221,11 @@
                                                                                                     style="border:none;border-top:1px solid #eeeeee">
                                                                                                 <p align="center"
                                                                                                     style="font-size: 12px; color: #999999;font-family:arial,'helvetica neue',helvetica,sans-serif;">
-                                                                                                    KORI Asset Management — Société de Gestion d'Actifs agréée par la COSUMAF
+                                                                                                    KORI Asset
+                                                                                                    Management — Société
+                                                                                                    de Gestion d'Actifs
+                                                                                                    agréée par la
+                                                                                                    COSUMAF
                                                                                                 </p>
                                                                                             </td>
                                                                                         </tr>
@@ -238,7 +251,8 @@
                                                             <td align="center" style="padding:0;margin:0;width:100%">
                                                                 <p
                                                                     style="margin:0;font-family:arial,'helvetica neue',helvetica,sans-serif;line-height:21px;letter-spacing:0;color:#999999;font-size:14px">
-                                                                    PEK de KORI ASSET MANAGEMENT - Investissez dans votre avenir</p>
+                                                                    PEK de KORI ASSET MANAGEMENT - Investissez dans
+                                                                    votre avenir</p>
                                                             </td>
                                                         </tr>
                                                     </tbody>

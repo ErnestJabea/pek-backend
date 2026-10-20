@@ -55,7 +55,7 @@ class PdfDownloadController extends Controller
     }
 
     /**
-     * Télécharger une pièce justificative téléversée.
+     * Télécharger une pièce justificative fournie.
      */
     public function downloadDocument(OnboardingSession $session, string $type)
     {

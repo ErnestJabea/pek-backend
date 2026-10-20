@@ -10,6 +10,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class PaymentProofsRelationManager extends RelationManager
@@ -39,10 +40,10 @@ class PaymentProofsRelationManager extends RelationManager
             Tables\Actions\Action::make('download')->label('Télécharger')
                 ->visible(fn (PaymentProof $record) => in_array($record->scan_status, ['clean', 'quarantined'], true) && auth()->user()->can('view_payment_proof'))
                 ->action(function (PaymentProof $record) {
-                    if (!$record->path || !\Illuminate\Support\Facades\Storage::disk('payment_private')->exists($record->path)) {
+                    if (! $record->path || ! Storage::disk('payment_private')->exists($record->path)) {
                         Notification::make()
                             ->title('Justificatif non disponible')
-                            ->body('Ce justificatif n\'existe pas sur le serveur ou n\'a pas été téléversé par le client.')
+                            ->body('Ce justificatif n\'existe pas sur le serveur ou n\'a pas été fourni par le client.')
                             ->warning()
                             ->send();
 
