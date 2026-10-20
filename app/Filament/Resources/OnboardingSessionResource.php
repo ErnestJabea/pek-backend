@@ -462,7 +462,20 @@ class OnboardingSessionResource extends Resource
                                     ->schema([
                                         Forms\Components\TextInput::make('payload.secteur')
                                             ->label('Secteur d\'activité professionnelle')
-                                            ->placeholder('ex: Services, Commerce, Santé...'),
+                                            ->placeholder('ex: Services, Commerce, Santé...')
+                                            ->datalist([
+                                                'Commerce & Distribution',
+                                                'Banque, Finance & Assurance',
+                                                'Technologies, IT & Digital',
+                                                'Santé, Médical & Pharmacie',
+                                                'BTP, Immobilier & Construction',
+                                                'Éducation, Recherche & Formation',
+                                                'Fonction Publique & Administration',
+                                                'Transport, Logistique & Fret',
+                                                'Agriculture & Agro-industrie',
+                                                'Industrie, Énergie & Mines',
+                                                'Services, Hôtellerie & Restauration',
+                                            ]),
 
                                         Forms\Components\Select::make('payload.revenus_annuels')
                                             ->label('Revenus annuels estimés')
