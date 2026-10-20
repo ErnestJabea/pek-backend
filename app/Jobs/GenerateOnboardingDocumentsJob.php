@@ -23,6 +23,8 @@ class GenerateOnboardingDocumentsJob
 
     public function handle(): void
     {
+        @ini_set('memory_limit', '512M');
+
         try {
             $session = OnboardingSession::with('user')->findOrFail($this->sessionId);
             $user = $session->user;

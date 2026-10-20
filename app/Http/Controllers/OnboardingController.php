@@ -208,7 +208,9 @@ class OnboardingController extends Controller
                 $session->submitted_payload = $submitted;
             }
 
-            $this->syncSupportingDocuments($session, $session->payload);
+            $payload = $session->payload ?? [];
+            $this->syncSupportingDocuments($session, $payload);
+            $session->payload = $payload;
             $session->save();
  
             OnboardingEvent::create([
@@ -277,7 +279,7 @@ class OnboardingController extends Controller
                 }
 
                 $session->current_step = $validated['step'];
-                $session->payload = array_replace($session->payload, $validated['payload']);
+                $payload = array_replace($session->payload ?? [], $validated['payload']);
                 if (! empty($validated['payload']['civ'])) {
                     $user = $request->user();
                     if ($user && $user->civ !== $validated['payload']['civ']) {
@@ -285,7 +287,8 @@ class OnboardingController extends Controller
                         $user->save();
                     }
                 }
-                $this->syncSupportingDocuments($session, $session->payload);
+                $this->syncSupportingDocuments($session, $payload);
+                $session->payload = $payload;
                 $session->save();
 
                 return $session->fresh();
@@ -500,7 +503,7 @@ class OnboardingController extends Controller
         ]));
     }
 
-    private function syncSupportingDocuments(OnboardingSession $session, array $payload): void
+    private function syncSupportingDocuments(OnboardingSession $session, array &$payload): void
     {
         $docMapping = [
             'doc_piece_identite' => 'doc_piece_identite',
@@ -534,12 +537,27 @@ class OnboardingController extends Controller
                         $disk->put($path, $bytes);
                         $session->{$columnName} = $path;
 
+                        $payload[$payloadKey] = $path;
+                        if ($payloadKey === 'doc_piece_identite') {
+                            $payload['piece_recto'] = $path;
+                        } elseif ($payloadKey === 'doc_photo') {
+                            $payload['selfie_live'] = $path;
+                        }
+
                         $user = $session->user;
                         if ($user && \Illuminate\Support\Facades\Schema::hasColumn('users', $columnName)) {
                             $user->{$columnName} = $path;
                             $user->save();
                         }
                     }
+                }
+            } elseif (! empty($session->{$columnName})) {
+                // Ensure payload stores path rather than any leftover large string
+                $payload[$payloadKey] = $session->{$columnName};
+                if ($payloadKey === 'doc_piece_identite') {
+                    $payload['piece_recto'] = $session->{$columnName};
+                } elseif ($payloadKey === 'doc_photo') {
+                    $payload['selfie_live'] = $session->{$columnName};
                 }
             }
         }
@@ -558,11 +576,12 @@ class OnboardingController extends Controller
                     };
                     $path = "secure_onboardings/documents/{$session->id}-doc_piece_verso.{$ext}";
                     $disk->put($path, $bytes);
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('onboarding_sessions', 'doc_piece_verso')) {
+                        $session->doc_piece_verso = $path;
+                    }
 
-                    $currentPayload = $session->payload ?? [];
-                    $currentPayload['doc_piece_verso'] = $path;
-                    $currentPayload['piece_verso'] = $path;
-                    $session->payload = $currentPayload;
+                    $payload['doc_piece_verso'] = $path;
+                    $payload['piece_verso'] = $path;
 
                     $user = $session->user;
                     if ($user && \Illuminate\Support\Facades\Schema::hasColumn('users', 'doc_piece_verso')) {
@@ -571,7 +590,21 @@ class OnboardingController extends Controller
                     }
                 }
             }
+        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('onboarding_sessions', 'doc_piece_verso') && ! empty($session->doc_piece_verso)) {
+            $payload['doc_piece_verso'] = $session->doc_piece_verso;
+            $payload['piece_verso'] = $session->doc_piece_verso;
         }
+
+        // 3. Strip any remaining large base64 data URLs from payload to avoid MySQL packet bloat
+        foreach ($payload as $key => $val) {
+            if (is_string($val) && str_starts_with($val, 'data:') && strlen($val) > 300) {
+                if (isset($session->{$key}) && ! empty($session->{$key})) {
+                    $payload[$key] = $session->{$key};
+                }
+            }
+        }
+
+        $session->payload = $payload;
     }
 
     private function privateResponse(array $data, int $status = 200): JsonResponse
