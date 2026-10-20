@@ -40,27 +40,47 @@ class OnboardingSessionResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Onboarding Clients';
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin') 
+            || (auth()->user()?->can('view_any_onboarding::session') ?? false)
+            || (auth()->user()?->can('view_any_onboarding_session') ?? false);
+    }
+
+    public static function canView(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin') 
+            || (auth()->user()?->can('view_onboarding::session') ?? false)
+            || (auth()->user()?->can('view_onboarding_session') ?? false)
+            || static::canViewAny();
+    }
+
     public static function canCreate(): bool
     {
         return auth()->user()?->hasRole('super_admin') 
             || (auth()->user()?->can('create_onboarding::session') ?? false)
-            || (auth()->user()?->can('create_onboarding_session') ?? false)
-            || (auth()->user()?->isBackofficeAccount() ?? false);
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return true;
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return true;
+            || (auth()->user()?->can('create_onboarding_session') ?? false);
     }
 
     public static function canEdit(Model $record): bool
     {
-        return parent::canEdit($record);
+        return auth()->user()?->hasRole('super_admin') 
+            || (auth()->user()?->can('update_onboarding::session') ?? false)
+            || (auth()->user()?->can('update_onboarding_session') ?? false);
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin') 
+            || (auth()->user()?->can('delete_onboarding::session') ?? false)
+            || (auth()->user()?->can('delete_onboarding_session') ?? false);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->hasRole('super_admin') 
+            || (auth()->user()?->can('delete_any_onboarding::session') ?? false)
+            || (auth()->user()?->can('delete_any_onboarding_session') ?? false);
     }
 
     public static function getEloquentQuery(): Builder
