@@ -44,9 +44,12 @@ class SubscriptionBulletinService
         $telephone = $subscription->payment_phone ?? $payload['tel'] ?? $user?->phone ?? '';
         $email = $payload['email'] ?? $user?->email ?? '';
 
-        $categorieClient = $user?->categorie_client
-            ?? $payload['categorie_client']
-            ?? ($isPersonneMorale ? 'Entreprises non financières' : 'Particulier');
+        $rawCat = $user?->categorie_client ?? $payload['categorie_client'] ?? null;
+        if (empty($rawCat) || $rawCat === 'Personne Morale') {
+            $categorieClient = $isPersonneMorale ? 'Entreprises non financières' : 'Particulier';
+        } else {
+            $categorieClient = $rawCat;
+        }
 
         // Type de pièce
         $pieceRaw = strtolower($payload['piece'] ?? $payload['type_piece'] ?? ($isPersonneMorale ? 'rccm' : 'cni'));

@@ -490,8 +490,11 @@ class ClientResource extends Resource
                             ->label('Catégorie du Client')
                             ->options([
                                 'Particulier' => 'Particulier',
-                                'Personne Morale' => 'Personne Morale',
+                                'Entreprises non financières' => 'Entreprises non financières (SARL, SA, PME)',
                                 'Institutionnel' => 'Institutionnel',
+                                'Professionnel' => 'Professionnel',
+                                'Banques / Établissements financiers' => 'Banques / Établissements financiers',
+                                'OPC / Sociétés de gestion' => 'OPC / Sociétés de gestion',
                             ])
                             ->default(fn ($record) => $record?->categorie_client ?: 'Particulier')
                             ->required(),
