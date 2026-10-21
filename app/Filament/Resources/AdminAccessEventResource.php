@@ -17,7 +17,7 @@ class AdminAccessEventResource extends Resource
     public static function canDeleteAny(): bool { return auth()->user()?->hasRole('super_admin') ?? false; }
     public static function table(Table $table): Table
     {
-        return $table->defaultSort('id', 'desc')->columns([
+        return $table->defaultSort('created_at', 'desc')->columns([
             Tables\Columns\TextColumn::make('created_at')->label('Date')->dateTime(),
             Tables\Columns\TextColumn::make('actor_id')->label('Auteur (ID)'),
             Tables\Columns\TextColumn::make('user_id')->label('Compte (ID)'),

@@ -93,7 +93,8 @@ class CurrencyResource extends Resource
             ])
             ->emptyStateActions([
                 Tables\Actions\CreateAction::make(),
-            ]);
+            ])
+            ->defaultSort('updated_at', 'desc');
     }
 
     public static function getPages(): array

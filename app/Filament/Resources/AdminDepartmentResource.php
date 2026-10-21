@@ -336,7 +336,8 @@ class AdminDepartmentResource extends Resource
                 \App\Filament\Actions\TableExcelExportAction::makeBulk(),
                 Tables\Actions\DeleteBulkAction::make(),
             ]),
-        ]);
+        ])
+        ->defaultSort('updated_at', 'desc');
     }
 
     public static function getPages(): array

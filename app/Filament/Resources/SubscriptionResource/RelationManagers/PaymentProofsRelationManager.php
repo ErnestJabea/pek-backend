@@ -26,7 +26,7 @@ class PaymentProofsRelationManager extends RelationManager
 
     public function table(Table $table): Table
     {
-        return $table->columns([
+        return $table->defaultSort('created_at', 'desc')->columns([
             Tables\Columns\TextColumn::make('original_name')->label('Document'),
             Tables\Columns\TextColumn::make('created_at')->label('Déposé le')->dateTime(),
             Tables\Columns\TextColumn::make('declared_date')->label('Date déclarée')->date(),

@@ -1149,7 +1149,8 @@ class OnboardingSessionResource extends Resource
             ])
             ->emptyStateActions([
                 Tables\Actions\CreateAction::make()->label('Créer un Onboarding'),
-            ]);
+            ])
+            ->defaultSort('updated_at', 'desc');
     }
 
     public static function getRelations(): array
