@@ -311,7 +311,7 @@
                             Lu et approuvé
                         </div>
                         <div style="margin-top: 5px; font-size: 9.5pt; color: #2d3748; text-align: right;">
-                            Fait à Yaoundé, le <strong>{{ now()->format('d/m/Y') }}</strong>
+                            Fait à {{ $client_city ?? ($session ? $session->getClientCity() : 'Douala') }}, le <strong>{{ now()->format('d/m/Y') }}</strong>
                         </div>
                     </div>
                 </td>

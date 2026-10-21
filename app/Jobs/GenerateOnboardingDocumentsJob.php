@@ -61,6 +61,7 @@ class GenerateOnboardingDocumentsJob
                 'user' => $user,
                 'signature' => 'data:'.$signatureMime.';base64,'.base64_encode($signatureBytes),
                 'logo' => $logoBase64,
+                'client_city' => $session->getClientCity(),
             ];
 
             $documents = [

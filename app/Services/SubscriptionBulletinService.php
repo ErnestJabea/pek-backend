@@ -41,6 +41,9 @@ class SubscriptionBulletinService
         }
 
         $adresse = $payload['adresse'] ?? $user?->city ?? 'Douala, Cameroun';
+        $villeResidence = $user?->getResidenceCity()
+            ?? ($session ? $session->getClientCity() : null)
+            ?? 'Douala';
         $telephone = $subscription->payment_phone ?? $payload['tel'] ?? $user?->phone ?? '';
         $email = $payload['email'] ?? $user?->email ?? '';
 
@@ -124,6 +127,7 @@ class SubscriptionBulletinService
             'nom_complet' => $nomComplet,
             'representant_legal' => $representantLegal,
             'adresse' => $adresse,
+            'ville_residence' => $villeResidence,
             'telephone' => $telephone,
             'email' => $email,
             'is_personne_morale' => $isPersonneMorale,

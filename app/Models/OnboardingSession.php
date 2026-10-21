@@ -246,4 +246,48 @@ class OnboardingSession extends Model
             $this->attributes['submitted_payload'] = json_encode($payload, JSON_UNESCAPED_UNICODE);
         }
     }
+
+    /**
+     * Résoudre la ville de résidence du client pour la mention "Fait à [Ville]".
+     */
+    public function getClientCity(): string
+    {
+        $payload = $this->getSubmittedPayload() ?: ($this->payload ?? []);
+        $user = $this->relationLoaded('user') ? $this->user : $this->user()->first();
+
+        // 1. Ville explicite dans le payload KYC
+        $city = trim((string) (
+            $payload['ville']
+            ?? $payload['city']
+            ?? $payload['ville_residence']
+            ?? ''
+        ));
+
+        // 2. Ville issue du compte utilisateur (inscription / profil)
+        if ($city === '' && ! empty($user?->city)) {
+            $city = trim((string) $user->city);
+        }
+
+        // 3. Extraction depuis l'adresse de résidence (ex: "Bonapriso, Douala" ou directement "Douala")
+        if ($city === '' && ! empty($payload['adresse'])) {
+            $adresse = trim((string) $payload['adresse']);
+            $parts = array_map('trim', explode(',', $adresse));
+            if (count($parts) > 1) {
+                $lastPart = end($parts);
+                if (mb_strlen($lastPart) >= 2 && mb_strlen($lastPart) <= 60) {
+                    $city = $lastPart;
+                }
+            } else {
+                if (mb_strlen($adresse) >= 2 && mb_strlen($adresse) <= 60) {
+                    $city = $adresse;
+                }
+            }
+        }
+
+        if ($city === '') {
+            $city = 'Douala';
+        }
+
+        return mb_convert_case($city, MB_CASE_TITLE, 'UTF-8');
+    }
 }

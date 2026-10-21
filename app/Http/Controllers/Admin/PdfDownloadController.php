@@ -213,12 +213,16 @@ class PdfDownloadController extends Controller
             'user' => $session->user,
             'signature' => $signatureBase64,
             'logo' => $logoBase64,
+            'client_city' => $session->getClientCity(),
         ];
 
         $pdf = Pdf::loadView($viewName, $pdfData)
             ->setPaper('a4', 'portrait');
 
-        return $pdf->output();
+        $output = $pdf->output();
+        $disk->put($storagePath, $output);
+
+        return $output;
     }
 
     private function privateDownloadHeaders(?string $contentType = null): array

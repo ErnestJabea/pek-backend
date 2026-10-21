@@ -533,7 +533,7 @@
         @if (!empty($data['representant_legal']))
           <div class="signature-representant" style="font-size: 6.8pt; color: #5E3208; font-weight: normal; margin-top: 1px;">(Représentée par {{ $data['representant_legal'] }})</div>
         @endif
-        <div class="signature-date">Date : {{ $data['date_valeur'] }}</div>
+        <div class="signature-date">Fait à {{ $data['ville_residence'] ?? 'Douala' }}, le {{ $data['date_valeur'] }}</div>
       </td>
       <td style="width: 4%;"></td>
       <td class="signature-cadre">

@@ -260,6 +260,23 @@ class User extends Authenticatable implements FilamentUser, HasName
     {
         return $this->onboardingSession ? $this->onboardingSession->status : null;
     }
+    public function getResidenceCity(): string
+    {
+        if (! empty($this->city)) {
+            return mb_convert_case(trim($this->city), MB_CASE_TITLE, 'UTF-8');
+        }
+
+        if ($this->relationLoaded('onboardingSession') && $this->onboardingSession) {
+            return $this->onboardingSession->getClientCity();
+        }
+
+        $session = $this->onboardingSession()->first();
+        if ($session) {
+            return $session->getClientCity();
+        }
+
+        return 'Douala';
+    }
 
     public function getNeedsCategoryAttribute(): bool
     {
