@@ -117,9 +117,9 @@
                                                                                     PEK - Plan d'Épargne Kori<br>
                                                                                     KORI ASSET MANAGEMENT<br>
                                                                                     Douala, Cameroun<br>
-                                                                                    <a href="https://pek.koriassetmanagement.com"
+                                                                                    <a href="{{ $frontendUrl ?? rtrim(config('app.frontend_url', env('FRONTEND_URL', 'https://pek.koriassetmanagement.com')), '/') }}"
                                                                                         target="_blank"
-                                                                                        style="color:#491d00; text-decoration: none; font-weight: bold;">https://pek.koriassetmanagement.com</a>
+                                                                                        style="color:#491d00; text-decoration: none; font-weight: bold;">{{ $frontendUrl ?? rtrim(config('app.frontend_url', env('FRONTEND_URL', 'https://pek.koriassetmanagement.com')), '/') }}</a>
                                                                                 </p>
                                                                                 <p align="left"
                                                                                     style="margin:0;font-family:arial,'helvetica neue',helvetica,sans-serif;line-height:24px;letter-spacing:0;color:#333333;font-size:16px">

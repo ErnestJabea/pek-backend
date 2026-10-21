@@ -61,6 +61,13 @@ class AppServiceProvider extends ServiceProvider
             $table->columnToggleFormColumns(2);
         });
 
+        \Illuminate\Support\Facades\View::composer('emails.*', function ($view) {
+            if (! isset($view->getData()['frontendUrl'])) {
+                $frontendUrl = \App\Providers\AuthServiceProvider::resolveFrontendUrl();
+                $view->with('frontendUrl', $frontendUrl);
+            }
+        });
+
         $this->configureDynamicMailSettings();
     }
 
