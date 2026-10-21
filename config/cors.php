@@ -29,7 +29,7 @@ $origins = array_values(array_unique(array_filter(array_map(
 })));
 
 return [
-    'paths' => ['api/*', 'api', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'api', 'v1/*', 'v1', 'sanctum/csrf-cookie', '*'],
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     'allowed_origins' => $origins,
     'allowed_origins_patterns' => array_merge(

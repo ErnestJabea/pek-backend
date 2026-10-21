@@ -32,6 +32,23 @@ class OnboardingDocumentAccessAndAppContentsTest extends TestCase
         $resLegacy = $this->getJson('/api/app-contents');
         $resLegacy->assertStatus(200);
         $resLegacy->assertJsonPath('welcome_hero.title_fr', 'Bienvenue');
+
+        $resDirectV1 = $this->getJson('/v1/app-contents');
+        $resDirectV1->assertStatus(200);
+        $resDirectV1->assertJsonPath('welcome_hero.title_fr', 'Bienvenue');
+
+        $resRoot = $this->getJson('/app-contents');
+        $resRoot->assertStatus(200);
+        $resRoot->assertJsonPath('welcome_hero.title_fr', 'Bienvenue');
+    }
+
+    public function test_login_endpoint_works_regardless_of_base_url()
+    {
+        // Whatever baseURL is used by client (/api/v1, /api, /v1, /), POST routes match with 422 validation
+        $this->postJson('/api/v1/login', [])->assertStatus(422)->assertJsonValidationErrors(['email', 'password']);
+        $this->postJson('/api/login', [])->assertStatus(422)->assertJsonValidationErrors(['email', 'password']);
+        $this->postJson('/v1/login', [])->assertStatus(422)->assertJsonValidationErrors(['email', 'password']);
+        $this->postJson('/login', [])->assertStatus(422)->assertJsonValidationErrors(['email', 'password']);
     }
 
     public function test_authenticated_user_can_access_their_onboarding_document()
