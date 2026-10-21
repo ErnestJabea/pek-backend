@@ -25,6 +25,24 @@ class AuthServiceProvider extends ServiceProvider
      */
     public static function resolveFrontendUrl(): string
     {
+        // En local/dev, privilégier l'Origin ou le Referer de la requête entrante si valide
+        if (! app()->isProduction() && function_exists('request') && request()) {
+            $origin = request()->header('Origin') ?: request()->header('Referer');
+            if ($origin) {
+                $parsed = parse_url($origin);
+                if (isset($parsed['scheme'], $parsed['host'])) {
+                    $originUrl = $parsed['scheme'].'://'.$parsed['host'].(isset($parsed['port']) ? ':'.$parsed['port'] : '');
+                    if (
+                        preg_match('#^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:[0-9]+)?$#', $originUrl) ||
+                        str_ends_with($parsed['host'], 'koriassetmanagement.com') ||
+                        str_ends_with($parsed['host'], 'ejabbing.com')
+                    ) {
+                        return rtrim($originUrl, '/');
+                    }
+                }
+            }
+        }
+
         $raw = (string) config('app.frontend_url', env('FRONTEND_URL', ''));
 
         // Si la valeur contient plusieurs URLs séparées par des virgules (ex: CORS copié dans FRONTEND_URL)

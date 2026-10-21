@@ -297,4 +297,30 @@ class PasswordResetWorkflowTest extends TestCase
             return ($mail->viewData['name'] ?? '') === 'E-JABBING SARL';
         });
     }
+
+    public function test_password_reset_url_dynamically_adapts_to_request_origin(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'first_name' => 'Mobile',
+            'last_name' => 'Tester',
+            'email' => 'mobile.tester@koriassetmanagement.com',
+            'role' => 'client',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->withHeaders([
+            'Origin' => 'http://192.168.30.130:5173',
+        ])->postJson('/api/forgot-password', [
+            'email' => 'mobile.tester@koriassetmanagement.com',
+            'lang' => 'fr',
+        ]);
+
+        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+            $mail = $notification->toMail($user);
+            $actionUrl = $mail->actionUrl ?? ($mail->viewData['actionUrl'] ?? '');
+            return str_starts_with($actionUrl, 'http://192.168.30.130:5173/password-reset/');
+        });
+    }
 }
