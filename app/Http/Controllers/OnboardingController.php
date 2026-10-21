@@ -607,6 +607,99 @@ class OnboardingController extends Controller
         $session->payload = $payload;
     }
 
+
+    /**
+     * Servir de maniere securisee un document KYC de la session client.
+     */
+    public function getDocument(Request $request, string $type)
+    {
+        $user = $request->user();
+        $session = $user->onboardingSession;
+        if (! $session) {
+            abort(404, 'Session onboarding introuvable.');
+        }
+
+        $typeMap = [
+            'piece_recto' => 'doc_piece_identite',
+            'piece_identite' => 'doc_piece_identite',
+            'doc_piece_identite' => 'doc_piece_identite',
+            'piece_verso' => 'doc_piece_verso',
+            'doc_piece_verso' => 'doc_piece_verso',
+            'selfie_live' => 'doc_photo',
+            'photo' => 'doc_photo',
+            'doc_photo' => 'doc_photo',
+            'justificatif_domicile' => 'doc_justificatif_domicile',
+            'doc_justificatif_domicile' => 'doc_justificatif_domicile',
+            'origine_fonds' => 'doc_origine_fonds',
+            'doc_origine_fonds' => 'doc_origine_fonds',
+            'signature' => 'signature_path',
+            'signature_path' => 'signature_path',
+        ];
+
+        $column = $typeMap[$type] ?? null;
+        if (! $column) {
+            abort(404, 'Type de document non reconnu.');
+        }
+
+        $disk = Storage::disk('kyc_private');
+        $storagePath = null;
+
+        if ($column === 'signature_path') {
+            $storagePath = $session->signature_path;
+        } elseif ($column === 'doc_piece_verso') {
+            $storagePath = (\Illuminate\Support\Facades\Schema::hasColumn('onboarding_sessions', 'doc_piece_verso') ? $session->doc_piece_verso : null)
+                ?? ($session->payload['doc_piece_verso'] ?? ($session->payload['piece_verso'] ?? ($user->doc_piece_verso ?? null)));
+        } else {
+            $storagePath = $session->{$column}
+                ?? ($session->payload[$column] ?? null);
+
+            if (! $storagePath) {
+                if ($column === 'doc_piece_identite') {
+                    $storagePath = $session->payload['piece_recto'] ?? ($user->doc_piece_identite ?? null);
+                } elseif ($column === 'doc_photo') {
+                    $storagePath = $session->payload['selfie_live'] ?? ($user->doc_photo ?? null);
+                } elseif (\Illuminate\Support\Facades\Schema::hasColumn('users', $column)) {
+                    $storagePath = $user->{$column} ?? null;
+                }
+            }
+        }
+
+        if ($storagePath && is_string($storagePath)) {
+            // 1. Si fichier stocke sur le disque kyc_private
+            if ($disk->exists($storagePath)) {
+                $fullPath = $disk->path($storagePath);
+                $mime = @mime_content_type($fullPath) ?: 'image/jpeg';
+                $filename = basename($storagePath);
+
+                return response()->file($fullPath, [
+                    'Content-Type' => $mime,
+                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                    'Cache-Control' => 'no-store, private',
+                    'Pragma' => 'no-cache',
+                    'X-Content-Type-Options' => 'nosniff',
+                ]);
+            }
+
+            // 2. Si encode en Data URL Base64
+            if (str_starts_with($storagePath, 'data:')) {
+                if (preg_match('/^data:([a-zA-Z0-9\/\+\-\.]+);base64,(.+)$/', $storagePath, $matches)) {
+                    $mime = $matches[1];
+                    $bytes = base64_decode($matches[2], true);
+                    if ($bytes !== false) {
+                        return response($bytes, 200, [
+                            'Content-Type' => $mime,
+                            'Cache-Control' => 'no-store, private',
+                            'Pragma' => 'no-cache',
+                            'X-Content-Type-Options' => 'nosniff',
+                        ]);
+                    }
+                }
+            }
+        }
+
+        abort(404, 'Document introuvable.');
+    }
+
     private function privateResponse(array $data, int $status = 200): JsonResponse
     {
         return response()->json($data, $status)->withHeaders([

@@ -35,8 +35,8 @@ $defineApiRoutes = function () {
     Route::get('/bank-details', function () {
         return response()->json(BankDetail::where('is_active', true)->get());
     });
-
-    // Provider callbacks are public by necessity, but each handler verifies a cryptographic signature.
+    Route::get('/app-contents', [\App\Http\Controllers\Api\AppContentController::class, 'index']);
+        // Provider callbacks are public by necessity, but each handler verifies a cryptographic signature.
     Route::post('/stripe/webhook', [WebhookController::class, 'handleStripe'])->middleware('throttle:provider-webhooks');
     Route::post('/s3p/webhook', S3pWebhookController::class)->middleware('throttle:provider-webhooks');
     Route::get('/payment-options', function (S3pGateway $gateway) {
@@ -152,6 +152,7 @@ $defineApiRoutes = function () {
         Route::post('/onboarding/update-category', [OnboardingController::class, 'updateMissingInfo']);
         Route::post('/user/renew-identity-document', [OnboardingController::class, 'renewIdentityDocument']);
         Route::post('/onboarding/renew-identity', [OnboardingController::class, 'renewIdentityDocument']);
+        Route::get('/onboarding/document/{type}', [OnboardingController::class, 'getDocument']);
 
         // Demandes de modification Nature/Categorie & Coordonnees Bancaires
         Route::get('/user/profile-regulatory', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'getProfileStatus']);
@@ -169,8 +170,6 @@ Route::prefix('v1')->name('api.v1.')->group($defineApiRoutes);
 
 // Fallback pour la compatibilite legacy (/api/...)
 $defineApiRoutes();
-
-Route::get('/app-contents', [\App\Http\Controllers\Api\AppContentController::class, 'index']);
 
 // Routes de geolocalisation pour les pays et villes
 Route::get('/geo/countries', [\App\Http\Controllers\GeoController::class, 'countries']);
