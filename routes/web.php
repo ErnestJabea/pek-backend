@@ -97,3 +97,12 @@ Route::middleware(['web', 'auth'])
         Route::get('/onboarding/{session}', [PdfDownloadController::class, 'downloadZip'])
             ->name('download');
     });
+
+// Point d'entrée de repli pour la route nommée 'login' requise par le middleware Authenticate de Laravel
+Route::get('/login', function (\Illuminate\Http\Request $request) {
+    if ($request->expectsJson() || $request->is('api/*') || $request->is('v1/*')) {
+        return response()->json(['message' => 'Unauthenticated.'], 401);
+    }
+    return redirect('/admin/login');
+})->name('login');
+

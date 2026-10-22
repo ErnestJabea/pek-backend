@@ -26,7 +26,7 @@ $defineApiRoutes = function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth-register');
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:auth-otp');
     Route::post('/resend-otp', [AuthController::class, 'resendOtp'])->middleware('throttle:auth-otp');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-login')->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/{product}/download/{type}', [ProductController::class, 'downloadDocument'])
         ->where('type', 'depliant|document_information|dici|document-info');
