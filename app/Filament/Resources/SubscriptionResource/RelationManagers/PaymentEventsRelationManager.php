@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\SubscriptionResource\RelationManagers;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -21,10 +23,14 @@ class PaymentEventsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table->defaultSort('created_at', 'desc')->columns([
-            Tables\Columns\TextColumn::make('created_at')->label('Date')->dateTime(),
+            Tables\Columns\TextColumn::make('created_at')->label('Date')->dateTime('d/m/Y H:i')->sortable(),
             Tables\Columns\TextColumn::make('type')->label('Événement'),
             Tables\Columns\TextColumn::make('actor_id')->label('ID de l’auteur')->placeholder('Système'),
             Tables\Columns\TextColumn::make('details')->label('Détails')->getStateUsing(fn ($record) => json_encode($record->details, JSON_UNESCAPED_UNICODE))->wrap(),
-        ]);
+        ])->filters([
+            DateRangeFilter::make('created_at', 'Période de l\'événement'),
+        ])
+        ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+        ->filtersFormColumns(2);
     }
 }

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -41,19 +42,100 @@ class User extends Authenticatable implements FilamentUser, HasName
         return $this->belongsTo(AdminDepartment::class, 'admin_department_id');
     }
 
+    public static function isRubriquePermission(string $name): bool
+    {
+        return str_starts_with($name, 'view_any_')
+            || str_starts_with($name, 'view_')
+            || str_starts_with($name, 'page_')
+            || str_starts_with($name, 'widget_')
+            || in_array($name, ['access_admin_panel', 'view_payment_proof'], true);
+    }
+
+    public static function resolveParentRubrique(string $name): ?string
+    {
+        $customMap = [
+            'confirm_bank_payment' => 'view_any_subscription',
+            'review_subscription_compliance' => 'view_any_subscription',
+            'review_payment_proof' => 'view_any_subscription',
+            'wish_client_birthday' => 'view_any_client',
+            'remind_client_id' => 'view_any_client',
+            'create_product_vl' => 'view_any_product',
+            'update_product_vl' => 'view_any_product',
+            'delete_product_vl' => 'view_any_product',
+        ];
+
+        if (isset($customMap[$name])) {
+            return $customMap[$name];
+        }
+
+        $prefixes = [
+            'create_', 'update_', 'delete_', 'delete_any_',
+            'restore_', 'restore_any_', 'force_delete_', 'force_delete_any_',
+            'replicate_', 'reorder_',
+        ];
+
+        foreach ($prefixes as $prefix) {
+            if (str_starts_with($name, $prefix)) {
+                $resource = substr($name, strlen($prefix));
+                return 'view_any_' . $resource;
+            }
+        }
+
+        return null;
+    }
+
+    public static function isHighImpactAction(string $name): bool
+    {
+        return in_array($name, [
+            'confirm_bank_payment',
+            'review_subscription_compliance',
+            'force_delete_client',
+            'force_delete_subscription',
+            'force_delete_user',
+            'delete_role',
+        ], true);
+    }
+
+    public function hasRubriqueAccess(string $rubrique, $guardName = null): bool
+    {
+        $candidates = [
+            $rubrique,
+            str_replace('::', '_', $rubrique),
+            str_replace('_', '::', $rubrique),
+        ];
+
+        foreach ($candidates as $cand) {
+            try {
+                if ($this->hasPermissionWithoutDepartment($cand, $guardName)) {
+                    return true;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                continue;
+            }
+        }
+
+        return false;
+    }
+
     public function hasPermissionTo($permission, $guardName = null): bool
     {
+        // 1. Le Super Administrateur dispose d'un accès sans restriction
+        if ($this->hasRole('super_admin')) {
+            return true;
+        }
+
         try {
-            $granted = $this->hasPermissionWithoutDepartment($permission, $guardName);
+            $roleGranted = $this->hasPermissionWithoutDepartment($permission, $guardName);
         } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
             return false;
         }
 
-        if (! $granted || ! $this->admin_department_id || $this->hasRole('super_admin')) {
-            return $granted;
+        // Si l'utilisateur est un compte client ou externe sans département assigné
+        if (! $this->admin_department_id) {
+            return $roleGranted;
         }
 
-        // Read current department configuration: cached role permissions cannot bypass a revocation.
+        // 2. Le département assigné doit être actif
         $department = $this->adminDepartment()->first();
         if (! $department || ! $department->is_active) {
             return false;
@@ -61,11 +143,36 @@ class User extends Authenticatable implements FilamentUser, HasName
 
         $resolved = $this->filterPermission($permission, $guardName);
         $name = $resolved->name;
-        $deptPerms = (array) ($department->permissions ?? []);
 
-        return in_array($name, $deptPerms, true)
+        // 3. Périmètre de Visibilité (Rubrique / Page / Widget) -> Défini par le Rôle
+        if (static::isRubriquePermission($name)) {
+            return $roleGranted;
+        }
+
+        // 4. Pouvoir d'Action Métier (CRUD / Visas / Opérations) -> Défini par le Département
+        $deptPerms = (array) ($department->permissions ?? []);
+        $actionInDepartment = in_array($name, $deptPerms, true)
             || in_array(str_replace('::', '_', $name), $deptPerms, true)
             || in_array(str_replace('_', '::', $name), $deptPerms, true);
+
+        if (! $actionInDepartment) {
+            return false;
+        }
+
+        // 5. Règle d'or : L'action n'est exécutable que si la rubrique parente est accessible via le Rôle
+        $parentRubrique = static::resolveParentRubrique($name);
+        if ($parentRubrique && ! $this->hasRubriqueAccess($parentRubrique, $guardName) && ! $roleGranted) {
+            return false;
+        }
+
+        // 6. Actions sensibles à fort impact : le rôle peut restreindre (ex: Agent vs Responsable)
+        if (static::isHighImpactAction($name)) {
+            if (! $roleGranted && ! $this->hasRole(['admin', 'super_admin', 'responsable', 'chef_departement'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function isBackofficeAccount(): bool
@@ -223,6 +330,7 @@ class User extends Authenticatable implements FilamentUser, HasName
     protected $appends = [
         'onboarding_completed',
         'onboarding_status',
+        'has_signature',
         'needs_category',
         'effective_expiration_piece',
         'is_id_expired',
@@ -259,6 +367,23 @@ class User extends Authenticatable implements FilamentUser, HasName
     public function getOnboardingStatusAttribute(): ?string
     {
         return $this->onboardingSession ? $this->onboardingSession->status : null;
+    }
+
+    public function getHasSignatureAttribute(): bool
+    {
+        $session = $this->relationLoaded('onboardingSession')
+            ? $this->onboardingSession
+            : $this->onboardingSession()->first();
+
+        if ($session && ! empty($session->signature_path)) {
+            try {
+                return Storage::disk('kyc_private')->exists($session->signature_path);
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+
+        return false;
     }
     public function getResidenceCity(): string
     {

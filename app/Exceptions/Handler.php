@@ -2,9 +2,11 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Psr\Log\LogLevel;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Throwable;
 
@@ -46,6 +48,38 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             //
+        });
+
+        // Intercepter toutes les exceptions d'accès refusé (AuthorizationException)
+        $this->renderable(function (AuthorizationException $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'ACCESS_RESTRICTED',
+                    'message' => 'Cette opération ou rubrique n\'est pas autorisée pour votre profil ou votre département.',
+                ], 403);
+            }
+
+            return response()->view('errors.403', [
+                'exception' => $e,
+            ], 403);
+        });
+
+        // Intercepter les exceptions HTTP 403
+        $this->renderable(function (HttpException $e, $request) {
+            if ($e->getStatusCode() === 403) {
+                if ($request->expectsJson() || $request->is('api/*')) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'ACCESS_RESTRICTED',
+                        'message' => 'Cette opération ou rubrique n\'est pas autorisée pour votre profil ou votre département.',
+                    ], 403);
+                }
+
+                return response()->view('errors.403', [
+                    'exception' => $e,
+                ], 403);
+            }
         });
 
         // Intercepter toutes les exceptions de limitation de requêtes (Rate Limiting / Throttle)

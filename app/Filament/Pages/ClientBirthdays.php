@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Mail\ClientBirthdayMail;
 use App\Models\Notification as InAppNotification;
 use App\Models\User;
@@ -117,6 +119,7 @@ class ClientBirthdays extends Page implements HasTable
                     ->sortable(),
             ])
             ->filters([
+                DateRangeFilter::make('dob', 'Date de naissance (période)'),
                 SelectFilter::make('periode')
                     ->label('Période d\'anniversaire')
                     ->options([

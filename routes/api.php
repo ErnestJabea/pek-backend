@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClientStatementController;
 use App\Http\Controllers\IdentityVerificationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PaymentProofController;
@@ -158,6 +159,13 @@ $defineApiRoutes = function () {
         Route::get('/user/profile-regulatory', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'getProfileStatus']);
         Route::post('/user/request-category-update', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'requestCategoryUpdate']);
         Route::post('/user/request-bank-update', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'requestBankAccountUpdate']);
+        Route::post('/user/signature', [\App\Http\Controllers\ClientBankingAndProfileController::class, 'updateSignature']);
+
+        // Relevés de compte mensuels FCP
+        Route::get('/user/monthly-statements', [ClientStatementController::class, 'userMonthlyStatements']);
+        Route::get('/user/monthly-statements/{year}/{month}/download', [ClientStatementController::class, 'downloadUserMonthlyStatement'])
+            ->where('year', '[0-9]{4}')
+            ->where('month', '[0-9]{1,2}');
 
         Route::get('/identity-verification/status', [IdentityVerificationController::class, 'status']);
         Route::post('/identity-verification/session', [IdentityVerificationController::class, 'start'])

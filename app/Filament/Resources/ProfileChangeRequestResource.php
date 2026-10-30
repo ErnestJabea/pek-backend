@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\ProfileChangeRequestResource\Pages;
 use App\Models\ProfileChangeRequest;
 use App\Services\ProfileChangeRequestService;
@@ -143,6 +145,7 @@ class ProfileChangeRequestResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de la demande'),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Statut')
                     ->options([
@@ -159,6 +162,8 @@ class ProfileChangeRequestResource extends Resource
                         'bank_account' => 'Coordonnées Bancaires',
                     ]),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(3)
             ->actions([
                 // Action pour voir les détails et justificatifs
                 Tables\Actions\Action::make('view_details')

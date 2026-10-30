@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\PaymentMethodResource\Pages;
 use App\Models\PaymentMethod;
 use Filament\Forms;
@@ -155,8 +157,18 @@ class PaymentMethodResource extends Resource
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Date création')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('sort_order')
+            ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
+            ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(2)
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])

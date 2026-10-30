@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\CountryResource\Pages;
 use App\Models\Country;
 use Filament\Forms;
@@ -130,9 +132,12 @@ class CountryResource extends Resource
             ])
             ->defaultSort('sort_order')
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Statut actif'),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(3)
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
 use Filament\Forms;
@@ -132,7 +134,9 @@ class UserResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
                 \App\Filament\Filters\DashboardFilter::make(static::class),
                 Tables\Filters\SelectFilter::make('admin_department_id')->label('Département')->relationship('adminDepartment', 'name'),
                 Tables\Filters\SelectFilter::make('role')
@@ -143,6 +147,8 @@ class UserResource extends Resource
                     ]),
                 Tables\Filters\TrashedFilter::make(),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(4)
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

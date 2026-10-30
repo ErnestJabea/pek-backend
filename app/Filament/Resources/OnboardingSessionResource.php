@@ -4,7 +4,10 @@ namespace App\Filament\Resources;
 
 use App\Filament\Actions\TableExcelExportAction;
 use App\Filament\Filters\DashboardFilter;
+use App\Filament\Filters\DateRangeFilter;
 use App\Filament\Resources\OnboardingSessionResource\Pages;
+use App\Models\City;
+use App\Models\Country;
 use App\Models\OnboardingSession;
 use App\Models\User;
 use App\Services\ClientCategoryService;
@@ -124,8 +127,8 @@ class OnboardingSessionResource extends Resource
                                 $set('payload.prenom', $user->first_name);
                                 $set('payload.email', $user->email);
                                 $set('payload.tel', $user->phone);
-                                $set('payload.adresse', $user->city);
                                 $set('payload.pays_residence', $user->country ?: 'Cameroun');
+                                $set('payload.adresse', $user->city);
                                 $set('payload.categorie_client', $user->categorie_client ?: 'Salarié secteur privé');
                                 $set('payload.nature_client', $user->nature_client ?: 'personne_physique');
                                 $set('payload.piece', $user->type_piece ?: 'CNI');
@@ -259,6 +262,45 @@ class OnboardingSessionResource extends Resource
                                                 ->searchable()
                                                 ->default('Salarié secteur privé')
                                                 ->required(),
+
+                                            Forms\Components\Toggle::make('payload.is_dossier_physique')
+                                                ->label('Dossier Physique Ancien Client (Régularisation papier)')
+                                                ->helperText('Client disposant déjà d\'un dossier physique signé.')
+                                                ->default(true)
+                                                ->live(),
+
+                                            Forms\Components\DatePicker::make('payload.date_souscription_physique')
+                                                ->label('Date historique de souscription papier')
+                                                ->native(false)
+                                                ->displayFormat('d/m/Y')
+                                                ->helperText('Date de signature du contrat d\'origine.')
+                                                ->visible(fn (Forms\Get $get) => (bool) ($get('payload.is_dossier_physique') ?? true)),
+
+                                            Forms\Components\FileUpload::make('payload.doc_kyc_physique')
+                                                ->label('Fiche KYC signée / Formulaire d\'ouverture papier (PDF ou Image)')
+                                                ->disk('kyc_private')
+                                                ->visibility('private')
+                                                ->directory('secure_onboardings/documents')
+                                                ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                                                ->maxSize(15360)
+                                                ->columnSpan(2)
+                                                ->visible(fn (Forms\Get $get) => (bool) ($get('payload.is_dossier_physique') ?? true))
+                                                ->helperText(fn ($record) => $record && ! empty($record->payload['doc_kyc_physique'])
+                                                    ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'kyc_physique']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger la fiche KYC physique actuelle</a>')
+                                                    : 'Formulaire d\'ouverture de compte / fiche d\'identification KYC renseignée et signée manuellement par le client.'),
+
+                                            Forms\Components\FileUpload::make('payload.doc_rccm')
+                                                ->label('Extrait RCCM / Statuts / Documents Entreprise (PDF ou Image)')
+                                                ->disk('kyc_private')
+                                                ->visibility('private')
+                                                ->directory('secure_onboardings/documents')
+                                                ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                                                ->maxSize(20480)
+                                                ->columnSpan(2)
+                                                ->visible(fn (Forms\Get $get) => ($get('payload.nature_client') ?? '') === 'personne_morale')
+                                                ->helperText(fn ($record) => $record && ! empty($record->payload['doc_rccm'])
+                                                    ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'rccm']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le document RCCM / Statuts actuel</a>')
+                                                    : 'Registre du Commerce et du Crédit Mobilier (RCCM) ou statuts légaux de l\'entreprise.'),
                                         ]),
                                     ]),
 
@@ -331,12 +373,92 @@ class OnboardingSessionResource extends Resource
                                                 ->label('E-mail déclaré')
                                                 ->email(),
 
-                                            Forms\Components\TextInput::make('payload.adresse')
-                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Adresse du siège social / Ville' : 'Adresse de résidence / Ville'),
-
-                                            Forms\Components\TextInput::make('payload.pays_residence')
+                                            Forms\Components\Select::make('payload.pays_residence')
                                                 ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Pays du siège social' : 'Pays de résidence')
-                                                ->default('Cameroun'),
+                                                ->options(function (Forms\Get $get, $record) {
+                                                    $countries = Country::query()
+                                                        ->where('is_active', true)
+                                                        ->orderBy('sort_order')
+                                                        ->orderBy('name')
+                                                        ->pluck('name', 'name')
+                                                        ->toArray();
+
+                                                    $current = $get('payload.pays_residence') ?? ($record?->payload['pays_residence'] ?? null);
+                                                    if ($current && ! isset($countries[$current])) {
+                                                        $countries[$current] = $current;
+                                                    }
+
+                                                    if (empty($countries)) {
+                                                        $countries = [
+                                                            'Cameroun' => 'Cameroun',
+                                                            'Gabon' => 'Gabon',
+                                                            'Congo' => 'Congo',
+                                                            'Tchad' => 'Tchad',
+                                                            'Centrafrique' => 'Centrafrique',
+                                                            'Guinée Équatoriale' => 'Guinée Équatoriale',
+                                                            "Côte d'Ivoire" => "Côte d'Ivoire",
+                                                            'Sénégal' => 'Sénégal',
+                                                            'France' => 'France',
+                                                            'Belgique' => 'Belgique',
+                                                            'Canada' => 'Canada',
+                                                            'États-Unis' => 'États-Unis',
+                                                        ];
+                                                    }
+
+                                                    return $countries;
+                                                })
+                                                ->default('Cameroun')
+                                                ->searchable()
+                                                ->preload()
+                                                ->live()
+                                                ->afterStateUpdated(fn (Forms\Set $set) => $set('payload.adresse', null)),
+
+                                            Forms\Components\Select::make('payload.adresse')
+                                                ->label(fn (Forms\Get $get) => ($get('payload.nature_client') ?? 'personne_physique') === 'personne_morale' ? 'Ville du siège social' : 'Ville de résidence')
+                                                ->options(function (Forms\Get $get, $record) {
+                                                    $countryName = $get('payload.pays_residence') ?? ($record?->payload['pays_residence'] ?? 'Cameroun');
+                                                    if (! $countryName) {
+                                                        return [];
+                                                    }
+
+                                                    $country = Country::query()
+                                                        ->where('name', $countryName)
+                                                        ->orWhere('code', $countryName)
+                                                        ->first();
+
+                                                    $cities = [];
+                                                    if ($country) {
+                                                        $cities = City::query()
+                                                            ->where('country_id', $country->id)
+                                                            ->where('is_active', true)
+                                                            ->orderBy('sort_order')
+                                                            ->orderBy('name')
+                                                            ->pluck('name', 'name')
+                                                            ->toArray();
+                                                    }
+
+                                                    $current = $get('payload.adresse') ?? ($record?->payload['adresse'] ?? ($record?->payload['ville'] ?? null));
+                                                    if ($current && ! isset($cities[$current])) {
+                                                        $cities[$current] = $current;
+                                                    }
+
+                                                    return $cities;
+                                                })
+                                                ->searchable()
+                                                ->preload()
+                                                ->createOptionUsing(function (string $value, Forms\Get $get) {
+                                                    $cleanVal = trim($value);
+                                                    $countryName = $get('payload.pays_residence') ?? 'Cameroun';
+                                                    $country = Country::query()->where('name', $countryName)->orWhere('code', $countryName)->first();
+                                                    if ($country && $cleanVal !== '') {
+                                                        City::firstOrCreate([
+                                                            'country_id' => $country->id,
+                                                            'name' => $cleanVal,
+                                                        ]);
+                                                    }
+
+                                                    return $cleanVal;
+                                                }),
 
                                             Forms\Components\Hidden::make('payload.agent_kam')
                                                 ->default(fn () => auth()->user()?->name ?: (trim((auth()->user()?->first_name ?? '').' '.(auth()->user()?->last_name ?? '')) ?: (auth()->user()?->email ?: 'Administrateur Backoffice'))),
@@ -604,6 +726,22 @@ class OnboardingSessionResource extends Resource
                         Tab::make('Profil Investisseur')
                             ->icon('heroicon-o-chart-bar')
                             ->schema([
+                                Section::make('Fiche Profil Investisseur Physique (Dossier Ancien Client)')
+                                    ->description('Téléversez le scan PDF signé de la fiche de profil d\'investisseur issue du dossier papier.')
+                                    ->schema([
+                                        Forms\Components\FileUpload::make('payload.doc_profil_investisseur')
+                                            ->label('Fiche Profil Investisseur signée (PDF scanné)')
+                                            ->disk('kyc_private')
+                                            ->visibility('private')
+                                            ->directory('secure_onboardings/documents')
+                                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                                            ->maxSize(20480)
+                                            ->helperText(fn ($record) => $record && ! empty($record->payload['doc_profil_investisseur'])
+                                                ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'profil_investisseur']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le PDF Profil Investisseur signé</a>')
+                                                : 'Fichier PDF numérisé de la fiche signée.')
+                                            ->columnSpanFull(),
+                                    ]),
+
                                 Section::make('Synthèse du profil de risque')
                                     ->columns(2)
                                     ->schema([
@@ -623,6 +761,9 @@ class OnboardingSessionResource extends Resource
                                     ]),
 
                                 Section::make('Questionnaire réglementaire COSUMAF (9 Questions)')
+                                    ->description('Détail des réponses (optionnel si la fiche physique signée ci-dessus est fournie).')
+                                    ->collapsible()
+                                    ->collapsed(fn ($record) => $record && ! empty($record->payload['doc_profil_investisseur']))
                                     ->columns(2)
                                     ->schema([
                                         Forms\Components\Select::make('payload.tranche_revenus')
@@ -708,7 +849,25 @@ class OnboardingSessionResource extends Resource
                         Tab::make('Questionnaire LAB-FT & Conformité')
                             ->icon('heroicon-o-shield-check')
                             ->schema([
+                                Section::make('Questionnaire LAB-FT / LCB-FT Physique (Dossier Ancien Client)')
+                                    ->description('Téléversez le scan PDF signé du questionnaire de lutte contre le blanchiment issu du dossier papier.')
+                                    ->schema([
+                                        Forms\Components\FileUpload::make('payload.doc_labft')
+                                            ->label('Questionnaire LAB-FT signé (PDF scanné)')
+                                            ->disk('kyc_private')
+                                            ->visibility('private')
+                                            ->directory('secure_onboardings/documents')
+                                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                                            ->maxSize(20480)
+                                            ->helperText(fn ($record) => $record && ! empty($record->payload['doc_labft'])
+                                                ? new HtmlString('<a href="'.route('admin.document.download', ['session' => $record->id, 'type' => 'labft']).'" target="_blank" style="color: #009a4d; font-weight: bold; text-decoration: underline;">⬇️ Télécharger le PDF LAB-FT signé</a>')
+                                                : 'Fichier PDF numérisé du questionnaire anti-blanchiment signé par le client.')
+                                            ->columnSpanFull(),
+                                    ]),
+
                                 Section::make('Activité professionnelle et origine des fonds')
+                                    ->collapsible()
+                                    ->collapsed(fn ($record) => $record && ! empty($record->payload['doc_labft']))
                                     ->columns(3)
                                     ->schema([
                                         Forms\Components\TextInput::make('payload.secteur')
@@ -837,8 +996,26 @@ class OnboardingSessionResource extends Resource
                         Tab::make('Signatures & Validation')
                             ->icon('heroicon-o-pencil-square')
                             ->schema([
+                                Section::make('Dossier Physique & Conformité')
+                                    ->schema([
+                                        Placeholder::make('notice_dossier_physique')
+                                            ->label('Attestation des signatures physiques')
+                                            ->content(new HtmlString(
+                                                '<div style="padding: 14px 18px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; color: #1e293b; font-size: 13px; line-height: 1.6;">' .
+                                                '<strong style="color: #0f172a;">📄 Signature & Validation sur Support Papier :</strong><br>' .
+                                                'Pour les anciens clients, les signatures manuscrites font foi directement sur les documents physiques scannés (Fiche KYC, Profil Investisseur, Questionnaire LAB-FT).<br>' .
+                                                '<strong>La signature numérique n\'est pas gérée dans le Backoffice.</strong><br>' .
+                                                '<span style="color: #64748b; font-style: italic;">La validation définitive du dossier est exclusivement effectuée par le département Conformité / KYC selon le protocole Maker-Checker.</span>' .
+                                                '</div>'
+                                            )),
+                                    ])
+                                    ->columnSpanFull(),
+
                                 Grid::make(2)->schema([
-                                    Section::make('Signature manuscrite / électronique du client')
+                                    Section::make('Signature manuscrite / électronique du client (Optionnel)')
+                                        ->description('Facultatif pour les dossiers physiques existants.')
+                                        ->collapsible()
+                                        ->collapsed()
                                         ->schema([
                                             Forms\Components\FileUpload::make('signature_path')
                                                 ->label('Image de la signature')
@@ -925,6 +1102,13 @@ class OnboardingSessionResource extends Resource
                                                 ->color('warning')
                                                 ->url(fn (OnboardingSession $record) => route('admin.pdf.download', ['session' => $record->id, 'type' => 'labft']))
                                                 ->openUrlInNewTab(),
+                                             FormAction::make('download_kyc_physique')
+                                                 ->label('Fiche KYC Physique (PDF)')
+                                                 ->icon('heroicon-o-document-text')
+                                                 ->color('success')
+                                                 ->visible(fn (OnboardingSession $record) => ! empty($record->payload['doc_kyc_physique']))
+                                                 ->url(fn (OnboardingSession $record) => route('admin.document.download', ['session' => $record->id, 'type' => 'kyc_physique']))
+                                                 ->openUrlInNewTab(),
                                         ]),
                                     ]),
                             ]),
@@ -1016,6 +1200,10 @@ class OnboardingSessionResource extends Resource
                         default => $state,
                     })
                     ->sortable(),
+                TextColumn::make('created_at')
+                    ->label('Date création')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable(),
                 TextColumn::make('updated_at')
                     ->label('Dernière activité')
                     ->dateTime('d/m/Y H:i')
@@ -1023,6 +1211,7 @@ class OnboardingSessionResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
                 DashboardFilter::make(static::class),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Statut')
@@ -1039,6 +1228,8 @@ class OnboardingSessionResource extends Resource
                         'HIGH' => 'HIGH (Élevé)',
                     ]),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(4)
             ->actions([
                 ActionGroup::make([
                     Tables\Actions\ViewAction::make()->label('Voir les détails'),
@@ -1133,6 +1324,16 @@ class OnboardingSessionResource extends Resource
                         ->url(fn (OnboardingSession $record) => route('admin.pdf.download', [
                             'session' => $record->id,
                             'type' => 'labft',
+                        ]))
+                        ->openUrlInNewTab(),
+                    TableAction::make('download_kyc_physique')
+                        ->label('Fiche KYC Physique')
+                        ->icon('heroicon-o-document-text')
+                        ->color('success')
+                        ->visible(fn (OnboardingSession $record) => ! empty($record->payload['doc_kyc_physique']))
+                        ->url(fn (OnboardingSession $record) => route('admin.document.download', [
+                            'session' => $record->id,
+                            'type' => 'kyc_physique',
                         ]))
                         ->openUrlInNewTab(),
                     Tables\Actions\DeleteAction::make(),

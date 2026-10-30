@@ -118,6 +118,7 @@ class Subscription extends Model
         'nav_date',
         'bank_reference',
         'last_proof_reminder_at',
+        'signature_path',
     ];
 
     protected $hidden = [

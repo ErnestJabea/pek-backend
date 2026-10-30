@@ -369,4 +369,37 @@ class BackofficeManualOnboardingTest extends TestCase
         ]));
         $versoResponse->assertStatus(200);
     }
+
+    public function test_onboarding_form_has_dynamic_country_and_city_dropdowns(): void
+    {
+        $admin = User::factory()->create([
+            'email' => 'admin.dropdown@koriassetmanagement.com',
+            'role' => 'super_admin',
+        ]);
+        $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+
+        $client = User::factory()->create([
+            'first_name' => 'Jean',
+            'last_name' => 'Paul',
+            'country' => 'Cameroun',
+            'city' => 'Douala',
+        ]);
+
+        $cam = \App\Models\Country::firstOrCreate(['name' => 'Cameroun'], ['code' => 'CM', 'is_active' => true]);
+        \App\Models\City::firstOrCreate(['country_id' => $cam->id, 'name' => 'Douala'], ['is_active' => true]);
+        \App\Models\City::firstOrCreate(['country_id' => $cam->id, 'name' => 'Yaoundé'], ['is_active' => true]);
+
+        $gabon = \App\Models\Country::firstOrCreate(['name' => 'Gabon'], ['code' => 'GA', 'is_active' => true]);
+        \App\Models\City::firstOrCreate(['country_id' => $gabon->id, 'name' => 'Libreville'], ['is_active' => true]);
+
+        Livewire::actingAs($admin)
+            ->test(CreateOnboardingSession::class)
+            ->set('data.user_id', $client->id)
+            ->assertSet('data.payload.pays_residence', 'Cameroun')
+            ->assertSet('data.payload.adresse', 'Douala')
+            ->set('data.payload.pays_residence', 'Gabon')
+            ->assertSet('data.payload.adresse', null)
+            ->set('data.payload.adresse', 'Libreville')
+            ->assertHasNoFormErrors();
+    }
 }

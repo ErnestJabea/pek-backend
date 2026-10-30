@@ -32,6 +32,7 @@ class EditOnboardingSession extends EditRecord
             $payload['email'] = $payload['email'] ?? $user->email;
             $payload['tel'] = $payload['tel'] ?? $user->phone;
             $payload['adresse'] = $payload['adresse'] ?? $user->city;
+            $payload['ville'] = $payload['ville'] ?? ($payload['adresse'] ?? $user->city);
             $payload['pays_residence'] = $payload['pays_residence'] ?? ($user->country ?: 'Cameroun');
             $payload['categorie_client'] = $payload['categorie_client'] ?? ($user->categorie_client ?: 'Salarié secteur privé');
             $payload['nature_client'] = $payload['nature_client'] ?? ($user->nature_client ?: 'personne_physique');
@@ -81,6 +82,9 @@ class EditOnboardingSession extends EditRecord
             ->contains(fn ($field) => ($mergedPayload[$field] ?? 'Non') === 'Oui');
 
         $data['risk_level'] = $hasAlert ? 'HIGH' : ($data['risk_level'] ?? 'LOW');
+        if (! empty($mergedPayload['adresse']) && empty($mergedPayload['ville'])) {
+            $mergedPayload['ville'] = $mergedPayload['adresse'];
+        }
         $data['payload'] = $mergedPayload;
         $data['submitted_payload'] = $mergedPayload;
 

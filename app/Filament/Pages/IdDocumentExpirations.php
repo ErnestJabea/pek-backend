@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Mail\IdDocumentExpiryReminderMail;
 use App\Models\Notification as InAppNotification;
 use App\Models\User;
@@ -118,6 +120,7 @@ class IdDocumentExpirations extends Page implements HasTable
                     ->sortable(),
             ])
             ->filters([
+                DateRangeFilter::make('expiration_piece', 'Période d\'expiration'),
                 SelectFilter::make('statut_piece')
                     ->label('Statut d\'échéance')
                     ->options([

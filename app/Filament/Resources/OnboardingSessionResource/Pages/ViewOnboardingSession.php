@@ -66,12 +66,13 @@ class ViewOnboardingSession extends ViewRecord
                 ->form([
                     \Filament\Forms\Components\Toggle::make('send_notification_email')
                         ->label('Notifier le client par e-mail (Activation de compte)')
-                        ->helperText('Laissez désactivé pour les clients existants ou régularisés en agence afin de ne pas leur envoyer d\'e-mail.')
-                        ->default(fn ($record) => $record?->status === 'completed'),
+                        ->helperText('Désactivé par défaut pour les anciens clients régularisés afin de ne pas leur envoyer d\'e-mail intempestif.')
+                        ->default(false),
 
                     \Filament\Forms\Components\Toggle::make('create_in_app_notification')
                         ->label('Créer une notification in-app dans l\'application client')
-                        ->default(fn ($record) => $record->status === 'completed'),
+                        ->helperText('Désactivé par défaut afin d\'éviter toute notification mobile inutile.')
+                        ->default(false),
                 ])
                 ->action(function ($record, array $data) {
                     Gate::authorize('update', $record);
@@ -92,7 +93,13 @@ class ViewOnboardingSession extends ViewRecord
                         $locked = $record->newQuery()->lockForUpdate()->findOrFail($record->id);
                         abort_unless(in_array($locked->status, ['completed', 'in_progress']), 409, 'Le statut du dossier a changé.');
 
-                        if (config('identity_verification.required') && $locked->status === 'completed') {
+                        $isPhysicalDossier = ! empty($locked->payload['regularisation_backoffice'])
+                            || ! empty($locked->payload['is_dossier_physique'])
+                            || ! empty($locked->payload['doc_profil_investisseur'])
+                            || ! empty($locked->payload['doc_labft'])
+                            || ! empty($locked->payload['doc_kyc_physique']);
+
+                        if (! $isPhysicalDossier && config('identity_verification.required') && $locked->status === 'completed') {
                             $verification = $locked->latestIdentityVerification()->first();
                             abort_unless(
                                 $verification?->isApprovedFor($locked->getSubmittedPayload()),

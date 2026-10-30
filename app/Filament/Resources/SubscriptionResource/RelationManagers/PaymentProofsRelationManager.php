@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\SubscriptionResource\RelationManagers;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Models\PaymentProof;
 use App\Services\Payments\PaymentProofReviewService;
 use Filament\Forms;
@@ -28,15 +30,21 @@ class PaymentProofsRelationManager extends RelationManager
     {
         return $table->defaultSort('created_at', 'desc')->columns([
             Tables\Columns\TextColumn::make('original_name')->label('Document'),
-            Tables\Columns\TextColumn::make('created_at')->label('Déposé le')->dateTime(),
-            Tables\Columns\TextColumn::make('declared_date')->label('Date déclarée')->date(),
+            Tables\Columns\TextColumn::make('created_at')->label('Déposé le')->dateTime('d/m/Y H:i')->sortable(),
+            Tables\Columns\TextColumn::make('declared_date')->label('Date déclarée')->date('d/m/Y')->sortable(),
             Tables\Columns\TextColumn::make('declared_amount')->label('Montant déclaré')->numeric(),
             Tables\Columns\TextColumn::make('scan_status')->label('Antivirus')->badge()->formatStateUsing(fn (string $state) => match ($state) {
                 'clean' => 'Analyse réussie', 'infected' => 'Document bloqué', default => 'En quarantaine - analyse requise'
             }),
             Tables\Columns\TextColumn::make('review_status')->label('Revue')->badge(),
             Tables\Columns\TextColumn::make('review_note')->label('Motif')->wrap(),
-        ])->actions([
+        ])->filters([
+            DateRangeFilter::make('created_at', 'Période de dépôt'),
+            DateRangeFilter::make('declared_date', 'Période de date déclarée'),
+        ])
+        ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+        ->filtersFormColumns(3)
+        ->actions([
             Tables\Actions\Action::make('download')->label('Télécharger')
                 ->visible(fn (PaymentProof $record) => in_array($record->scan_status, ['clean', 'quarantined'], true) && auth()->user()->can('view_payment_proof'))
                 ->action(function (PaymentProof $record) {

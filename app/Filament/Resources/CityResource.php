@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\CityResource\Pages;
 use App\Models\City;
 use App\Models\Country;
@@ -104,6 +106,7 @@ class CityResource extends Resource
             ])
             ->defaultSort('name')
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
                 Tables\Filters\SelectFilter::make('country_id')
                     ->label('Filtrer par pays')
                     ->relationship('country', 'name')
@@ -113,6 +116,8 @@ class CityResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Statut active'),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(3)
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

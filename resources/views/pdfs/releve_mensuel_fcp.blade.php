@@ -416,27 +416,6 @@
         </tbody>
       </table>
 
-      <!-- 6. SECTION III. REGULARISATION -->
-      <div class="section-title">III. REGULARISATION</div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th style="width: 25%;">Total encaissé</th>
-            <th style="width: 25%;">Total des frais de souscription</th>
-            <th style="width: 25%;">Montant total des souscriptions</th>
-            <th style="width: 25%;">Montant regularisé</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="align-right text-bold">{{ $fundStatement['regularisation']['total_encaisse_display'] }}</td>
-            <td class="align-right">{{ $fundStatement['regularisation']['total_frais_display'] }}</td>
-            <td class="align-right text-bold text-green">{{ $fundStatement['regularisation']['montant_total_souscriptions_display'] }}</td>
-            <td class="align-right">{{ $fundStatement['regularisation']['montant_regularise_display'] }}</td>
-          </tr>
-        </tbody>
-      </table>
-
       <!-- 7. Encadré Valorisation Totale (Bas de page) -->
       <table class="valorisation-box-table">
         <tr>

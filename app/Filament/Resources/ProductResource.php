@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\ProductResource\Pages;
 use App\Filament\Resources\ProductResource\RelationManagers;
 use App\Models\Product;
@@ -223,10 +225,13 @@ class ProductResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
                 \App\Filament\Filters\DashboardFilter::make(static::class),
-                //
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(3)
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make('update_vl')

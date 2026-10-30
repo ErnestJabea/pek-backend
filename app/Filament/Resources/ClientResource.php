@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
 use App\Filament\Resources\ClientResource\Pages;
 use App\Models\City;
 use App\Models\Client;
@@ -272,18 +273,23 @@ class ClientResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\TrashedFilter::make(),
+                DateRangeFilter::make('created_at', 'Période d\'inscription'),
                 Tables\Filters\SelectFilter::make('categorie_client')
                     ->label('Catégorie client')
                     ->options(\App\Services\ClientCategoryService::getCategoriesByType()),
-                Tables\Filters\Filter::make('email_verified')
-                    ->label('E-mail vérifié (Actif PWA)')
-                    ->query(fn (Builder $query) => $query->whereNotNull('email_verified_at')),
-                Tables\Filters\Filter::make('email_unverified')
-                    ->label('E-mail non vérifié (En attente)')
-                    ->query(fn (Builder $query) => $query->whereNull('email_verified_at')),
+                Tables\Filters\TernaryFilter::make('email_verified_at')
+                    ->label('Statut E-mail')
+                    ->nullable()
+                    ->trueLabel('Vérifié (Actif PWA)')
+                    ->falseLabel('Non vérifié (En attente)'),
+                Tables\Filters\TrashedFilter::make(),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(4)
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(4)
             ->actions([
                 Tables\Actions\Action::make('verify_email')
                     ->label('Valider E-mail')
@@ -379,64 +385,6 @@ class ClientResource extends Resource
                         $record->last_birthday_wish_sent_at = now();
                         $record->save();
                         Notification::make()->title('Vœux d\'anniversaire envoyés')->success()->send();
-                    }),
-                Tables\Actions\Action::make('update_categorie')
-                    ->label('Catégorie')
-                    ->icon('heroicon-o-identification')
-                    ->color('warning')
-                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('update_client'))
-                    ->modalHeading('Modifier la catégorie du client')
-                    ->modalDescription('Définissez le type et la catégorie d\'investisseur du client pour ses bulletins de souscription.')
-                    ->fillForm(function (Client $record): array {
-                        $currentCategory = $record->categorie_client ?? ($record->onboardingSession?->payload['categorie_client'] ?? null);
-                        $type = \App\Services\ClientCategoryService::getTypeForCategory($currentCategory);
-
-                        if ($record->onboardingSession && (! empty($record->onboardingSession->payload['rccm']) || ! empty($record->onboardingSession->payload['denomination']))) {
-                            $type = \App\Services\ClientCategoryService::TYPE_MORALE;
-                        }
-
-                        return [
-                            'type_client' => $type,
-                            'categorie_client' => $currentCategory,
-                        ];
-                    })
-                    ->form([
-                        Forms\Components\Select::make('type_client')
-                            ->label('Type de client')
-                            ->options(\App\Services\ClientCategoryService::getTypes())
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(fn (Forms\Set $set) => $set('categorie_client', null)),
-
-                        Forms\Components\Select::make('categorie_client')
-                            ->label('Catégorie du client')
-                            ->options(fn (Forms\Get $get): array => \App\Services\ClientCategoryService::getCategoriesForType($get('type_client')))
-                            ->searchable()
-                            ->required(),
-                    ])
-                    ->action(function (Client $record, array $data) {
-                        $record->update(['categorie_client' => $data['categorie_client']]);
-
-                        if ($record->onboardingSession) {
-                            $session = $record->onboardingSession;
-                            $payload = $session->payload ?? [];
-                            $payload['categorie_client'] = $data['categorie_client'];
-                            $payload['nature_client'] = $data['type_client'] === \App\Services\ClientCategoryService::TYPE_MORALE ? 'personne_morale' : 'personne_physique';
-                            $session->payload = $payload;
-
-                            $submitted = $session->submitted_payload ?? [];
-                            $submitted['categorie_client'] = $data['categorie_client'];
-                            $submitted['nature_client'] = $payload['nature_client'];
-                            $session->submitted_payload = $submitted;
-
-                            $session->save();
-                        }
-
-                        Notification::make()
-                            ->title('Catégorie client mise à jour')
-                            ->body("La catégorie de {$record->first_name} {$record->last_name} est désormais : {$data['categorie_client']}")
-                            ->success()
-                            ->send();
                     }),
                 Tables\Actions\EditAction::make()
                     ->after(function (Client $record, array $data) {

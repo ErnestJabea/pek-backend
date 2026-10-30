@@ -62,7 +62,7 @@ class PdfDownloadController extends Controller
         $this->authorize('view', $session);
         $session->loadMissing('user');
 
-        $allowedTypes = ['piece_identite', 'piece_verso', 'signature', 'justificatif_domicile', 'photo', 'origine_fonds'];
+        $allowedTypes = ['piece_identite', 'piece_verso', 'signature', 'justificatif_domicile', 'photo', 'origine_fonds', 'profil_investisseur', 'labft', 'kyc_physique', 'rccm'];
         if (! in_array($type, $allowedTypes)) {
             abort(404);
         }
@@ -74,9 +74,11 @@ class PdfDownloadController extends Controller
             $storagePath = $session->payload['doc_piece_verso'] ?? ($session->payload['piece_verso'] ?? ($session->user?->doc_piece_verso ?? null));
         } elseif ($type === 'signature') {
             $storagePath = $session->signature_path;
+        } elseif (in_array($type, ['profil_investisseur', 'labft', 'kyc_physique', 'rccm'], true)) {
+            $storagePath = $session->payload['doc_'.$type] ?? ($session->payload[$type] ?? null);
         } else {
             $columnName = 'doc_'.$type;
-            $storagePath = $session->$columnName;
+            $storagePath = $session->$columnName ?? ($session->payload['doc_'.$type] ?? null);
         }
 
         if (! $storagePath || ! $disk->exists($storagePath)) {
@@ -149,6 +151,18 @@ class PdfDownloadController extends Controller
             'origine_fonds' => 'doc_origine_fonds',
         ];
 
+        $kycPhysique = $session->payload['doc_kyc_physique'] ?? null;
+        if ($kycPhysique && $disk->exists($kycPhysique)) {
+            $ext = pathinfo($kycPhysique, PATHINFO_EXTENSION) ?: 'pdf';
+            $zip->addFromString('1_fiche_kyc_physique.'.$ext, $disk->get($kycPhysique));
+        }
+
+        $rccmDoc = $session->payload['doc_rccm'] ?? null;
+        if ($rccmDoc && $disk->exists($rccmDoc)) {
+            $ext = pathinfo($rccmDoc, PATHINFO_EXTENSION) ?: 'pdf';
+            $zip->addFromString('document_rccm.'.$ext, $disk->get($rccmDoc));
+        }
+
         foreach ($adminDocs as $label => $column) {
             $storagePath = $session->$column;
             if ($storagePath && $disk->exists($storagePath)) {
@@ -178,8 +192,32 @@ class PdfDownloadController extends Controller
      */
     private function getPdfContent(OnboardingSession $session, string $type): string
     {
-        $storagePath = 'generated/'.$type.'_'.$session->id.'.pdf';
         $disk = Storage::disk('kyc_private');
+        $payload = $session->getSubmittedPayload() ?: ($session->payload ?? []);
+
+        // Priorité absolue aux fichiers PDF physiques téléversés depuis le backoffice
+        if ($type === 'risk' && ! empty($payload['doc_profil_investisseur'])) {
+            $physicalPath = $payload['doc_profil_investisseur'];
+            if ($disk->exists($physicalPath)) {
+                return $disk->get($physicalPath);
+            }
+        }
+
+        if ($type === 'labft' && ! empty($payload['doc_labft'])) {
+            $physicalPath = $payload['doc_labft'];
+            if ($disk->exists($physicalPath)) {
+                return $disk->get($physicalPath);
+            }
+        }
+
+        if ($type === 'kyc') {
+            $kycFile = $payload['doc_kyc_physique'] ?? null;
+            if ($kycFile && $disk->exists($kycFile)) {
+                return $disk->get($kycFile);
+            }
+        }
+
+        $storagePath = 'generated/'.$type.'_'.$session->id.'.pdf';
 
         if ($disk->exists($storagePath)) {
             return $disk->get($storagePath);

@@ -239,20 +239,20 @@
     }
     .table-financiere th, .table-financiere td {
       border: 1px solid #3B1300;
-      padding: 4px 2px;
+      padding: 4px 1.5px;
       vertical-align: middle;
     }
     .table-financiere th {
       background: #FBF6EC;
       color: #3B1300;
       font-weight: bold;
-      font-size: 8pt;
+      font-size: 7.2pt;
       line-height: 1.15;
     }
     .table-financiere td {
       font-weight: bold;
       color: #3B1300;
-      font-size: 8.5pt;
+      font-size: 8pt;
       height: 24px;
     }
     .table-financiere td.total {
@@ -472,12 +472,13 @@
   <table class="table-financiere">
     <thead>
       <tr>
-        <th style="width: 16%;">Date de<br>valeur</th>
-        <th style="width: 15%;">Nombre<br>de part</th>
-        <th style="width: 16%;">Valeur<br>liquidative</th>
-        <th style="width: 18%;">Taux de souscription<br>appliqué</th>
-        <th style="width: 17%;">Frais d'entrée TTC<br><small style="font-weight:normal; font-size: 6.5pt;">(En FCFA)</small></th>
-        <th style="width: 18%;">Montant à payer<br><small style="font-weight:normal; font-size: 6.5pt;">(En FCFA)</small></th>
+        <th style="width: 13%;">Date de<br>valeur</th>
+        <th style="width: 13%;">Nombre<br>de part</th>
+        <th style="width: 14%;">Valeur<br>liquidative</th>
+        <th style="width: 16%;">Taux de souscription<br>appliqué</th>
+        <th style="width: 15%;">Montant de<br>souscription</th>
+        <th style="width: 15%;">Montant des frais<br>TTC <span style="font-size: 6.5pt; font-weight: normal;">(En Fcfa)</span></th>
+        <th style="width: 14%;">Montant à payer<br><span style="font-size: 6.5pt; font-weight: normal;">(En Fcfa)</span></th>
       </tr>
     </thead>
     <tbody>
@@ -486,6 +487,7 @@
         <td>{{ $data['nb_parts'] }}</td>
         <td>{{ $data['valeur_liquidative'] }}</td>
         <td>{{ $data['taux_souscription'] }}</td>
+        <td>{{ $data['montant_souscription'] }}</td>
         <td>{{ $data['montant_frais'] }}</td>
         <td class="total">{{ $data['montant_total'] }}</td>
       </tr>

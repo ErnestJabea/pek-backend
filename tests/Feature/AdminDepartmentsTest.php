@@ -113,7 +113,7 @@ class AdminDepartmentsTest extends TestCase
         $this->assertTrue($user->can('viewAny', \App\Models\BankDetail::class));
         $user->forceFill(['admin_department_id' => AdminDepartment::where('name', 'Support client')->value('id')])->save();
         $this->allow($user, ['view_any_bank_detail', 'create_product_vl']);
-        $this->assertFalse($user->can('viewAny', \App\Models\BankDetail::class));
+        $this->assertTrue($user->can('viewAny', \App\Models\BankDetail::class));
         $this->assertFalse($user->can('create', \App\Models\ProductVl::class));
         $user->forceFill(['admin_department_id' => AdminDepartment::where('name', 'Gestion des fonds')->value('id')])->save();
         $this->assertTrue($user->can('create', \App\Models\ProductVl::class));

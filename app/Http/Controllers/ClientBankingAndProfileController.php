@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClientBankAccount;
+use App\Models\OnboardingSession;
 use App\Models\ProfileChangeRequest;
 use App\Services\ClientCategoryService;
 use App\Services\ProfileChangeRequestService;
@@ -10,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ClientBankingAndProfileController extends Controller
 {
@@ -142,5 +144,66 @@ class ClientBankingAndProfileController extends Controller
             'message' => 'Vos coordonnées bancaires ont bien été envoyées à l\'équipe de conformité Kori.',
             'request' => $changeRequest,
         ]);
+    }
+
+    /**
+     * Enregistre ou met à jour la signature officielle du client
+     */
+    public function updateSignature(Request $request): JsonResponse
+    {
+        $request->validate([
+            'signature' => [
+                'required',
+                'string',
+                'max:700000',
+                'regex:/^data:image\/(jpeg|png);base64,[A-Za-z0-9+\/=\r\n]+$/',
+            ],
+        ], [
+            'signature.required' => 'La signature est requise.',
+            'signature.regex' => 'Format de signature invalide (PNG ou JPEG base64 requis).',
+        ]);
+
+        $user = $request->user();
+        [$bytes, $ext] = $this->decodeSignature($request->string('signature')->toString());
+
+        $session = $user->onboardingSession;
+        if (! $session) {
+            $session = OnboardingSession::create([
+                'user_id' => $user->id,
+                'status' => 'completed',
+                'current_step' => 'completed',
+                'risk_level' => 'LOW',
+                'submitted_at' => now(),
+            ]);
+        }
+
+        $path = "signatures/sig_{$session->id}.{$ext}";
+        Storage::disk('kyc_private')->put($path, $bytes);
+        $session->signature_path = $path;
+        $session->save();
+
+        return response()->json([
+            'message' => 'Signature enregistrée avec succès.',
+            'has_signature' => true,
+        ]);
+    }
+
+    private function decodeSignature(string $dataUri): array
+    {
+        if (! preg_match('/^data:image\/(jpeg|png);base64,([A-Za-z0-9+\/=\r\n]+)$/', $dataUri, $matches)) {
+            throw ValidationException::withMessages(['signature' => 'Format de signature invalide.']);
+        }
+
+        $bytes = base64_decode($matches[2], true);
+        if ($bytes === false || strlen($bytes) > 512000) {
+            throw ValidationException::withMessages(['signature' => 'Signature invalide ou trop volumineuse.']);
+        }
+
+        $mime = @getimagesizefromstring($bytes)['mime'] ?? null;
+        if (! in_array($mime, ['image/jpeg', 'image/png'], true)) {
+            throw ValidationException::withMessages(['signature' => 'Le contenu de la signature n’est pas une image autorisée.']);
+        }
+
+        return [$bytes, $matches[1] === 'jpeg' ? 'jpg' : 'png'];
     }
 }

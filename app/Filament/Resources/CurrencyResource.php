@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\CurrencyResource\Pages;
 use App\Models\Currency;
 use Filament\Forms;
@@ -80,8 +82,10 @@ class CurrencyResource extends Resource
                     ->sortable(),
             ])
             ->filters([
-                //
+                DateRangeFilter::make('created_at', 'Période de création'),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(2)
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

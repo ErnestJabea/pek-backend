@@ -83,6 +83,11 @@ class SubscriptionBulletinService
             ?? $subscription->frais_gestion
             ?? round($montantTotal * 0.01);
 
+        $montantSouscription = (float) ($subscription->investment_amount ?: ($montantTotal - $montantFrais));
+        if ($montantSouscription <= 0 && $montantTotal > 0) {
+            $montantSouscription = $montantTotal - $montantFrais;
+        }
+
         $montantEnLettres = self::numberToFrenchWords((int) round($montantTotal));
 
         // Moyen de paiement
@@ -96,10 +101,11 @@ class SubscriptionBulletinService
 
         // 3. Signature du Client
         $signatureBase64 = null;
-        if ($session && $session->signature_path) {
+        $sigPath = $subscription->signature_path ?? ($session?->signature_path ?? null);
+        if ($sigPath) {
             $disk = Storage::disk('kyc_private');
-            if ($disk->exists($session->signature_path)) {
-                $signatureBytes = $disk->get($session->signature_path);
+            if ($disk->exists($sigPath)) {
+                $signatureBytes = $disk->get($sigPath);
                 $signatureMime = @getimagesizefromstring($signatureBytes)['mime'] ?? 'image/png';
                 $signatureBase64 = 'data:'.$signatureMime.';base64,'.base64_encode($signatureBytes);
             }
@@ -144,6 +150,7 @@ class SubscriptionBulletinService
             'nb_parts' => number_format($nbParts, 4, ',', ' '),
             'valeur_liquidative' => number_format($prixUnitaire, 2, ',', ' '),
             'taux_souscription' => $tauxSouscription,
+            'montant_souscription' => number_format($montantSouscription, 0, ',', ' '),
             'montant_frais' => number_format($montantFrais, 0, ',', ' '),
             'montant_total' => number_format($montantTotal, 0, ',', ' '),
             'montant_en_lettres' => $montantEnLettres,

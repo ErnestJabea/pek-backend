@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Actions\BankSubscriptionActions;
 use App\Filament\Actions\TableExcelExportAction;
 use App\Filament\Filters\DashboardFilter;
+use App\Filament\Filters\DateRangeFilter;
 use App\Filament\Resources\SubscriptionResource\Pages;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentEventsRelationManager;
 use App\Filament\Resources\SubscriptionResource\RelationManagers\PaymentProofsRelationManager;
@@ -517,6 +518,7 @@ class SubscriptionResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de souscription'),
                 DashboardFilter::make(static::class),
                 Tables\Filters\TernaryFilter::make('is_historical')
                     ->label('Type d\'opération')
@@ -524,6 +526,8 @@ class SubscriptionResource extends Resource
                     ->trueLabel('Souscriptions Historiques uniquement')
                     ->falseLabel('Souscriptions Directes PWA uniquement'),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(4)
             ->actions([
                 Tables\Actions\EditAction::make(),
 

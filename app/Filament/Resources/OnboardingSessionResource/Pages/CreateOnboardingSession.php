@@ -45,6 +45,7 @@ class CreateOnboardingSession extends CreateRecord
             $payload['tel'] = $payload['tel'] ?? $user->phone;
             $payload['pays_residence'] = $payload['pays_residence'] ?? ($user->country ?: 'Cameroun');
             $payload['adresse'] = $payload['adresse'] ?? $user->city;
+            $payload['ville'] = $payload['ville'] ?? ($payload['adresse'] ?? $user->city);
             $payload['categorie_client'] = $payload['categorie_client'] ?? ($user->categorie_client ?: 'Salarié secteur privé');
             $payload['nature_client'] = $payload['nature_client'] ?? ($user->nature_client ?: 'personne_physique');
             $payload['piece'] = $payload['piece'] ?? ($user->type_piece ?: 'CNI');
@@ -79,6 +80,9 @@ class CreateOnboardingSession extends CreateRecord
             ->contains(fn ($field) => ($payload[$field] ?? 'Non') === 'Oui');
 
         $data['risk_level'] = $hasAlert ? 'HIGH' : ($data['risk_level'] ?? 'LOW');
+        if (! empty($payload['adresse']) && empty($payload['ville'])) {
+            $payload['ville'] = $payload['adresse'];
+        }
         $data['payload'] = $payload;
         $data['submitted_payload'] = $payload;
 

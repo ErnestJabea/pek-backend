@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\ProductResource\RelationManagers;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -73,8 +75,10 @@ class VlsRelationManager extends RelationManager
                     ->sortable(),
             ])
             ->filters([
-                //
+                DateRangeFilter::make('date_vl', 'Période de VL'),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(2)
             ->headerActions([
                 Tables\Actions\CreateAction::make(),
             ])

@@ -577,34 +577,6 @@
                     @endif
                 </div>
 
-                {{-- SECTION III : REGULARISATION --}}
-                <div>
-                    <div class="text-xs font-extrabold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1 flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-[#E5A812]"></span>
-                        III. REGULARISATION
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="kori-statement-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 25%;">Total encaissé</th>
-                                    <th style="width: 25%;">Total des frais de souscription</th>
-                                    <th style="width: 25%;">Montant total des souscriptions</th>
-                                    <th style="width: 25%;">Montant regularisé</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td class="align-right font-black">{{ $fs['regularisation']['total_encaisse_display'] }}</td>
-                                    <td class="align-right font-semibold text-gray-500">{{ $fs['regularisation']['total_frais_display'] }}</td>
-                                    <td class="align-right font-black text-[#009A4D] dark:text-emerald-400">{{ $fs['regularisation']['montant_total_souscriptions_display'] }}</td>
-                                    <td class="align-right font-semibold">{{ $fs['regularisation']['montant_regularise_display'] }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
                 {{-- Encadré Valorisation Totale (Bas de tableau - Charte KORI officielle) --}}
                 <div class="kori-valorisation-box">
                     <div>

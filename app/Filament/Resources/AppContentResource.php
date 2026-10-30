@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Filters\DateRangeFilter;
+
 use App\Filament\Resources\AppContentResource\Pages;
 use App\Models\AppContent;
 use Filament\Forms;
@@ -164,6 +166,7 @@ class AppContentResource extends Resource
                     ->sortable(),
             ])
             ->filters([
+                DateRangeFilter::make('created_at', 'Période de création'),
                 Tables\Filters\SelectFilter::make('section')
                     ->options([
                         'subscription' => 'Souscription',
@@ -172,6 +175,8 @@ class AppContentResource extends Resource
                         'onboarding' => 'Onboarding',
                     ]),
             ])
+            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+            ->filtersFormColumns(3)
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

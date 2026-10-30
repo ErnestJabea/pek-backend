@@ -273,4 +273,138 @@ class ClientStatementService
             ],
         ];
     }
+
+    /**
+     * Détermine si une date donnée est un jour ouvrable (Lundi-Vendredi, hors jours fériés officiels CEMAC / Cameroun).
+     */
+    public function isWorkingDay(Carbon $date): bool
+    {
+        // 1. Contrôle des week-ends (Samedi & Dimanche)
+        if ($date->isWeekend()) {
+            return false;
+        }
+
+        // 2. Jours fériés légaux fixes au Cameroun / Zone CEMAC
+        $monthDay = $date->format('m-d');
+        $fixedHolidays = [
+            '01-01', // Jour de l'An
+            '02-11', // Fête de la Jeunesse
+            '05-01', // Fête du Travail
+            '05-20', // Fête Nationale
+            '08-15', // Assomption
+            '11-01', // Toussaint
+            '12-25', // Noël
+        ];
+
+        if (in_array($monthDay, $fixedHolidays, true)) {
+            return false;
+        }
+
+        // 3. Fêtes chrétiennes mobiles (calculées à partir de Pâques)
+        $year = $date->year;
+        if (function_exists('easter_date')) {
+            $easter = Carbon::createFromTimestamp(easter_date($year));
+            $variableChristianHolidays = [
+                $easter->copy()->subDays(2)->format('m-d'), // Vendredi Saint
+                $easter->copy()->addDay()->format('m-d'),    // Lundi de Pâques
+                $easter->copy()->addDays(39)->format('m-d'), // Ascension
+                $easter->copy()->addDays(50)->format('m-d'), // Lundi de Pentecôte
+            ];
+
+            if (in_array($monthDay, $variableChristianHolidays, true)) {
+                return false;
+            }
+        }
+
+        // 4. Jours fériés islamiques légaux (approximations officielles pour la zone CEMAC)
+        $islamicHolidays = [
+            2025 => ['03-31', '06-06'],
+            2026 => ['03-20', '05-27'],
+            2027 => ['03-10', '05-16'],
+            2028 => ['02-27', '05-05'],
+        ];
+
+        if (isset($islamicHolidays[$year]) && in_array($monthDay, $islamicHolidays[$year], true)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Calcule la date exacte du premier jour ouvrable du mois suivant M+1.
+     */
+    public function getFirstBusinessDayOfNextMonth(int $year, int $month): Carbon
+    {
+        // Démarre au 1er jour du mois suivant M+1 à 00:00:00
+        $cursor = Carbon::create($year, $month, 1)->addMonth()->startOfDay();
+
+        while (! $this->isWorkingDay($cursor)) {
+            $cursor->addDay();
+        }
+
+        return $cursor;
+    }
+
+    /**
+     * Génère la liste des relevés mensuels éligibles pour un client, avec statut de disponibilité et libellés.
+     */
+    public function getAvailableMonthsForClient(User|Client $client, int $maxMonths = 24): array
+    {
+        Carbon::setLocale('fr');
+        $currentDate = now()->startOfDay();
+
+        // 1. Déterminer la date de départ (1ère souscription réussie ou création de compte)
+        $firstSub = Subscription::where('user_id', $client->id)
+            ->where('statut', 'Succès')
+            ->orderBy('value_date')
+            ->orderBy('created_at')
+            ->first();
+
+        $startDate = $firstSub 
+            ? Carbon::parse($firstSub->value_date ?? $firstSub->created_at)->startOfMonth()
+            : Carbon::parse($client->created_at)->startOfMonth();
+
+        $earliestAllowed = $currentDate->copy()->subMonths($maxMonths)->startOfMonth();
+        if ($startDate->lt($earliestAllowed)) {
+            $startDate = $earliestAllowed;
+        }
+
+        $months = [];
+        $cursor = $currentDate->copy()->startOfMonth();
+
+        while ($cursor->gte($startDate)) {
+            $year = $cursor->year;
+            $month = $cursor->month;
+
+            $monthStart = $cursor->copy()->startOfMonth();
+            $monthEnd = $cursor->copy()->endOfMonth();
+
+            $firstBusinessDay = $this->getFirstBusinessDayOfNextMonth($year, $month);
+            $isAvailable = $currentDate->gte($firstBusinessDay);
+
+            $months[] = [
+                'year' => $year,
+                'month' => $month,
+                'label' => ucfirst($monthStart->translatedFormat('F Y')),
+                'period_label' => 'Du ' . $monthStart->format('d/m/Y') . ' au ' . $monthEnd->format('d/m/Y'),
+                'start_date' => $monthStart->toDateString(),
+                'end_date' => $monthEnd->toDateString(),
+                'is_current_month' => $cursor->isSameMonth($currentDate),
+                'is_available' => $isAvailable,
+                'first_business_day' => $firstBusinessDay->toDateString(),
+                'first_business_day_display' => $firstBusinessDay->translatedFormat('d/m/Y'),
+                'first_business_day_full' => ucfirst($firstBusinessDay->translatedFormat('l j F Y')),
+                'status' => $isAvailable ? 'available' : 'closing',
+                'status_label' => $isAvailable ? 'Disponible' : 'En cours de clôture',
+                'availability_message' => $isAvailable 
+                    ? 'Relevé certifié disponible au téléchargement' 
+                    : 'Disponible à compter du ' . $firstBusinessDay->translatedFormat('l j F Y'),
+            ];
+
+            $cursor->subMonth();
+        }
+
+        return $months;
+    }
 }

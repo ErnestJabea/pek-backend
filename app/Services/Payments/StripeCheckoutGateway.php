@@ -13,7 +13,22 @@ class StripeCheckoutGateway implements PaymentCheckoutGateway
     {
         $subscription->loadMissing(['user', 'product']);
 
-        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+        $frontendUrl = null;
+        if (! app()->environment('production')) {
+            $origin = request()->header('Origin') ?: request()->header('Referer');
+            if ($origin) {
+                $parsed = parse_url($origin);
+                if (! empty($parsed['scheme']) && ! empty($parsed['host'])) {
+                    $port = ! empty($parsed['port']) ? ':' . $parsed['port'] : '';
+                    $frontendUrl = $parsed['scheme'] . '://' . $parsed['host'] . $port;
+                }
+            }
+        }
+
+        if (empty($frontendUrl)) {
+            $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+        }
+
         if ($frontendUrl === '') {
             throw new RuntimeException('L’URL du frontend de paiement n’est pas configurée.');
         }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\NewSubscriptionAdminMail;
 use App\Models\BankDetail;
 use App\Models\Notification;
+use App\Models\OnboardingSession;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Subscription;
@@ -25,7 +26,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -57,6 +60,8 @@ class SubscriptionController extends Controller
             'moyen_paiement' => ['required', Rule::in(['card', 'mobile_money', 'orange_money', 'mtn_momo', 'bank_transfer'])],
             'payment_phone' => ['required_if:moyen_paiement,orange_money,mtn_momo', 'nullable', 'string', 'regex:/^2376[0-9]{8}$/'],
             'idempotency_key' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'signature' => ['sometimes', 'nullable', 'string', 'max:700000', 'regex:/^data:image\/(jpeg|png);base64,[A-Za-z0-9+\/=\r\n]+$/'],
+            'save_for_future' => ['sometimes', 'boolean'],
         ]);
 
         if (Schema::hasTable('payment_methods')) {
@@ -111,7 +116,7 @@ class SubscriptionController extends Controller
         }
 
         try {
-            [$subscription, $created] = DB::transaction(function () use ($user, $validated, $validatedSubscriptionsCount) {
+            [$subscription, $created] = DB::transaction(function () use ($user, $validated, $validatedSubscriptionsCount, $request) {
                 $existing = Subscription::query()
                     ->where('user_id', $user->id)
                     ->where('idempotency_key', $validated['idempotency_key'])
@@ -176,6 +181,33 @@ class SubscriptionController extends Controller
                     'idempotency_key' => $validated['idempotency_key'],
                     'payment_currency' => 'XAF',
                 ]);
+
+                // Enregistrement de la signature si fournie lors de la souscription
+                if (! empty($validated['signature'])) {
+                    [$sigBytes, $sigExt] = $this->decodeSignature($validated['signature']);
+                    $subSigPath = "signatures/subscriptions/sub_{$subscription->id}_".time().".{$sigExt}";
+                    Storage::disk('kyc_private')->put($subSigPath, $sigBytes);
+                    $subscription->signature_path = $subSigPath;
+
+                    // Si l'option "Utiliser cette signature pour mes prochaines transactions" est activée (cochée par défaut)
+                    if ($request->boolean('save_for_future', true)) {
+                        $session = $user->onboardingSession;
+                        if (! $session) {
+                            $session = OnboardingSession::create([
+                                'user_id' => $user->id,
+                                'status' => 'completed',
+                                'current_step' => 'completed',
+                                'risk_level' => 'LOW',
+                                'submitted_at' => now(),
+                            ]);
+                        }
+                        $profileSigPath = "signatures/sig_{$session->id}.{$sigExt}";
+                        Storage::disk('kyc_private')->put($profileSigPath, $sigBytes);
+                        $session->signature_path = $profileSigPath;
+                        $session->save();
+                    }
+                }
+
                 $subscription->forceFill([
                     'investment_amount' => $subtotal, 'subscription_fee' => $fees,
                     'bank_snapshot' => $bank?->only(['id', 'bank_name', 'beneficiary', 'iban', 'rib', 'swift', 'bank_instructions']),
@@ -237,6 +269,7 @@ class SubscriptionController extends Controller
                     ? 'Demande de souscription enregistrée.'
                     : 'Cette demande avait déjà été enregistrée.',
                 'subscription' => $subscription,
+                'has_signature' => $user->fresh()->has_signature,
                 'pek_bank_details' => $subscription->bank_snapshot ?? BankDetail::where('is_active', true)->first(),
             ], $created ? 201 : 200);
         } catch (HttpException $exception) {
@@ -842,5 +875,24 @@ class SubscriptionController extends Controller
     {
         // Keep old cached routes harmless until route:cache is rebuilt.
         abort(404);
+    }
+
+    private function decodeSignature(string $dataUri): array
+    {
+        if (! preg_match('/^data:image\/(jpeg|png);base64,([A-Za-z0-9+\/=\r\n]+)$/', $dataUri, $matches)) {
+            throw ValidationException::withMessages(['signature' => 'Format de signature invalide.']);
+        }
+
+        $bytes = base64_decode($matches[2], true);
+        if ($bytes === false || strlen($bytes) > 512000) {
+            throw ValidationException::withMessages(['signature' => 'Signature invalide ou trop volumineuse.']);
+        }
+
+        $mime = @getimagesizefromstring($bytes)['mime'] ?? null;
+        if (! in_array($mime, ['image/jpeg', 'image/png'], true)) {
+            throw ValidationException::withMessages(['signature' => 'Le contenu de la signature n’est pas une image autorisée.']);
+        }
+
+        return [$bytes, $matches[1] === 'jpeg' ? 'jpg' : 'png'];
     }
 }

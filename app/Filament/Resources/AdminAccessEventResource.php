@@ -1,5 +1,6 @@
 <?php
 namespace App\Filament\Resources;
+use App\Filament\Filters\DateRangeFilter;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -18,13 +19,18 @@ class AdminAccessEventResource extends Resource
     public static function table(Table $table): Table
     {
         return $table->defaultSort('created_at', 'desc')->columns([
-            Tables\Columns\TextColumn::make('created_at')->label('Date')->dateTime(),
+            Tables\Columns\TextColumn::make('created_at')->label('Date')->dateTime('d/m/Y H:i')->sortable(),
             Tables\Columns\TextColumn::make('actor_id')->label('Auteur (ID)'),
             Tables\Columns\TextColumn::make('user_id')->label('Compte (ID)'),
             Tables\Columns\TextColumn::make('department_id')->label('Département (ID)'),
             Tables\Columns\TextColumn::make('event')->label('Action'),
             Tables\Columns\TextColumn::make('changes')->label('Modifications')->getStateUsing(fn ($record) => json_encode($record->changes, JSON_UNESCAPED_UNICODE))->wrap(),
         ])
+        ->filters([
+            DateRangeFilter::make('created_at', 'Période d\'audit'),
+        ])
+        ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
+        ->filtersFormColumns(2)
         ->actions([
             Tables\Actions\DeleteAction::make(),
         ])

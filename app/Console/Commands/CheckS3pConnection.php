@@ -50,7 +50,7 @@ class CheckS3pConnection extends Command
             $msg = $e->getMessage();
             $status = method_exists($e, 'response') && $e->response() ? $e->response()->status() : null;
             $this->error('Échec du contrôle S3P ('.$e::class.($status ? ' HTTP '.$status : '').') : '.$msg);
-            $this->warn('Indication : Vérifier que S3P_PUBLIC_KEY et S3P_SECRET_KEY sont bien les identifiants Maviance valides pour l'URL : ' . config('payments.s3p.base_url'));
+            $this->warn('Indication : Vérifier que S3P_PUBLIC_KEY et S3P_SECRET_KEY sont bien les identifiants Maviance valides pour l\'URL : ' . config('payments.s3p.base_url'));
 
             return self::FAILURE;
         } finally {
